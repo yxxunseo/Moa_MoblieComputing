@@ -57,12 +57,12 @@ fun MoaBottomNavigationBar(
             onClick = { onNavigate("calendar") }
         )
 
-        // 그룹
+        // 모임
         MoaBottomNavItem(
-            title = "그룹",
+            title = "모임",
             icon = Icons.Default.Person, // 시안의 사람 2명 아이콘으로 추후 교체 가능
-            selected = currentRoute == "group",
-            onClick = { onNavigate("group") }
+            selected = currentRoute == "meetings",
+            onClick = { onNavigate("meetings") }
         )
 
         // 마이

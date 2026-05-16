@@ -16,6 +16,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.compose.NavHost
 import com.example.moa_project.ui.calendar.CalendarScreen
+import com.example.moa_project.ui.meetings.MeetingsScreen
+import com.example.moa_project.ui.my.MyPageScreen
+import com.example.moa_project.ui.splash.MoaSplashScreen
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -39,58 +42,63 @@ fun MainScreen() {
     // 현재 네비게이션 상태를 가져옴
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: "home"
+    val navigateBottomBar: (String) -> Unit = { route ->
+        if (route != currentRoute) {
+            if (route == "home") {
+                val poppedToHome = navController.popBackStack("home", inclusive = false)
+                if (!poppedToHome) {
+                    navController.navigate("home") {
+                        launchSingleTop = true
+                    }
+                }
+            } else {
+                navController.navigate(route) {
+                    popUpTo("home") { saveState = true }
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            }
+        }
+    }
 
     // 실제 화면 이동 및 구조 정의
     NavHost(
         navController = navController,
-        startDestination = "home",
+        startDestination = "splash",
         modifier = Modifier.fillMaxSize()
     ) {
+        composable("splash") {
+            MoaSplashScreen(
+                onSplashFinished = {
+                    navController.navigate("home") {
+                        popUpTo("splash") { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
         // 홈 화면 (초기 화면)
         composable("home") {
             InitialHomeScreen(
                 currentRoute = currentRoute,
-                onNavigate = { route ->
-                    navController.navigate(route) {
-                        popUpTo("home") { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                }
+                onNavigate = navigateBottomBar
             )
         }
         
         // 캘린더 화면 (구현됨)
         composable("calendar") {
-            CalendarScreen(currentRoute = currentRoute) { route ->
-                navController.navigate(route) {
-                    popUpTo("home") { saveState = true }
-                    launchSingleTop = true
-                    restoreState = true
-                }
-            }
+            CalendarScreen(currentRoute = currentRoute, onNavigate = navigateBottomBar)
         }
         
-        // 그룹 화면 (임시)
-        composable("group") {
-            PlaceholderScreen("그룹 화면 준비중...", currentRoute) { route ->
-                navController.navigate(route) {
-                    popUpTo("home") { saveState = true }
-                    launchSingleTop = true
-                    restoreState = true
-                }
-            }
+        // 모임 화면
+        composable("meetings") {
+            MeetingsScreen(currentRoute = currentRoute, onNavigate = navigateBottomBar)
         }
         
-        // 마이 화면 (임시)
+        // 마이 화면
         composable("my") {
-            PlaceholderScreen("마이(내 정보) 화면 준비중...", currentRoute) { route ->
-                navController.navigate(route) {
-                    popUpTo("home") { saveState = true }
-                    launchSingleTop = true
-                    restoreState = true
-                }
-            }
+            MyPageScreen(currentRoute = currentRoute, onNavigate = navigateBottomBar)
         }
     }
 }
