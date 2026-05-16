@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -141,47 +140,27 @@ fun MyPageScreen(
 
 @Composable
 private fun MyHeader() {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "마이페이지",
-                color = TextPrimary,
-                fontFamily = SBAggroFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 32.sp,
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = buildAnnotatedString {
-                    append("내 정보와 활동을 확인하세요")
-                    withStyle(SpanStyle(color = MoaBlue)) {
-                        append(" ·")
-                    }
-                },
-                color = TextSecondary,
-                fontFamily = SBAggroFontFamily,
-                fontWeight = FontWeight.Medium,
-                fontSize = 14.sp,
-            )
-        }
-        IconButton(onClick = {}) {
-            Icon(Icons.Default.Settings, contentDescription = "설정", tint = TextSecondary)
-        }
-        IconButton(onClick = {}) {
-            Box {
-                Icon(Icons.Default.Notifications, contentDescription = "알림", tint = TextSecondary)
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .size(7.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(MoaBlue),
-                )
-            }
-        }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "마이페이지",
+            color = TextPrimary,
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 32.sp,
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = buildAnnotatedString {
+                append("내 정보와 활동을 확인하세요")
+                withStyle(SpanStyle(color = MoaBlue)) {
+                    append(" ·")
+                }
+            },
+            color = TextSecondary,
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Medium,
+            fontSize = 14.sp,
+        )
     }
 }
 

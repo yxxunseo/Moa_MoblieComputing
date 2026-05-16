@@ -21,6 +21,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Button
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
+import android.widget.Toast
+import com.example.moa_project.network.RetrofitClient
 import com.example.moa_project.ui.components.MeetingActionCard
 import com.example.moa_project.ui.components.MoaBottomNavigationBar
 import com.example.moa_project.ui.theme.SBAggroFontFamily
@@ -33,6 +39,9 @@ fun InitialHomeScreen(
     onCreateMeetingClick: () -> Unit = {},
     onJoinMeetingClick: () -> Unit = {}
 ) {
+    val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+
     Scaffold(
         bottomBar = {
             // 하단 네비게이션 바 부착 (추후 프로필 이미지 전달 가능)
@@ -140,6 +149,25 @@ fun InitialHomeScreen(
                         .align(Alignment.TopEnd)
                         .offset(x = (-30).dp, y = -10.dp) // 엉덩이가 박스 위에 얹어지도록 Y축 밀어줌
                 )
+            }
+            
+            Spacer(modifier = Modifier.height(30.dp))
+            
+            // 백엔드 통신 테스트 버튼
+            Button(
+                onClick = {
+                    coroutineScope.launch {
+                        try {
+                            val response = RetrofitClient.instance.checkHealth()
+                            Toast.makeText(context, "성공! 서버 응답: ${response.message}", Toast.LENGTH_LONG).show()
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "실패! 에러: ${e.message}", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                },
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            ) {
+                Text("📡 백엔드 연결 테스트 📡")
             }
         }
     }
