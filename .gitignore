@@ -1,0 +1,66 @@
+# ============================
+# Android / Gradle
+# ============================
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# 앱 빌드 결과물
+app/build/
+
+# ============================
+# 🔴 민감 정보 - 절대 올리면 안됨!
+# ============================
+
+# Google Services (API 키 포함)
+google-services.json
+GoogleService-Info.plist
+
+# 백엔드 환경 설정 (DB 비밀번호, OAuth 시크릿 등)
+application-secret.yml
+application-prod.yml
+*.env
+.env
+.env.local
+.env.*
+
+# 인증 키 파일
+*.keystore
+*.jks
+*.p12
+*.pem
+*.key
+
+# ============================
+# IDE
+# ============================
+.idea/
+*.swp
+*.swo
+*~
+
+# ============================
+# macOS
+# ============================
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+
+# ============================
+# 로그 파일
+# ============================
+*.log
+logs/
