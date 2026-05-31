@@ -21,14 +21,28 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Immutable
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,7 +63,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import com.example.moa_project.ui.components.MoaBottomNavigationBar
+import com.example.moa_project.util.GroupFavoriteManager
 import com.example.moa_project.ui.theme.Moa_ProjectTheme
 import com.example.moa_project.ui.theme.SBAggroFontFamily
 
@@ -60,6 +76,7 @@ private val TextSecondary = Color(0xFF737C99)
 
 @Immutable
 private data class MeetingItem(
+    val groupId: Long = 0L,
     val title: String,
     val category: String,
     val categoryColor: Color,
@@ -68,6 +85,7 @@ private data class MeetingItem(
     val illustration: MeetingIllustration,
     val avatarColors: List<Color>,
     val extraMemberCount: Int = 0,
+    val isFavorite: Boolean = false,
 )
 
 private enum class MeetingIllustration {
@@ -79,71 +97,109 @@ private enum class MeetingIllustration {
     Language,
 }
 
-private val sampleMeetings = listOf(
-    MeetingItem(
-        title = "팀 프로젝트 회의",
-        category = "팀 프로젝트",
-        categoryColor = MoaBlue,
-        categoryBackground = Color(0xFFEAF1FF),
-        memberCount = 4,
-        illustration = MeetingIllustration.Team,
-        avatarColors = listOf(Color(0xFFFFC7A6), Color(0xFFFFB3B3), Color(0xFFE3C0FF), Color(0xFFFFD18C)),
-    ),
-    MeetingItem(
-        title = "전공 스터디 그룹",
-        category = "스터디",
-        categoryColor = Color(0xFF9B62FF),
-        categoryBackground = Color(0xFFF1E8FF),
-        memberCount = 5,
-        illustration = MeetingIllustration.Study,
-        avatarColors = listOf(Color(0xFFFFC7A6), Color(0xFFFFB3B3), Color(0xFFE3C0FF), Color(0xFFFFD18C), Color(0xFFFFC2D8)),
-    ),
-    MeetingItem(
-        title = "여행 계획",
-        category = "여행",
-        categoryColor = Color(0xFFFF9C1A),
-        categoryBackground = Color(0xFFFFF0D9),
-        memberCount = 3,
-        illustration = MeetingIllustration.Travel,
-        avatarColors = listOf(Color(0xFFFFC7A6), Color(0xFFFFB3B3), Color(0xFFE3C0FF)),
-    ),
-    MeetingItem(
-        title = "축구 동호회",
-        category = "스포츠",
-        categoryColor = Color(0xFF35A96D),
-        categoryBackground = Color(0xFFE3F6EC),
-        memberCount = 8,
-        illustration = MeetingIllustration.Sports,
-        avatarColors = listOf(Color(0xFFFFC7A6), Color(0xFFFFB3B3), Color(0xFFE3C0FF), Color(0xFFFFD18C), Color(0xFFFFC2D8)),
-        extraMemberCount = 4,
-    ),
-    MeetingItem(
-        title = "홈베이킹 모임",
-        category = "요리/제빵",
-        categoryColor = Color(0xFFFF6262),
-        categoryBackground = Color(0xFFFFE9EA),
-        memberCount = 4,
-        illustration = MeetingIllustration.Cooking,
-        avatarColors = listOf(Color(0xFFFFC7A6), Color(0xFFFFB3B3), Color(0xFFE3C0FF), Color(0xFFFFD18C)),
-    ),
-    MeetingItem(
-        title = "영어 회화 스터디",
-        category = "어학",
-        categoryColor = Color(0xFF5E8CFF),
-        categoryBackground = Color(0xFFEAF0FF),
-        memberCount = 4,
-        illustration = MeetingIllustration.Language,
-        avatarColors = listOf(Color(0xFFFFC7A6), Color(0xFFFFB3B3), Color(0xFFE3C0FF), Color(0xFFFFD18C)),
-    ),
+private val avatarPalette = listOf(
+    Color(0xFFFFC7A6),
+    Color(0xFFFFB3B3),
+    Color(0xFFE3C0FF),
+    Color(0xFFFFD18C),
+    Color(0xFFFFC2D8),
+    Color(0xFF90EE90),
+    Color(0xFF5E8CFF),
 )
 
+private fun avatarColorsForCount(count: Int): List<Color> =
+    avatarPalette.take(count.coerceIn(0, 4))
+
+private fun participantSummary(memberCount: Int): String {
+    return when (memberCount) {
+        0 -> "멤버 없음"
+        1 -> com.example.moa_project.network.TokenManager.getNickname()?.let { "$it (나)" } ?: "멤버 1명"
+        else -> "멤버 ${memberCount}명 참여 중"
+    }
+}
+
+private fun parseGroupColor(hex: String): Color {
+    return runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(MoaBlue)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MeetingsScreen(
     currentRoute: String = "meetings",
     onNavigate: (String) -> Unit = {},
-    onCreateMeetingClick: () -> Unit = {},
-    onMeetingClick: (String) -> Unit = {},
+    onMeetingClick: (Long) -> Unit = {},
+    onGuestScheduleResultClick: (String) -> Unit = {},
+    onNeedsReLogin: () -> Unit = {},
+    viewModel: MeetingsViewModel = viewModel(),
+    guestListViewModel: GuestScheduleListViewModel = viewModel(),
 ) {
+    val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val guestSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    var showSheet by remember { mutableStateOf(false) }
+    var showGuestSheet by remember { mutableStateOf(false) }
+    var favoriteRevision by remember { mutableStateOf(0) }
+    val favoriteIds = remember(favoriteRevision) { GroupFavoriteManager.favoriteIds(context) }
+
+    // 토큰 만료 시 즉시 로그인 화면으로 이동
+    androidx.compose.runtime.LaunchedEffect(uiState) {
+        if (uiState is MeetingsState.NeedsReLogin) {
+            onNeedsReLogin()
+        }
+    }
+
+    // 바텀 시트
+    if (showSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showSheet = false },
+            sheetState = sheetState,
+            containerColor = Color.White,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            CreateOrJoinMeetingSheet(
+                onDismiss = {
+                    scope.launch { sheetState.hide() }.invokeOnCompletion { showSheet = false }
+                },
+                onSuccess = {
+                    scope.launch { sheetState.hide() }.invokeOnCompletion {
+                        showSheet = false
+                        viewModel.fetchMyGroups() // 목록 새로고침
+                    }
+                }
+            )
+        }
+    }
+
+    if (showGuestSheet) {
+        ModalBottomSheet(
+            onDismissRequest = {
+                showGuestSheet = false
+                guestListViewModel.fetchMySchedules()
+            },
+            sheetState = guestSheetState,
+            containerColor = Color.White,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            CreateGuestScheduleSheet(
+                onDismiss = {
+                    scope.launch { guestSheetState.hide() }.invokeOnCompletion {
+                        showGuestSheet = false
+                        guestListViewModel.fetchMySchedules()
+                    }
+                },
+                onViewResult = { link ->
+                    scope.launch { guestSheetState.hide() }.invokeOnCompletion {
+                        showGuestSheet = false
+                        guestListViewModel.fetchMySchedules()
+                        onGuestScheduleResultClick(link)
+                    }
+                }
+            )
+        }
+    }
+
     Scaffold(
         bottomBar = {
             MoaBottomNavigationBar(
@@ -153,35 +209,197 @@ fun MeetingsScreen(
         },
         containerColor = ScreenBackground,
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(ScreenBackground)
-                .padding(innerPadding),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                start = 20.dp,
-                end = 20.dp,
-                top = 36.dp,
-                bottom = 18.dp,
-            ),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            item {
-                MeetingsHeader(onCreateMeetingClick = onCreateMeetingClick)
+        when (uiState) {
+            is MeetingsState.Loading -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    androidx.compose.material3.CircularProgressIndicator(color = MoaBlue)
+                }
             }
 
-            items(sampleMeetings) { meeting ->
-                MeetingListCard(
-                    meeting = meeting,
-                    onClick = { onMeetingClick(meeting.title) },
-                )
+            is MeetingsState.Error -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = (uiState as MeetingsState.Error).message,
+                            color = TextSecondary,
+                            fontFamily = SBAggroFontFamily,
+                            fontSize = 14.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        androidx.compose.material3.Button(
+                            onClick = { viewModel.fetchMyGroups() },
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MoaBlue),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                        ) {
+                            Text("다시 시도", color = Color.White, fontFamily = SBAggroFontFamily)
+                        }
+                    }
+                }
+            }
+
+            is MeetingsState.Success -> {
+                val groups = (uiState as MeetingsState.Success).groups
+                    .sortedWith(
+                        compareByDescending<com.example.moa_project.network.GroupResponse> { favoriteIds.contains(it.id) }
+                            .thenBy { it.name }
+                    )
+                val displayMeetings = groups.map { group ->
+                    val memberCount = group.memberCount.toInt()
+                    val groupColor = parseGroupColor(group.color)
+                    MeetingItem(
+                        groupId = group.id,
+                        title = group.name,
+                        category = group.description?.takeIf { it.isNotBlank() } ?: "그룹 모임",
+                        categoryColor = groupColor,
+                        categoryBackground = groupColor.copy(alpha = 0.12f),
+                        memberCount = memberCount,
+                        illustration = MeetingIllustration.Team,
+                        avatarColors = avatarColorsForCount(memberCount),
+                        extraMemberCount = if (memberCount > 4) memberCount - 4 else 0,
+                        isFavorite = favoriteIds.contains(group.id),
+                    )
+                }
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(ScreenBackground)
+                        .padding(innerPadding),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                        start = 20.dp,
+                        end = 20.dp,
+                        top = 36.dp,
+                        bottom = 18.dp,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    item {
+                        MeetingsHeader(
+                            onCreateMeetingClick = { showSheet = true },
+                            onCreateGuestScheduleClick = { showGuestSheet = true }
+                        )
+                    }
+
+                    item {
+                        MyGuestSchedulesSection(
+                            onCreateClick = { showGuestSheet = true },
+                            onViewResult = onGuestScheduleResultClick,
+                            viewModel = guestListViewModel,
+                        )
+                    }
+
+                    if (displayMeetings.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp)
+                                    .clip(RoundedCornerShape(22.dp))
+                                    .background(Color.White),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Text(
+                                        text = "🫂",
+                                        fontSize = 40.sp
+                                    )
+                                    Text(
+                                        text = "아직 참여 중인 모임이 없어요",
+                                        color = TextPrimary,
+                                        fontFamily = SBAggroFontFamily,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        text = "오른쪽 + 버튼으로 모임을 만들어보세요!",
+                                        color = TextSecondary,
+                                        fontFamily = SBAggroFontFamily,
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        items(displayMeetings) { meeting ->
+                            MeetingListCard(
+                                meeting = meeting,
+                                onClick = { onMeetingClick(meeting.groupId) },
+                                onFavoriteClick = {
+                                    GroupFavoriteManager.toggleFavorite(context, meeting.groupId)
+                                    favoriteRevision++
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+
+            is MeetingsState.NeedsReLogin -> {
+                // LaunchedEffect에서 onNeedsReLogin()이 호출됨 – 여기선 빈 로딩 표시
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    androidx.compose.material3.CircularProgressIndicator(color = MoaBlue)
+                }
+            }
+
+            else -> {
+                // Idle: 초기 로딩 트리거
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(ScreenBackground)
+                        .padding(innerPadding),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                        start = 20.dp, end = 20.dp, top = 36.dp, bottom = 18.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    item {
+                        MeetingsHeader(
+                            onCreateMeetingClick = { showSheet = true },
+                            onCreateGuestScheduleClick = { showGuestSheet = true }
+                        )
+                    }
+                    item {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(top = 60.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            androidx.compose.material3.CircularProgressIndicator(color = MoaBlue)
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun MeetingsHeader(onCreateMeetingClick: () -> Unit) {
+private fun MeetingsHeader(
+    onCreateMeetingClick: () -> Unit,
+    onCreateGuestScheduleClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -211,20 +429,37 @@ private fun MeetingsHeader(onCreateMeetingClick: () -> Unit) {
             )
         }
 
-        IconButton(
-            onClick = onCreateMeetingClick,
-            modifier = Modifier
-                .size(48.dp)
-                .shadow(8.dp, RoundedCornerShape(14.dp), spotColor = Color(0xFFDDE6FA))
-                .clip(RoundedCornerShape(14.dp))
-                .background(Color.White),
-        ) {
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = "모임 만들기",
-                tint = MoaBlue,
-                modifier = Modifier.size(26.dp),
-            )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            IconButton(
+                onClick = onCreateGuestScheduleClick,
+                modifier = Modifier
+                    .size(48.dp)
+                    .shadow(8.dp, RoundedCornerShape(14.dp), spotColor = Color(0xFFDDE6FA))
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color.White),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Share,
+                    contentDescription = "단기 일정 링크 만들기",
+                    tint = Color(0xFF35A96D),
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+            IconButton(
+                onClick = onCreateMeetingClick,
+                modifier = Modifier
+                    .size(48.dp)
+                    .shadow(8.dp, RoundedCornerShape(14.dp), spotColor = Color(0xFFDDE6FA))
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color.White),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "모임 만들기",
+                    tint = MoaBlue,
+                    modifier = Modifier.size(26.dp),
+                )
+            }
         }
     }
 }
@@ -233,6 +468,7 @@ private fun MeetingsHeader(onCreateMeetingClick: () -> Unit) {
 private fun MeetingListCard(
     meeting: MeetingItem,
     onClick: () -> Unit,
+    onFavoriteClick: () -> Unit = {},
 ) {
     Row(
         modifier = Modifier
@@ -285,11 +521,13 @@ private fun MeetingListCard(
                     .height(36.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                AvatarStack(
-                    colors = meeting.avatarColors,
-                    extraMemberCount = meeting.extraMemberCount,
-                )
-                Spacer(modifier = Modifier.width(10.dp))
+                if (meeting.memberCount > 0) {
+                    AvatarStack(
+                        colors = meeting.avatarColors,
+                        extraMemberCount = meeting.extraMemberCount,
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                }
                 Text(
                     text = participantSummary(meeting.memberCount),
                     color = TextSecondary,
@@ -300,12 +538,29 @@ private fun MeetingListCard(
             }
         }
 
-        Icon(
-            imageVector = Icons.Default.KeyboardArrowRight,
-            contentDescription = "상세 보기",
-            tint = TextSecondary,
-            modifier = Modifier.size(30.dp),
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.height(120.dp),
+        ) {
+            IconButton(
+                onClick = onFavoriteClick,
+                modifier = Modifier.size(40.dp),
+            ) {
+                Icon(
+                    imageVector = if (meeting.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = "관심 모임",
+                    tint = if (meeting.isFavorite) Color(0xFFFF6B9A) else TextSecondary,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowRight,
+                contentDescription = "상세 보기",
+                tint = TextSecondary,
+                modifier = Modifier.size(30.dp),
+            )
+        }
     }
 }
 
@@ -404,14 +659,6 @@ private fun MiniAvatar(
             topLeft = Offset(center.x - r * 0.72f, center.y + r * 0.16f),
             size = Size(r * 1.44f, r * 1.10f),
         )
-    }
-}
-
-private fun participantSummary(memberCount: Int): String {
-    return if (memberCount <= 2) {
-        "윤서, 지민"
-    } else {
-        "윤서, 지민 외 ${memberCount - 2}명"
     }
 }
 

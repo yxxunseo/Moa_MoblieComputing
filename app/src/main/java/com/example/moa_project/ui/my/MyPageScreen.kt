@@ -29,9 +29,38 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.moa_project.ui.my.UserViewModel
+import com.example.moa_project.ui.my.UserState
+import androidx.compose.ui.platform.LocalContext
+import android.content.Context
+import com.example.moa_project.ui.meetings.MeetingsViewModel
+import com.example.moa_project.ui.meetings.MeetingsState
+import com.example.moa_project.network.RetrofitClient
+import java.time.LocalDateTime
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import com.example.moa_project.network.GoogleConnectRequest
+import com.example.moa_project.util.GoogleCalendarHelper
+import com.example.moa_project.util.GroupFavoriteManager
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -72,13 +101,69 @@ private data class MyMenuItem(
     val iconColor: Color = MoaBlue,
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyPageScreen(
     currentRoute: String = "my",
     onNavigate: (String) -> Unit = {},
     onEditProfileClick: () -> Unit = {},
     onLogoutClick: () -> Unit = {},
+    userViewModel: UserViewModel = viewModel(),
+    meetingsViewModel: MeetingsViewModel = viewModel()
 ) {
+    val uiState by userViewModel.uiState.collectAsState()
+    val meetingsState by meetingsViewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var upcomingEventCount by remember { mutableStateOf("0") }
+    var favoriteCount by remember { mutableStateOf("0") }
+
+    LaunchedEffect(currentRoute) {
+        if (currentRoute == "my") {
+            favoriteCount = GroupFavoriteManager.favoriteCount(context).toString()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        meetingsViewModel.fetchMyGroups()
+        scope.launch {
+            runCatching {
+                val month = YearMonth.now().format(DateTimeFormatter.ofPattern("yyyy-MM"))
+                val response = RetrofitClient.instance.getMonthlyEvents(month)
+                val events = (response["events"] as? List<*>) ?: (response["data"] as? List<*>) ?: emptyList<Any>()
+                val count = events.count { raw ->
+                    val item = raw as? Map<*, *> ?: return@count false
+                    val startText = item["start"] as? String ?: return@count false
+                    val start = runCatching { LocalDateTime.parse(startText) }.getOrNull() ?: return@count false
+                    !start.isBefore(LocalDateTime.now())
+                }
+                upcomingEventCount = count.toString()
+            }
+        }
+    }
+
+    val groupCount = when (val state = meetingsState) {
+        is MeetingsState.Success -> state.groups.size.toString()
+        is MeetingsState.Loading -> "..."
+        else -> "0"
+    }
+
+    var showFixedSheet by remember { mutableStateOf(false) }
+    val fixedSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    if (showFixedSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showFixedSheet = false },
+            sheetState = fixedSheetState,
+            containerColor = Color.White,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        ) {
+            FixedScheduleSheet(onDismiss = {
+                scope.launch { fixedSheetState.hide() }.invokeOnCompletion { showFixedSheet = false }
+            })
+        }
+    }
+
     Scaffold(
         bottomBar = {
             MoaBottomNavigationBar(
@@ -103,17 +188,31 @@ fun MyPageScreen(
         ) {
             item { MyHeader() }
             item {
-                ProfileSummaryCard(onEditProfileClick = onEditProfileClick)
+                ProfileSummaryCard(
+                    uiState = uiState,
+                    groupCount = groupCount,
+                    favoriteCount = favoriteCount,
+                    onEditProfileClick = onEditProfileClick
+                )
             }
             item {
                 SectionTitle("활동")
                 Spacer(modifier = Modifier.height(10.dp))
                 MenuGroup(
                     items = listOf(
-                        MyMenuItem("내 일정", "예정된 일정 3개", Icons.Default.DateRange),
-                        MyMenuItem("관심 모임", "12개", Icons.Default.Favorite, Color(0xFFFF6B9A)),
+                        MyMenuItem("내 일정", "예정된 일정 ${upcomingEventCount}개", Icons.Default.DateRange),
+                        MyMenuItem("고정 일정", "시간표·알바 등록", Icons.Default.Star),
+                        MyMenuItem("관심 모임", "하트한 모임 ${favoriteCount}개", Icons.Default.Favorite, Color(0xFFFF6B9A)),
                     ),
+                    onItemClick = { title ->
+                        if (title == "고정 일정") showFixedSheet = true
+                    }
                 )
+            }
+            item {
+                SectionTitle("연동 및 알림")
+                Spacer(modifier = Modifier.height(10.dp))
+                IntegrationSettingsCard()
             }
             item {
                 SectionTitle("계정")
@@ -122,7 +221,6 @@ fun MyPageScreen(
                     items = listOf(
                         MyMenuItem("계정 정보", "이메일, 비밀번호 관리", Icons.Default.Person),
                         MyMenuItem("보안 설정", "로그인, 2단계 인증", Icons.Default.Lock),
-                        MyMenuItem("알림 설정", "모임 초대, 일정 알림", Icons.Default.Notifications),
                         MyMenuItem("고객센터", "문의하기, 이용 가이드", Icons.Default.Info),
                         MyMenuItem("앱 정보", "버전 1.0.0", Icons.Default.Settings),
                     ),
@@ -136,6 +234,176 @@ fun MyPageScreen(
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun IntegrationSettingsCard() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val sharedPreferences = remember {
+        context.getSharedPreferences("moa_settings", Context.MODE_PRIVATE)
+    }
+
+    var googleCalendarEnabled by remember {
+        mutableStateOf(sharedPreferences.getBoolean("google_calendar", false))
+    }
+    var scheduleConfirmedPush by remember {
+        mutableStateOf(sharedPreferences.getBoolean("schedule_confirmed_push", true))
+    }
+    var calendarAddedPush by remember {
+        mutableStateOf(sharedPreferences.getBoolean("calendar_added_push", true))
+    }
+
+    LaunchedEffect(Unit) {
+        runCatching {
+            val status = RetrofitClient.instance.getGoogleCalendarStatus()
+            val connected = status["connected"] as? Boolean ?: false
+            googleCalendarEnabled = connected
+            sharedPreferences.edit().putBoolean("google_calendar", connected).apply()
+        }
+    }
+
+    val googleConnectLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val authCode = GoogleCalendarHelper.extractServerAuthCode(result.data)
+        if (authCode.isNullOrBlank()) {
+            googleCalendarEnabled = false
+            sharedPreferences.edit().putBoolean("google_calendar", false).apply()
+            android.widget.Toast.makeText(context, "구글 캘린더 연동에 실패했습니다.", android.widget.Toast.LENGTH_SHORT).show()
+            return@rememberLauncherForActivityResult
+        }
+        scope.launch {
+            runCatching {
+                RetrofitClient.instance.connectGoogleCalendar(GoogleConnectRequest(authCode))
+                googleCalendarEnabled = true
+                sharedPreferences.edit().putBoolean("google_calendar", true).apply()
+                android.widget.Toast.makeText(context, "구글 캘린더가 연동되었습니다.", android.widget.Toast.LENGTH_SHORT).show()
+            }.onFailure {
+                googleCalendarEnabled = false
+                sharedPreferences.edit().putBoolean("google_calendar", false).apply()
+                android.widget.Toast.makeText(context, "구글 캘린더 연동에 실패했습니다.", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(8.dp, RoundedCornerShape(18.dp), spotColor = Color(0xFFDDE4F2))
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White)
+            .padding(vertical = 4.dp)
+    ) {
+        SettingsToggleRow(
+            title = "Google Calendar",
+            description = "외부 일정으로 불가능한 시간을 막아요",
+            icon = Icons.Default.DateRange,
+            checked = googleCalendarEnabled,
+            onCheckedChange = { isChecked ->
+                if (isChecked) {
+                    googleConnectLauncher.launch(
+                        GoogleCalendarHelper.createConnectClient(context).signInIntent
+                    )
+                } else {
+                    scope.launch {
+                        runCatching { RetrofitClient.instance.disconnectGoogleCalendar() }
+                        googleCalendarEnabled = false
+                        sharedPreferences.edit().putBoolean("google_calendar", false).apply()
+                        android.widget.Toast.makeText(context, "구글 캘린더 연동이 해제되었습니다.", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        )
+        SettingsDivider()
+        SettingsToggleRow(
+            title = "일정 확정 알림",
+            description = "최종 시간이 정해지면 알려드려요",
+            icon = Icons.Default.Notifications,
+            checked = scheduleConfirmedPush,
+            onCheckedChange = { isChecked ->
+                scheduleConfirmedPush = isChecked
+                sharedPreferences.edit().putBoolean("schedule_confirmed_push", isChecked).apply()
+            }
+        )
+        SettingsDivider()
+        SettingsToggleRow(
+            title = "캘린더 추가 알림",
+            description = "새 일정이 추가되면 알려드려요",
+            icon = Icons.Default.Notifications,
+            checked = calendarAddedPush,
+            onCheckedChange = { isChecked ->
+                calendarAddedPush = isChecked
+                sharedPreferences.edit().putBoolean("calendar_added_push", isChecked).apply()
+            }
+        )
+    }
+}
+
+@Composable
+private fun SettingsToggleRow(
+    title: String,
+    description: String,
+    icon: ImageVector,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(RoundedCornerShape(13.dp))
+                .background(Color(0xFFEAF1FF)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = MoaBlue, modifier = Modifier.size(20.dp))
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = TextPrimary,
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
+            Spacer(modifier = Modifier.height(5.dp))
+            Text(
+                text = description,
+                color = TextSecondary,
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = 11.sp
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color.White,
+                checkedTrackColor = MoaBlue,
+                uncheckedThumbColor = Color.White,
+                uncheckedTrackColor = Color(0xFFD8DEEA)
+            )
+        )
+    }
+}
+
+@Composable
+private fun SettingsDivider() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 66.dp)
+            .height(1.dp)
+            .background(Divider)
+    )
 }
 
 @Composable
@@ -165,7 +433,18 @@ private fun MyHeader() {
 }
 
 @Composable
-private fun ProfileSummaryCard(onEditProfileClick: () -> Unit) {
+private fun ProfileSummaryCard(
+    uiState: UserState,
+    groupCount: String,
+    favoriteCount: String,
+    onEditProfileClick: () -> Unit
+) {
+    val nickname = if (uiState is UserState.Success) uiState.user.nickname else "사용자"
+    val description = if (uiState is UserState.Success) {
+        if (uiState.user.provider == "LOCAL") "모아와 함께하는 중! ✨"
+        else "${uiState.user.provider} 계정 연동 완료! ✨"
+    } else "로딩 중..."
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -203,7 +482,7 @@ private fun ProfileSummaryCard(onEditProfileClick: () -> Unit) {
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "김윤서",
+                    text = nickname,
                     color = TextPrimary,
                     fontFamily = SBAggroFontFamily,
                     fontWeight = FontWeight.Bold,
@@ -211,7 +490,7 @@ private fun ProfileSummaryCard(onEditProfileClick: () -> Unit) {
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "함께하는 시간을 좋아해요! ✨",
+                    text = description,
                     color = TextSecondary,
                     fontFamily = SBAggroFontFamily,
                     fontWeight = FontWeight.Medium,
@@ -238,8 +517,6 @@ private fun ProfileSummaryCard(onEditProfileClick: () -> Unit) {
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-        MannerScoreCard()
-        Spacer(modifier = Modifier.height(16.dp))
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -251,84 +528,18 @@ private fun ProfileSummaryCard(onEditProfileClick: () -> Unit) {
         Row(modifier = Modifier.fillMaxWidth()) {
             MyStatItem(
                 title = "참여 중인 모임",
-                value = "8",
+                value = groupCount,
                 color = Color(0xFF43C879),
                 icon = Icons.Default.Person,
                 modifier = Modifier.weight(1f),
             )
             MyStatItem(
                 title = "관심 모임",
-                value = "12",
+                value = favoriteCount,
                 color = Color(0xFFFF6B9A),
                 icon = Icons.Default.Favorite,
                 modifier = Modifier.weight(1f),
             )
-        }
-    }
-}
-
-@Composable
-private fun MannerScoreCard() {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(82.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFFF0F4FF))
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Row(
-            modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(Icons.Default.Star, contentDescription = null, tint = MoaBlue, modifier = Modifier.size(24.dp))
-            Spacer(modifier = Modifier.width(10.dp))
-            Column {
-                Text(
-                    text = "모임 지수",
-                    color = TextSecondary,
-                    fontFamily = SBAggroFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "다음 레벨까지 270",
-                    color = TextSecondary,
-                    fontFamily = SBAggroFontFamily,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 10.sp,
-                )
-            }
-        }
-        Column(
-            modifier = Modifier.width(96.dp),
-            horizontalAlignment = Alignment.End,
-        ) {
-            Text(
-                text = "730",
-                color = MoaBlue,
-                fontFamily = SBAggroFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 28.sp,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color(0xFFDDE7FF)),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.70f)
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(MoaBlue),
-                )
-            }
         }
     }
 }
@@ -377,7 +588,10 @@ private fun SectionTitle(text: String) {
 }
 
 @Composable
-private fun MenuGroup(items: List<MyMenuItem>) {
+private fun MenuGroup(
+    items: List<MyMenuItem>,
+    onItemClick: (String) -> Unit = {}
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -386,7 +600,7 @@ private fun MenuGroup(items: List<MyMenuItem>) {
             .background(Color.White),
     ) {
         items.forEachIndexed { index, item ->
-            MenuRow(item)
+            MenuRow(item, onClick = { onItemClick(item.title) })
             if (index != items.lastIndex) {
                 Box(
                     modifier = Modifier
@@ -401,12 +615,12 @@ private fun MenuGroup(items: List<MyMenuItem>) {
 }
 
 @Composable
-private fun MenuRow(item: MyMenuItem) {
+private fun MenuRow(item: MyMenuItem, onClick: () -> Unit = {}) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(58.dp)
-            .clickable { }
+            .clickable(onClick = onClick)
             .padding(horizontal = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

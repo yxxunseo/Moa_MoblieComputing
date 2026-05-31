@@ -20,6 +20,16 @@ local.properties
 # 앱 빌드 결과물
 app/build/
 
+# 백엔드 빌드 결과물 (컴파일 산출물·복사된 secret 포함)
+moa-backend/build/
+
+# Gradle 캐시 (로컬)
+.gradle_home/
+
+# Python venv / 스크립트 산출물
+venv/
+compile_errors.txt
+
 # ============================
 # 🔴 민감 정보 - 절대 올리면 안됨!
 # ============================

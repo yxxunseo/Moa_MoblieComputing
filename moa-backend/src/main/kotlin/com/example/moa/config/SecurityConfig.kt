@@ -3,12 +3,15 @@ package com.example.moa.config
 import com.example.moa.security.JwtAuthFilter
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.http.HttpStatus
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer
 import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.web.authentication.HttpStatusEntryPoint
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.CorsConfigurationSource
@@ -19,6 +22,17 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 class SecurityConfig(
     private val jwtAuthFilter: JwtAuthFilter
 ) {
+    @Bean
+    fun webSecurityCustomizer(): WebSecurityCustomizer {
+        return WebSecurityCustomizer { web ->
+            web.ignoring().requestMatchers(
+                "/guest.html",
+                "/error",
+                "/favicon.ico"
+            )
+        }
+    }
+
     @Bean
     fun filterChain(http: HttpSecurity): SecurityFilterChain {
         http
@@ -31,12 +45,20 @@ class SecurityConfig(
                     .requestMatchers(
                         "/api/auth/**",
                         "/api/health",
-                        "/error"
+                        "/error",
+                        "/guest.html",
+                        "/api/guest-schedules/*",
+                        "/api/guest-schedules/*/timeslots",
+                        "/api/guest-schedules/*/analysis"
                     ).permitAll()
                     // 나머지는 JWT 필요
                     .anyRequest().authenticated()
             }
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter::class.java)
+            .exceptionHandling {
+                // 인증 실패(토큰 없음/만료) → 401, 권한 부족 → 403
+                it.authenticationEntryPoint(HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+            }
 
         return http.build()
     }

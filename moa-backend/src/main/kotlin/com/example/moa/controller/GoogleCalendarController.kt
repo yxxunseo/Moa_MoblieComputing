@@ -10,6 +10,12 @@ data class GoogleConnectRequest(
     val authCode: String
 )
 
+data class GoogleSyncRequest(
+    val title: String,
+    val start: String,
+    val end: String
+)
+
 @RestController
 @RequestMapping("/api/calendar/google")
 class GoogleCalendarController(
@@ -41,5 +47,24 @@ class GoogleCalendarController(
         val userId = userDetails.username.toLong()
         val parts = month.split("-")
         return ResponseEntity.ok(googleCalendarService.getEvents(userId, parts[0].toInt(), parts[1].toInt()))
+    }
+
+    @GetMapping("/status")
+    fun getStatus(
+        @AuthenticationPrincipal userDetails: UserDetails
+    ): ResponseEntity<Map<String, Any>> {
+        val userId = userDetails.username.toLong()
+        return ResponseEntity.ok(googleCalendarService.getConnectionStatus(userId))
+    }
+
+    @PostMapping("/sync")
+    fun syncEvent(
+        @AuthenticationPrincipal userDetails: UserDetails,
+        @RequestBody request: GoogleSyncRequest
+    ): ResponseEntity<Map<String, Any>> {
+        val userId = userDetails.username.toLong()
+        return ResponseEntity.ok(
+            googleCalendarService.syncEvent(userId, request.title, request.start, request.end)
+        )
     }
 }

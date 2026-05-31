@@ -26,6 +26,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.moa_project.R
+import com.example.moa_project.ui.theme.MoaBlue
+import com.example.moa_project.ui.theme.MoaTextSecondary
 import com.example.moa_project.ui.theme.SBAggroFontFamily
 
 @Composable
@@ -37,35 +39,28 @@ fun MoaBottomNavigationBar(
     NavigationBar(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(elevation = 8.dp),
+            .shadow(elevation = 8.dp, spotColor = Color(0xFFDDE4F2)),
         containerColor = Color.White,
         tonalElevation = 0.dp
     ) {
-        // 홈
         MoaBottomNavItem(
             title = "홈",
             icon = Icons.Default.Home,
             selected = currentRoute == "home",
             onClick = { onNavigate("home") }
         )
-
-        // 캘린더
         MoaBottomNavItem(
             title = "캘린더",
-            icon = Icons.Default.DateRange, // 시안의 그리드 모양 아이콘으로 추후 교체 가능
+            icon = Icons.Default.DateRange,
             selected = currentRoute == "calendar",
             onClick = { onNavigate("calendar") }
         )
-
-        // 모임
         MoaBottomNavItem(
             title = "모임",
-            icon = Icons.Default.Person, // 시안의 사람 2명 아이콘으로 추후 교체 가능
+            icon = Icons.Default.Person,
             selected = currentRoute == "meetings",
             onClick = { onNavigate("meetings") }
         )
-
-        // 마이
         NavigationBarItem(
             selected = currentRoute == "my",
             onClick = { onNavigate("my") },
@@ -77,25 +72,19 @@ fun MoaBottomNavigationBar(
                     modifier = Modifier
                         .size(24.dp)
                         .clip(CircleShape)
-                        .background(Color.LightGray, CircleShape),
+                        .background(MoaTextSecondary.copy(alpha = 0.2f), CircleShape),
                     contentScale = ContentScale.Crop
                 )
             },
             label = {
                 Text(
                     text = "마이",
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                    fontFamily = SBAggroFontFamily,
                     fontWeight = FontWeight.Medium,
                     fontSize = 11.sp
                 )
             },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = Color(0xFF2179FE),
-                unselectedIconColor = Color.Gray,
-                selectedTextColor = Color(0xFF2179FE),
-                unselectedTextColor = Color.Gray,
-                indicatorColor = Color.Transparent // 선택되었을 때 아이콘 뒤 배경색 투명하게
-            )
+            colors = moaNavColors(currentRoute == "my")
         )
     }
 }
@@ -120,17 +109,20 @@ private fun RowScope.MoaBottomNavItem(
         label = {
             Text(
                 text = title,
-                fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.Medium,
                 fontSize = 11.sp
             )
         },
-        colors = NavigationBarItemDefaults.colors(
-            selectedIconColor = Color(0xFF2179FE),
-            unselectedIconColor = Color.Gray,
-            selectedTextColor = Color(0xFF2179FE),
-            unselectedTextColor = Color.Gray,
-            indicatorColor = Color.Transparent
-        )
+        colors = moaNavColors(selected)
     )
 }
+
+@Composable
+private fun moaNavColors(selected: Boolean) = NavigationBarItemDefaults.colors(
+    selectedIconColor = MoaBlue,
+    unselectedIconColor = MoaTextSecondary,
+    selectedTextColor = MoaBlue,
+    unselectedTextColor = MoaTextSecondary,
+    indicatorColor = Color.Transparent
+)

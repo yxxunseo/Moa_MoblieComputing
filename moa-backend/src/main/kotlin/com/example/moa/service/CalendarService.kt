@@ -73,4 +73,30 @@ class CalendarService(
         
         calendarEventRepository.delete(event)
     }
+
+    @Transactional
+    fun updateEvent(
+        userId: Long,
+        eventId: Long,
+        title: String,
+        start: String,
+        end: String,
+        color: String
+    ): CalendarEventDto {
+        val user = userRepository.findById(userId).orElseThrow { IllegalArgumentException("사용자를 찾을 수 없습니다.") }
+        val event = calendarEventRepository.findById(eventId).orElseThrow { IllegalArgumentException("일정을 찾을 수 없습니다.") }
+
+        if (event.user?.id != user.id) {
+            throw IllegalArgumentException("수정 권한이 없습니다.")
+        }
+        if (event.source != "MANUAL") {
+            throw IllegalArgumentException("수동 등록 일정만 수정할 수 있습니다.")
+        }
+
+        event.title = title
+        event.eventStart = LocalDateTime.parse(start)
+        event.eventEnd = LocalDateTime.parse(end)
+        event.color = color
+        return calendarEventRepository.save(event).toDto()
+    }
 }

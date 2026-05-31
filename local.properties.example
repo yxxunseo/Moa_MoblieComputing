@@ -1,0 +1,16 @@
+# 이 파일을 local.properties 로 복사한 뒤 실제 값을 입력하세요.
+# local.properties 는 .gitignore 에 포함되어 GitHub에 올라가지 않습니다.
+
+sdk.dir=/path/to/Android/sdk
+
+# Android OAuth (Web client ID — Google Sign-In)
+GOOGLE_CLIENT_ID=your-google-oauth-client-id.apps.googleusercontent.com
+
+# Kakao Native App Key
+KAKAO_APP_KEY=your_kakao_native_app_key
+
+# Backend server (emulator: 10.0.2.2, real device: PC Wi-Fi IP)
+SERVER_URL=http://10.0.2.2:8080/
+
+# Optional: override guest link base URL shown in app
+# WEB_SHARE_URL=http://YOUR_PC_IP:8080

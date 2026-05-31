@@ -47,3 +47,26 @@ interface CalendarEventRepository : JpaRepository<CalendarEvent, Long> {
     @Query("SELECT e FROM CalendarEvent e WHERE e.user = :user AND YEAR(e.eventStart) = :year AND MONTH(e.eventStart) = :month")
     fun findAllByUserAndYearMonth(user: User, year: Int, month: Int): List<CalendarEvent>
 }
+
+@Repository
+interface GuestScheduleRepository : JpaRepository<GuestSchedule, Long> {
+    fun findByUniqueLink(uniqueLink: String): GuestSchedule?
+    fun findAllByCreatedBy(user: User): List<GuestSchedule>
+}
+
+@Repository
+interface GuestTimeSlotRepository : JpaRepository<GuestTimeSlot, Long> {
+    fun findAllByGuestSchedule(guestSchedule: GuestSchedule): List<GuestTimeSlot>
+    fun deleteAllByGuestScheduleAndGuestName(guestSchedule: GuestSchedule, guestName: String)
+}
+
+@Repository
+interface ScheduleReactionRepository : JpaRepository<ScheduleReaction, Long> {
+    fun findAllBySchedule(schedule: Schedule): List<ScheduleReaction>
+    fun findByScheduleAndUser(schedule: Schedule, user: User): ScheduleReaction?
+}
+
+@Repository
+interface FixedTimeSlotRepository : JpaRepository<FixedTimeSlot, Long> {
+    fun findAllByUser(user: User): List<FixedTimeSlot>
+}

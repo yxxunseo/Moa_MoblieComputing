@@ -24,10 +24,13 @@ data class ConfirmScheduleRequest(
     val confirmedEnd: String
 )
 
+data class UpsertReactionRequest(val emoji: String)
+
 @RestController
 @RequestMapping("/api")
 class ScheduleController(
-    private val scheduleService: ScheduleService
+    private val scheduleService: ScheduleService,
+    private val scheduleReactionService: ScheduleReactionService
 ) {
     // 1. 일정 조율 생성
     @PostMapping("/groups/{groupId}/schedules")
@@ -56,6 +59,16 @@ class ScheduleController(
     ): ResponseEntity<List<ScheduleResponse>> {
         val userId = userDetails.username.toLong()
         return ResponseEntity.ok(scheduleService.getGroupSchedules(userId, groupId))
+    }
+
+    // 2.5. 일정 상세 조회 (단건)
+    @GetMapping("/schedules/{id}")
+    fun getScheduleDetail(
+        @AuthenticationPrincipal userDetails: UserDetails,
+        @PathVariable id: Long
+    ): ResponseEntity<ScheduleResponse> {
+        val userId = userDetails.username.toLong()
+        return ResponseEntity.ok(scheduleService.getScheduleDetail(userId, id))
     }
 
     // 3. 내 가능 시간 입력
@@ -93,5 +106,34 @@ class ScheduleController(
             start = request.confirmedStart, 
             end = request.confirmedEnd
         ))
+    }
+
+    @GetMapping("/schedules/{id}/reactions")
+    fun getReactions(
+        @AuthenticationPrincipal userDetails: UserDetails,
+        @PathVariable id: Long
+    ): ResponseEntity<List<ReactionDto>> {
+        val userId = userDetails.username.toLong()
+        return ResponseEntity.ok(scheduleReactionService.getReactions(userId, id))
+    }
+
+    @PutMapping("/schedules/{id}/reactions")
+    fun upsertReaction(
+        @AuthenticationPrincipal userDetails: UserDetails,
+        @PathVariable id: Long,
+        @RequestBody request: UpsertReactionRequest
+    ): ResponseEntity<ReactionDto> {
+        val userId = userDetails.username.toLong()
+        return ResponseEntity.ok(scheduleReactionService.upsertReaction(userId, id, request.emoji))
+    }
+
+    @DeleteMapping("/schedules/{id}/reactions")
+    fun deleteReaction(
+        @AuthenticationPrincipal userDetails: UserDetails,
+        @PathVariable id: Long
+    ): ResponseEntity<Void> {
+        val userId = userDetails.username.toLong()
+        scheduleReactionService.deleteReaction(userId, id)
+        return ResponseEntity.noContent().build()
     }
 }

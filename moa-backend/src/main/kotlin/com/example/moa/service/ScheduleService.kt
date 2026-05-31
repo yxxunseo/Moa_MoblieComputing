@@ -13,6 +13,7 @@ import java.time.format.DateTimeFormatter
 data class ScheduleResponse(
     val id: Long,
     val title: String,
+    val description: String?,
     val status: String,
     val startDate: String,
     val endDate: String,
@@ -38,15 +39,28 @@ data class ScheduleAnalysisResponse(
     val heatmap: Map<String, Map<String, Int>>
 )
 
-fun Schedule.toResponse(respondedCount: Long, totalMembers: Long) = ScheduleResponse(
-    id = id,
-    title = title,
-    status = status,
-    startDate = startDate.toString(),
-    endDate = endDate.toString(),
-    respondedCount = respondedCount,
-    totalMembers = totalMembers
-)
+fun Schedule.toResponse(respondedCount: Long, totalMembers: Long): ScheduleResponse {
+    val displayStatus = if (
+        status == "CONFIRMED" &&
+        confirmedEnd != null &&
+        confirmedEnd!!.isBefore(LocalDateTime.now())
+    ) {
+        "DONE"
+    } else {
+        status
+    }
+
+    return ScheduleResponse(
+        id = id,
+        title = title,
+        description = description,
+        status = displayStatus,
+        startDate = startDate.toString(),
+        endDate = endDate.toString(),
+        respondedCount = respondedCount,
+        totalMembers = totalMembers
+    )
+}
 
 @Service
 class ScheduleService(
@@ -100,6 +114,16 @@ class ScheduleService(
             schedule.toResponse(respondedCount, totalMembers)
         }
     }
+
+    @Transactional(readOnly = true)
+    fun getScheduleDetail(userId: Long, scheduleId: Long): ScheduleResponse {
+        val schedule = scheduleRepository.findById(scheduleId).orElseThrow { IllegalArgumentException("일정을 찾을 수 없습니다.") }
+        val totalMembers = groupMemberRepository.countByGroup(schedule.group!!)
+        val respondedCount = timeSlotRepository.findAllBySchedule(schedule)
+            .map { it.user!!.id }.distinct().count().toLong()
+        return schedule.toResponse(respondedCount, totalMembers)
+    }
+
     
     @Transactional
     fun addTimeSlots(userId: Long, scheduleId: Long, slots: List<TimeSlotDto>): Map<String, Any> {

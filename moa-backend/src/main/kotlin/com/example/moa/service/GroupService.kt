@@ -1,6 +1,7 @@
 package com.example.moa.service
 
 import com.example.moa.controller.GroupResponse
+import com.example.moa.controller.GroupMemberResponse
 import com.example.moa.entity.GroupMember
 import com.example.moa.entity.MeetingGroup
 import com.example.moa.repository.GroupMemberRepository
@@ -94,6 +95,27 @@ class GroupService(
         }
         val count = groupMemberRepository.countByGroup(group)
         return group.toResponse(count)
+    }
+
+    @Transactional(readOnly = true)
+    fun getGroupMembers(userId: Long, groupId: Long): List<GroupMemberResponse> {
+        val user = userRepository.findById(userId).orElseThrow {
+            IllegalArgumentException("사용자를 찾을 수 없습니다.")
+        }
+        val group = groupRepository.findById(groupId).orElseThrow {
+            IllegalArgumentException("그룹을 찾을 수 없습니다.")
+        }
+        if (!groupMemberRepository.existsByGroupAndUser(group, user)) {
+            throw IllegalArgumentException("해당 그룹의 멤버가 아닙니다.")
+        }
+        return groupMemberRepository.findAllByGroup(group).map { member ->
+            GroupMemberResponse(
+                userId = member.user!!.id,
+                nickname = member.user!!.nickname,
+                role = member.role,
+                profileImageUrl = member.user!!.profileImageUrl
+            )
+        }
     }
 
     @Transactional

@@ -132,21 +132,10 @@ fun MoaSplashScreen(
             )
         }
 
-        BalloonBundle(
+        WitchGraphic(
             modifier = Modifier
                 .align(Alignment.Center)
-                .offset(y = 20.dp)
-                .alpha(characterAlpha.value)
-                .scale(characterScale.value),
-        )
-
-        Image(
-            painter = painterResource(id = R.drawable.ic_character),
-            contentDescription = "MOA 캐릭터",
-            modifier = Modifier
-                .align(Alignment.Center)
-                .offset(y = (160 + floating).dp)
-                .size(178.dp)
+                .offset(y = (20 + floating).dp)
                 .alpha(characterAlpha.value)
                 .scale(characterScale.value),
         )
@@ -200,276 +189,61 @@ private fun SplashBackground(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun BalloonBundle(modifier: Modifier = Modifier) {
-    val transition = rememberInfiniteTransition(label = "balloonFloating")
-    val leftFloat by transition.animateFloat(
-        initialValue = -6f,
-        targetValue = 7f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1420, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "leftBalloonFloat",
-    )
-    val centerFloat by transition.animateFloat(
-        initialValue = 5f,
-        targetValue = -8f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1680, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "centerBalloonFloat",
-    )
-    val rightFloat by transition.animateFloat(
-        initialValue = -4f,
-        targetValue = 9f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1240, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "rightBalloonFloat",
-    )
-
-    Canvas(
-        modifier = modifier
-            .size(width = 336.dp, height = 310.dp),
+private fun WitchGraphic(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier.size(width = 340.dp, height = 400.dp)
     ) {
-        val width = size.width
-        val height = size.height
-        val base = Offset(width * 0.50f, height * 0.82f)
-        val leftCenter = Offset(width * 0.23f - leftFloat * 0.35f, height * 0.16f + leftFloat)
-        val centerCenter = Offset(width * 0.50f + centerFloat * 0.18f, height * 0.13f + centerFloat)
-        val rightCenter = Offset(width * 0.78f + rightFloat * 0.28f, height * 0.25f + rightFloat)
+        // Draw Strings
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val stroke = Stroke(width = 1.dp.toPx(), cap = StrokeCap.Round)
+            val color = Color.White.copy(alpha = 0.8f)
+            
+            // From blue balloon to blue character
+            val path1 = Path().apply {
+                moveTo(57.dp.toPx(), 103.dp.toPx()) // balloon 1 bottom
+                cubicTo(60.dp.toPx(), 150.dp.toPx(), 90.dp.toPx(), 200.dp.toPx(), 120.dp.toPx(), 240.dp.toPx()) // character
+            }
+            drawPath(path1, color, style = stroke)
 
-        drawBalloonLine(leftCenter.copy(y = leftCenter.y + width * 0.12f), base.copy(x = width * 0.43f))
-        drawBalloonLine(centerCenter.copy(y = centerCenter.y + width * 0.15f), base)
-        drawBalloonLine(rightCenter.copy(y = rightCenter.y + width * 0.10f), base.copy(x = width * 0.58f))
+            // From orange balloon to blue character
+            val path2 = Path().apply {
+                moveTo(165.dp.toPx(), 120.dp.toPx()) // balloon 2 bottom
+                cubicTo(165.dp.toPx(), 160.dp.toPx(), 160.dp.toPx(), 200.dp.toPx(), 150.dp.toPx(), 240.dp.toPx())
+            }
+            drawPath(path2, color, style = stroke)
 
-        drawBlueBalloon(
-            center = leftCenter,
-            radius = width * 0.12f,
-        )
-        drawOrangeBalloon(
-            center = centerCenter,
-            radius = width * 0.15f,
-        )
-        drawCatBalloon(
-            center = rightCenter,
-            radius = width * 0.108f,
-        )
+            // From yellow balloon to pink character
+            val path3 = Path().apply {
+                moveTo(253.dp.toPx(), 125.dp.toPx()) // balloon 3 bottom
+                cubicTo(240.dp.toPx(), 160.dp.toPx(), 220.dp.toPx(), 200.dp.toPx(), 215.dp.toPx(), 240.dp.toPx())
+            }
+            drawPath(path3, color, style = stroke)
+        }
+
+        // Broomstick
+        DrawSplashSvg7(modifier = Modifier.offset(x = (-10).dp, y = 230.dp).size(258.dp, 137.dp))
+        
+        // Purple Character (Back)
+        DrawSplashSvg6(modifier = Modifier.offset(x = 135.dp, y = 175.dp).size(92.dp, 97.dp))
+        
+        // Broom Bristles
+        DrawSplashSvg8(modifier = Modifier.offset(x = 190.dp, y = 295.dp).size(72.dp, 56.dp))
+        
+        // Pink Character (Back Right)
+        DrawSplashSvg5(modifier = Modifier.offset(x = 195.dp, y = 210.dp).size(68.dp, 94.dp))
+
+        // Blue Character (Front)
+        DrawSplashSvg4(modifier = Modifier.offset(x = 55.dp, y = 180.dp).size(152.dp, 151.dp))
+
+        // Light Blue Balloon
+        DrawSplashSvg1(modifier = Modifier.offset(x = 20.dp, y = 30.dp).size(75.dp, 73.dp))
+        
+        // Orange Balloon
+        DrawSplashSvg2(modifier = Modifier.offset(x = 110.dp, y = 10.dp).size(110.dp, 108.dp))
+        
+        // Yellow Balloon
+        DrawSplashSvg3(modifier = Modifier.offset(x = 220.dp, y = 60.dp).size(66.dp, 65.dp))
     }
-}
-
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBalloonLine(
-    start: Offset,
-    end: Offset,
-) {
-    val path = Path().apply {
-        moveTo(start.x, start.y)
-        cubicTo(start.x, start.y + size.height * 0.28f, end.x - size.width * 0.10f, end.y - size.height * 0.24f, end.x, end.y)
-    }
-    drawPath(
-        path = path,
-        color = Color.White.copy(alpha = 0.86f),
-        style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round),
-    )
-}
-
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBalloonBase(
-    center: Offset,
-    radius: Float,
-    color: Color,
-) {
-    drawCircle(
-        brush = Brush.verticalGradient(
-            colors = listOf(color, Color.White.copy(alpha = 0.90f)),
-            startY = center.y - radius,
-            endY = center.y + radius,
-        ),
-        radius = radius,
-        center = center,
-    )
-}
-
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBlueBalloon(
-    center: Offset,
-    radius: Float,
-) {
-    val lineColor = Color(0xFF78A2E4)
-    drawBalloonBase(center, radius, Color(0xFFDDEEFF))
-
-    drawLine(color = lineColor, start = Offset(center.x - radius * 0.48f, center.y - radius * 0.28f), end = Offset(center.x - radius * 0.28f, center.y - radius * 0.08f), strokeWidth = 1.8.dp.toPx(), cap = StrokeCap.Round)
-    drawLine(color = lineColor, start = Offset(center.x + radius * 0.30f, center.y - radius * 0.08f), end = Offset(center.x + radius * 0.50f, center.y - radius * 0.24f), strokeWidth = 1.8.dp.toPx(), cap = StrokeCap.Round)
-
-    val mouth = Path().apply {
-        moveTo(center.x - radius * 0.14f, center.y + radius * 0.02f)
-        cubicTo(center.x - radius * 0.08f, center.y - radius * 0.10f, center.x + radius * 0.02f, center.y - radius * 0.10f, center.x + radius * 0.09f, center.y + radius * 0.02f)
-        cubicTo(center.x + radius * 0.13f, center.y + radius * 0.09f, center.x + radius * 0.22f, center.y + radius * 0.09f, center.x + radius * 0.28f, center.y + radius * 0.00f)
-    }
-    drawPath(mouth, lineColor, style = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round))
-
-    drawBlushSlash(Offset(center.x - radius * 0.78f, center.y - radius * 0.01f), radius, tiltRight = true)
-    drawBlushSlash(Offset(center.x + radius * 0.74f, center.y + radius * 0.02f), radius, tiltRight = false)
-}
-
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawOrangeBalloon(
-    center: Offset,
-    radius: Float,
-) {
-    val faceColor = Color(0xFFD7B99D)
-    val cheek = Color(0xFFFF8F89)
-    drawBalloonBase(center, radius, Color(0xFFFFE2BA))
-
-    drawLine(color = faceColor.copy(alpha = 0.48f), start = Offset(center.x - radius * 0.46f, center.y - radius * 0.42f), end = Offset(center.x - radius * 0.18f, center.y - radius * 0.27f), strokeWidth = 1.7.dp.toPx(), cap = StrokeCap.Round)
-    drawLine(color = faceColor.copy(alpha = 0.48f), start = Offset(center.x + radius * 0.46f, center.y - radius * 0.42f), end = Offset(center.x + radius * 0.18f, center.y - radius * 0.27f), strokeWidth = 1.7.dp.toPx(), cap = StrokeCap.Round)
-
-    drawCircle(Color(0xFFFFC477), radius = radius * 0.125f, center = Offset(center.x - radius * 0.31f, center.y - radius * 0.02f))
-    drawCircle(Color(0xFFFFC477), radius = radius * 0.125f, center = Offset(center.x + radius * 0.31f, center.y - radius * 0.02f))
-    drawOval(
-        color = cheek.copy(alpha = 0.76f),
-        topLeft = Offset(center.x - radius * 0.50f, center.y + radius * 0.16f),
-        size = Size(radius * 0.34f, radius * 0.13f),
-    )
-    drawOval(
-        color = cheek.copy(alpha = 0.76f),
-        topLeft = Offset(center.x + radius * 0.16f, center.y + radius * 0.16f),
-        size = Size(radius * 0.34f, radius * 0.13f),
-    )
-
-    val mouth = Path().apply {
-        moveTo(center.x - radius * 0.19f, center.y + radius * 0.17f)
-        cubicTo(center.x - radius * 0.11f, center.y + radius * 0.31f, center.x - radius * 0.03f, center.y + radius * 0.31f, center.x + radius * 0.02f, center.y + radius * 0.18f)
-        cubicTo(center.x + radius * 0.08f, center.y + radius * 0.31f, center.x + radius * 0.18f, center.y + radius * 0.31f, center.x + radius * 0.27f, center.y + radius * 0.17f)
-    }
-    drawPath(mouth, faceColor.copy(alpha = 0.72f), style = Stroke(width = 1.7.dp.toPx(), cap = StrokeCap.Round))
-}
-
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBlushSlash(
-    center: Offset,
-    radius: Float,
-    tiltRight: Boolean,
-) {
-    val sign = if (tiltRight) 1f else -1f
-    repeat(2) { index ->
-        val dx = index * radius * 0.10f
-        drawLine(
-            color = Color(0xFFFF8C78).copy(alpha = 0.82f),
-            start = Offset(center.x + dx, center.y + radius * 0.08f),
-            end = Offset(center.x + dx + sign * radius * 0.12f, center.y - radius * 0.08f),
-            strokeWidth = 1.5.dp.toPx(),
-            cap = StrokeCap.Round,
-        )
-    }
-}
-
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawClosedEye(
-    center: Offset,
-    radius: Float,
-    flip: Boolean = false,
-) {
-    val path = Path().apply {
-        moveTo(center.x - radius * 0.18f, center.y)
-        cubicTo(center.x - radius * 0.08f, center.y + radius * 0.10f, center.x + radius * 0.08f, center.y + radius * 0.10f, center.x + radius * 0.18f, center.y)
-    }
-    drawPath(path, Color(0xFFE99EA2), style = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round))
-}
-
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawCatMouth(
-    center: Offset,
-    radius: Float,
-) {
-    val color = Color(0xFFE99EA2)
-    drawOval(
-        color = color.copy(alpha = 0.56f),
-        topLeft = Offset(center.x - radius * 0.06f, center.y - radius * 0.03f),
-        size = Size(radius * 0.12f, radius * 0.08f),
-    )
-    val mouth = Path().apply {
-        moveTo(center.x, center.y + radius * 0.03f)
-        cubicTo(center.x - radius * 0.07f, center.y + radius * 0.16f, center.x - radius * 0.17f, center.y + radius * 0.16f, center.x - radius * 0.23f, center.y + radius * 0.05f)
-        moveTo(center.x, center.y + radius * 0.03f)
-        cubicTo(center.x + radius * 0.07f, center.y + radius * 0.16f, center.x + radius * 0.17f, center.y + radius * 0.16f, center.x + radius * 0.23f, center.y + radius * 0.05f)
-    }
-    drawPath(mouth, color, style = Stroke(width = 1.55.dp.toPx(), cap = StrokeCap.Round))
-}
-
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawCatBalloon(
-    center: Offset,
-    radius: Float,
-) {
-    val earColor = Color(0xFFFFD55D)
-    val faceColor = Color(0xFFE99EA2)
-    val leftEar = Path().apply {
-        moveTo(center.x - radius * 0.82f, center.y - radius * 0.45f)
-        lineTo(center.x - radius * 0.56f, center.y - radius * 1.13f)
-        lineTo(center.x - radius * 0.14f, center.y - radius * 0.72f)
-        close()
-    }
-    val rightEar = Path().apply {
-        moveTo(center.x + radius * 0.82f, center.y - radius * 0.45f)
-        lineTo(center.x + radius * 0.56f, center.y - radius * 1.13f)
-        lineTo(center.x + radius * 0.14f, center.y - radius * 0.72f)
-        close()
-    }
-    val leftInnerEar = Path().apply {
-        moveTo(center.x - radius * 0.66f, center.y - radius * 0.50f)
-        lineTo(center.x - radius * 0.54f, center.y - radius * 0.90f)
-        lineTo(center.x - radius * 0.28f, center.y - radius * 0.66f)
-        close()
-    }
-    val rightInnerEar = Path().apply {
-        moveTo(center.x + radius * 0.66f, center.y - radius * 0.50f)
-        lineTo(center.x + radius * 0.54f, center.y - radius * 0.90f)
-        lineTo(center.x + radius * 0.28f, center.y - radius * 0.66f)
-        close()
-    }
-
-    drawPath(leftEar, earColor)
-    drawPath(rightEar, earColor)
-    drawPath(leftInnerEar, Color(0xFFFFF1C2))
-    drawPath(rightInnerEar, Color(0xFFFFF1C2))
-    drawBalloonBase(center, radius, Color(0xFFFFEDAE))
-
-    drawClosedEye(Offset(center.x - radius * 0.30f, center.y - radius * 0.10f), radius)
-    drawClosedEye(Offset(center.x + radius * 0.30f, center.y - radius * 0.10f), radius, flip = true)
-    drawCatMouth(Offset(center.x + radius * 0.02f, center.y + radius * 0.10f), radius)
-    drawSparkle(Offset(center.x - radius * 0.72f, center.y + radius * 0.12f), radius * 0.09f, faceColor)
-    drawSparkle(Offset(center.x + radius * 0.72f, center.y + radius * 0.12f), radius * 0.09f, faceColor)
-}
-
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSparkle(
-    center: Offset,
-    radius: Float,
-    color: Color,
-) {
-    drawLine(
-        color = color,
-        start = Offset(center.x - radius, center.y),
-        end = Offset(center.x + radius, center.y),
-        strokeWidth = 1.5.dp.toPx(),
-        cap = StrokeCap.Round,
-    )
-    drawLine(
-        color = color,
-        start = Offset(center.x, center.y - radius),
-        end = Offset(center.x, center.y + radius),
-        strokeWidth = 1.5.dp.toPx(),
-        cap = StrokeCap.Round,
-    )
-    drawLine(
-        color = color.copy(alpha = 0.8f),
-        start = Offset(center.x - radius * 0.65f, center.y - radius * 0.65f),
-        end = Offset(center.x + radius * 0.65f, center.y + radius * 0.65f),
-        strokeWidth = 1.3.dp.toPx(),
-        cap = StrokeCap.Round,
-    )
-    drawLine(
-        color = color.copy(alpha = 0.8f),
-        start = Offset(center.x + radius * 0.65f, center.y - radius * 0.65f),
-        end = Offset(center.x - radius * 0.65f, center.y + radius * 0.65f),
-        strokeWidth = 1.3.dp.toPx(),
-        cap = StrokeCap.Round,
-    )
 }
 
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)

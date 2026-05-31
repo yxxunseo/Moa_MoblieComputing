@@ -27,9 +27,12 @@ data class LoginRequest(
 data class GoogleLoginRequest(val idToken: String)
 data class KakaoLoginRequest(val accessToken: String)
 
+data class RefreshRequest(val refreshToken: String)
+
 // ─── Response DTOs ─────────────────────────────────────────
 data class AuthResponse(
     val token: String,
+    val refreshToken: String,
     val isNewUser: Boolean = false,
     val user: UserResponse
 )
@@ -71,8 +74,9 @@ class AuthController(
         )
 
         val token = jwtTokenProvider.generateToken(user.id)
+        val refreshToken = jwtTokenProvider.generateRefreshToken(user.id)
         return ResponseEntity.status(HttpStatus.CREATED)
-            .body(AuthResponse(token = token, isNewUser = true, user = user.toResponse()))
+            .body(AuthResponse(token = token, refreshToken = refreshToken, isNewUser = true, user = user.toResponse()))
     }
 
     // 일반 로그인
@@ -86,7 +90,8 @@ class AuthController(
         }
 
         val token = jwtTokenProvider.generateToken(user.id)
-        return ResponseEntity.ok(AuthResponse(token = token, user = user.toResponse()))
+        val refreshToken = jwtTokenProvider.generateRefreshToken(user.id)
+        return ResponseEntity.ok(AuthResponse(token = token, refreshToken = refreshToken, user = user.toResponse()))
     }
 
     // 구글 로그인
@@ -101,6 +106,24 @@ class AuthController(
     fun kakaoLogin(@RequestBody request: KakaoLoginRequest): ResponseEntity<AuthResponse> {
         val result = oAuthService.loginWithKakao(request.accessToken)
         return ResponseEntity.ok(result)
+    }
+
+    // JWT 갱신
+    @PostMapping("/refresh")
+    fun refresh(@RequestBody request: RefreshRequest): ResponseEntity<AuthResponse> {
+        if (!jwtTokenProvider.validateToken(request.refreshToken) ||
+            !jwtTokenProvider.isRefreshToken(request.refreshToken)
+        ) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+        }
+
+        val userId = jwtTokenProvider.getUserIdFromToken(request.refreshToken)
+        val user = userRepository.findById(userId).orElse(null)
+            ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
+
+        val token = jwtTokenProvider.generateToken(user.id)
+        val refreshToken = jwtTokenProvider.generateRefreshToken(user.id)
+        return ResponseEntity.ok(AuthResponse(token = token, refreshToken = refreshToken, user = user.toResponse()))
     }
 }
 

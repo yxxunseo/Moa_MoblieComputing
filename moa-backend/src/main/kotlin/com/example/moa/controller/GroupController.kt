@@ -27,6 +27,13 @@ data class GroupResponse(
     val createdAt: String
 )
 
+data class GroupMemberResponse(
+    val userId: Long,
+    val nickname: String,
+    val role: String,
+    val profileImageUrl: String?
+)
+
 @RestController
 @RequestMapping("/api/groups")
 class GroupController(
@@ -45,6 +52,15 @@ class GroupController(
     @GetMapping("/{id}")
     fun getGroupDetail(@PathVariable id: Long): ResponseEntity<GroupResponse> {
         return ResponseEntity.ok(groupService.getGroupDetail(id))
+    }
+
+    @GetMapping("/{id}/members")
+    fun getGroupMembers(
+        @AuthenticationPrincipal userDetails: UserDetails,
+        @PathVariable id: Long
+    ): ResponseEntity<List<GroupMemberResponse>> {
+        val userId = userDetails.username.toLong()
+        return ResponseEntity.ok(groupService.getGroupMembers(userId, id))
     }
 
     @PostMapping("/join")

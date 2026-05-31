@@ -14,6 +14,13 @@ data class AddEventRequest(
     val color: String
 )
 
+data class UpdateEventRequest(
+    val title: String,
+    val start: String,
+    val end: String,
+    val color: String
+)
+
 @RestController
 @RequestMapping("/api/calendar")
 class CalendarController(
@@ -52,5 +59,22 @@ class CalendarController(
         val userId = userDetails.username.toLong()
         calendarService.deleteEvent(userId, id)
         return ResponseEntity.noContent().build()
+    }
+
+    @PutMapping("/events/{id}")
+    fun updateEvent(
+        @AuthenticationPrincipal userDetails: UserDetails,
+        @PathVariable id: Long,
+        @RequestBody request: UpdateEventRequest
+    ): ResponseEntity<CalendarEventDto> {
+        val userId = userDetails.username.toLong()
+        return ResponseEntity.ok(calendarService.updateEvent(
+            userId = userId,
+            eventId = id,
+            title = request.title,
+            start = request.start,
+            end = request.end,
+            color = request.color
+        ))
     }
 }

@@ -44,7 +44,8 @@ class OAuthService(
         )
 
         val token = jwtTokenProvider.generateToken(user.id)
-        return AuthResponse(token = token, isNewUser = isNew, user = user.toResponse())
+        val refreshToken = jwtTokenProvider.generateRefreshToken(user.id)
+        return AuthResponse(token = token, refreshToken = refreshToken, isNewUser = isNew, user = user.toResponse())
     }
 
     // 카카오 로그인 처리
@@ -74,7 +75,8 @@ class OAuthService(
         )
 
         val token = jwtTokenProvider.generateToken(user.id)
-        return AuthResponse(token = token, isNewUser = isNew, user = user.toResponse())
+        val refreshToken = jwtTokenProvider.generateRefreshToken(user.id)
+        return AuthResponse(token = token, refreshToken = refreshToken, isNewUser = isNew, user = user.toResponse())
     }
 
     private fun findOrCreateSocialUser(

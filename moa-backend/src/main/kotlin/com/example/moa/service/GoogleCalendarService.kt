@@ -90,4 +90,46 @@ class GoogleCalendarService(
         
         return mapOf("source" to "GOOGLE", "events" to mappedEvents)
     }
+
+    @Transactional(readOnly = true)
+    fun getConnectionStatus(userId: Long): Map<String, Any> {
+        val user = userRepository.findById(userId).orElseThrow { IllegalArgumentException("사용자를 찾을 수 없습니다.") }
+        return mapOf("connected" to (user.googleAccessToken != null))
+    }
+
+    @Transactional
+    fun syncEvent(userId: Long, title: String, start: String, end: String): Map<String, Any> {
+        val user = userRepository.findById(userId).orElseThrow { IllegalArgumentException("사용자를 찾을 수 없습니다.") }
+        if (user.googleAccessToken == null) {
+            return mapOf("synced" to false, "message" to "구글 캘린더가 연동되지 않았습니다.")
+        }
+
+        val credential = Credential(com.google.api.client.auth.oauth2.BearerToken.authorizationHeaderAccessMethod())
+            .setAccessToken(user.googleAccessToken)
+        val calendarService = Calendar.Builder(
+            GoogleNetHttpTransport.newTrustedTransport(),
+            GsonFactory.getDefaultInstance(),
+            credential
+        ).setApplicationName("Moa Application").build()
+
+        val startDateTime = LocalDateTime.parse(start)
+        val endDateTime = LocalDateTime.parse(end)
+        val zone = ZoneId.systemDefault()
+
+        val event = Event()
+            .setSummary(title)
+            .setStart(
+                EventDateTime()
+                    .setDateTime(DateTime(startDateTime.atZone(zone).toInstant().toEpochMilli()))
+                    .setTimeZone(zone.id)
+            )
+            .setEnd(
+                EventDateTime()
+                    .setDateTime(DateTime(endDateTime.atZone(zone).toInstant().toEpochMilli()))
+                    .setTimeZone(zone.id)
+            )
+
+        calendarService.events().insert("primary", event).execute()
+        return mapOf("synced" to true, "message" to "구글 캘린더에 일정이 추가되었습니다.")
+    }
 }

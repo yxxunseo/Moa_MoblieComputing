@@ -4,13 +4,12 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/moa_db?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true
     username: root
-    password: Yunseo2026!
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
     hibernate:
-      ddl-auto: update       # 앱 시작 시 테이블 자동 생성/업데이트
-    show-sql: true           # 실행되는 SQL 콘솔에 출력 (개발 편의용)
+      ddl-auto: update
+    show-sql: true
     properties:
       hibernate:
         format_sql: true
@@ -18,15 +17,15 @@ spring:
 
 server:
   port: 8080
+  address: 0.0.0.0
+  # 브라우저/카톡 공유용 — PC Wi-Fi IP (터미널: ipconfig getifaddr en0)
+  public-url: http://localhost:8080
 
-# JWT 설정
 jwt:
-  secret: moa-jwt-secret-key-for-mobile-computing-project-2026-very-long-secret
-  expiration: 86400000        # 24시간 (밀리초)
-  refresh-expiration: 604800000 # 7일
+  expiration: 86400000
+  refresh-expiration: 604800000
 
-# 구글 및 카카오 API 키는 안전을 위해 application-secret.yml 에서 관리합니다!
-# 리디렉션 URI만 여기에 남겨둡니다.
+# DB 비밀번호, JWT secret, OAuth 키 → application-secret.yml (Git 제외)
 google:
   redirect-uri: http://localhost:8080/api/auth/google/callback
 
