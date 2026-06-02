@@ -8,6 +8,7 @@
     :root {
       --bg: #F7F8FC;
       --main: #2179FE;
+      --green: #35A96D;
       --text: #101B33;
       --sub: #737C99;
       --border: #E8EBF2;
@@ -38,7 +39,9 @@
       border: 1px solid var(--border);
       border-radius: 12px;
       font-size: 15px;
+      outline: none;
     }
+    input[type="text"]:focus { border-color: var(--main); }
     .date-nav {
       display: flex;
       align-items: center;
@@ -87,7 +90,7 @@
       margin-top: 8px;
     }
     .primary:disabled { opacity: 0.5; cursor: not-allowed; }
-    .success {
+    .success-msg {
       background: #EAF1FF;
       border: 1px solid rgba(33, 121, 254, 0.25);
       border-radius: 14px;
@@ -98,6 +101,78 @@
     }
     .error { color: #FF6262; font-size: 13px; margin-top: 8px; }
     .loading { text-align: center; color: var(--sub); padding: 40px 0; }
+
+    /* ── 확정 배너 ── */
+    .confirmed-banner {
+      background: linear-gradient(135deg, #1a6ef5 0%, #35A96D 100%);
+      border-radius: 20px;
+      padding: 28px 20px 24px;
+      text-align: center;
+      color: #fff;
+      margin-bottom: 16px;
+      box-shadow: 0 8px 32px rgba(33, 121, 254, 0.28);
+    }
+    .confirmed-banner .badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.25);
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+    }
+    .confirmed-banner h2 {
+      margin: 0 0 6px;
+      font-size: 22px;
+      font-weight: 800;
+    }
+    .confirmed-banner .subtitle {
+      font-size: 13px;
+      opacity: 0.85;
+      margin-bottom: 20px;
+    }
+    .confirmed-time-box {
+      background: rgba(255,255,255,0.18);
+      border-radius: 14px;
+      padding: 16px;
+      backdrop-filter: blur(4px);
+    }
+    .confirmed-time-box .time-label {
+      font-size: 11px;
+      opacity: 0.8;
+      margin-bottom: 6px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+    .confirmed-time-box .time-value {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+    .confirmed-time-box .time-range {
+      font-size: 14px;
+      opacity: 0.85;
+      margin-top: 4px;
+    }
+    .thankyou-card {
+      background: var(--white);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 4px 20px rgba(16, 27, 51, 0.06);
+      text-align: center;
+    }
+    .thankyou-card .emoji { font-size: 32px; margin-bottom: 8px; }
+    .thankyou-card p { margin: 4px 0; color: var(--sub); font-size: 14px; line-height: 1.5; }
+    .pending-notice {
+      background: #FFF8E6;
+      border: 1px solid #FFD966;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 13px;
+      color: #8A6800;
+      margin-bottom: 16px;
+    }
   </style>
 </head>
 <body>
@@ -126,36 +201,74 @@
 
     async function init() {
       try {
-        const res = await fetch(`${apiBase}/api/guest-schedules/${link}`);
+        const res = await fetch(`${apiBase}/api/guest-schedules/${link}`, {
+          headers: { "ngrok-skip-browser-warning": "1" }
+        });
         if (!res.ok) throw new Error("일정을 찾을 수 없습니다.");
         schedule = await res.json();
+
         document.getElementById("title").textContent = schedule.title;
         document.getElementById("desc").textContent =
-          (schedule.description || "가능한 시간을 선택해주세요") +
-          ` · ${schedule.startDate} ~ ${schedule.endDate}`;
-        scheduleDates = dateRange(schedule.startDate, schedule.endDate);
-        currentDate = schedule.startDate;
-        renderForm();
+          (schedule.description || "") +
+          (schedule.description ? " · " : "") +
+          `${schedule.startDate} ~ ${schedule.endDate}`;
+
+        if (schedule.status === "CONFIRMED" || schedule.status === "DONE") {
+          renderConfirmed();
+        } else {
+          scheduleDates = dateRange(schedule.startDate, schedule.endDate);
+          currentDate = schedule.startDate;
+          renderForm();
+        }
       } catch (e) {
         document.getElementById("title").textContent = "오류";
         document.getElementById("content").innerHTML = `<p class="error">${e.message}</p>`;
       }
     }
 
-    function dateRange(start, end) {
-      const dates = [];
-      let d = new Date(start + "T00:00:00");
-      const last = new Date(end + "T00:00:00");
-      while (d <= last) {
-        dates.push(d.toISOString().slice(0, 10));
-        d.setDate(d.getDate() + 1);
-      }
-      return dates;
+    /* ── 확정된 경우 화면 ── */
+    function renderConfirmed() {
+      const start = schedule.confirmedStart;
+      const end   = schedule.confirmedEnd;
+
+      const fmtDate = (dt) => {
+        if (!dt) return "";
+        const [date] = dt.split("T");
+        const [y, m, d] = date.split("-");
+        const weekday = ["일", "월", "화", "수", "목", "금", "토"][new Date(date).getDay()];
+        return `${m}월 ${d}일(${weekday})`;
+      };
+      const fmtTime = (dt) => dt ? dt.split("T")[1]?.substring(0, 5) : "";
+
+      const dateStr = fmtDate(start);
+      const startTime = fmtTime(start);
+      const endTime   = fmtTime(end);
+      const isDone = schedule.status === "DONE";
+
+      document.getElementById("content").innerHTML = `
+        <div class="confirmed-banner">
+          <div class="badge">${isDone ? "✅ 완료된 일정" : "🎉 일정 확정"}</div>
+          <h2>확정 시간이 정해졌어요!</h2>
+          <p class="subtitle">${schedule.title}</p>
+          <div class="confirmed-time-box">
+            <div class="time-label">📅 확정된 일정</div>
+            <div class="time-value">${dateStr}</div>
+            <div class="time-range">⏰ ${startTime} ~ ${endTime}</div>
+          </div>
+        </div>
+        <div class="thankyou-card">
+          <div class="emoji">🙌</div>
+          <p><strong>일정이 확정되었습니다!</strong></p>
+          <p>참여해 주셔서 감사해요.<br/>좋은 시간 되세요 😊</p>
+        </div>
+      `;
     }
 
+    /* ── 아직 미확정인 경우 입력 폼 ── */
     function renderForm() {
       const idx = scheduleDates.indexOf(currentDate);
       document.getElementById("content").innerHTML = `
+        <div class="pending-notice">⏳ 아직 일정이 확정되지 않았어요. 가능한 시간을 선택해 제출해주세요!</div>
         <div class="card">
           <label for="name">이름</label>
           <input id="name" type="text" placeholder="예: 홍길동" maxlength="20" value="${escapeHtml(guestName)}" />
@@ -172,13 +285,22 @@
         <p class="error" id="err" hidden></p>
       `;
 
-      const nameInput = document.getElementById("name");
-      nameInput.addEventListener("input", (e) => { guestName = e.target.value; });
-
+      document.getElementById("name").addEventListener("input", (e) => { guestName = e.target.value; });
       renderHours();
       document.getElementById("prev").onclick = () => moveDate(-1);
       document.getElementById("next").onclick = () => moveDate(1);
       document.getElementById("submit").onclick = submitSlots;
+    }
+
+    function dateRange(start, end) {
+      const dates = [];
+      let d = new Date(start + "T00:00:00");
+      const last = new Date(end + "T00:00:00");
+      while (d <= last) {
+        dates.push(d.toISOString().slice(0, 10));
+        d.setDate(d.getDate() + 1);
+      }
+      return dates;
     }
 
     function moveDate(delta) {
@@ -228,16 +350,8 @@
       guestName = document.getElementById("name").value.trim();
       const err = document.getElementById("err");
       err.hidden = true;
-      if (!guestName) {
-        err.textContent = "이름을 입력해주세요.";
-        err.hidden = false;
-        return;
-      }
-      if (selected.size === 0) {
-        err.textContent = "최소 1개 이상의 시간을 선택해주세요.";
-        err.hidden = false;
-        return;
-      }
+      if (!guestName) { err.textContent = "이름을 입력해주세요."; err.hidden = false; return; }
+      if (selected.size === 0) { err.textContent = "최소 1개 이상의 시간을 선택해주세요."; err.hidden = false; return; }
 
       const slots = [...selected].sort().map(start => {
         const [date, time] = start.split("T");
@@ -253,14 +367,14 @@
       try {
         const res = await fetch(`${apiBase}/api/guest-schedules/${link}/timeslots`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "1" },
           body: JSON.stringify({ guestName, slots })
         });
         if (!res.ok) throw new Error("제출에 실패했습니다.");
         document.getElementById("content").innerHTML = `
-          <div class="success">
-            <strong>${escapeHtml(guestName)}</strong>님, 가능 시간이 등록되었습니다!<br/>
-            주최자가 일정을 확정하면 알려드릴게요.
+          <div class="success-msg">
+            ✅ <strong>${escapeHtml(guestName)}</strong>님의 가능 시간이 등록되었습니다!<br/>
+            주최자가 일정을 확정하면 이 페이지에서 확인할 수 있어요.
           </div>
         `;
       } catch (e) {
