@@ -1,6 +1,6 @@
 spring:
-  profiles:
-    include: secret
+  config:
+    import: optional:classpath:application-secret.yml
   datasource:
     # 로컬: localhost MySQL / Railway: 환경변수 MYSQL_URL 주입
     url: ${MYSQL_URL:jdbc:mysql://localhost:3306/moa_db?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true}
