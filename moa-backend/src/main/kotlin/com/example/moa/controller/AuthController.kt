@@ -14,13 +14,14 @@ import org.springframework.web.bind.annotation.*
 
 // ─── Request DTOs ──────────────────────────────────────────
 data class SignupRequest(
+    @field:NotBlank val loginId: String,
     @field:Email val email: String,
     @field:NotBlank val password: String,
     @field:NotBlank val nickname: String
 )
 
 data class LoginRequest(
-    @field:Email val email: String,
+    @field:NotBlank val loginId: String,
     @field:NotBlank val password: String
 )
 
@@ -39,13 +40,14 @@ data class AuthResponse(
 
 data class UserResponse(
     val id: Long,
+    val loginId: String?,
     val email: String?,
     val nickname: String,
     val provider: String,
     val profileImageUrl: String?
 )
 
-fun User.toResponse() = UserResponse(id, email, nickname, provider, profileImageUrl)
+fun User.toResponse() = UserResponse(id, loginId, email, nickname, provider, profileImageUrl)
 
 // ─── Controller ────────────────────────────────────────────
 @RestController
@@ -59,13 +61,14 @@ class AuthController(
     // 일반 회원가입
     @PostMapping("/signup")
     fun signup(@Valid @RequestBody request: SignupRequest): ResponseEntity<AuthResponse> {
-        if (userRepository.existsByEmail(request.email)) {
+        if (userRepository.existsByLoginId(request.loginId) || userRepository.existsByEmail(request.email)) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(null)
         }
 
         val user = userRepository.save(
             User(
+                loginId = request.loginId,
                 email = request.email,
                 password = passwordEncoder.encode(request.password),
                 nickname = request.nickname,
@@ -82,7 +85,7 @@ class AuthController(
     // 일반 로그인
     @PostMapping("/login")
     fun login(@Valid @RequestBody request: LoginRequest): ResponseEntity<AuthResponse> {
-        val user = userRepository.findByEmail(request.email)
+        val user = userRepository.findByLoginId(request.loginId)
             ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build()
 
         if (user.password == null || !passwordEncoder.matches(request.password, user.password)) {

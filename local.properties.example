@@ -9,8 +9,11 @@ GOOGLE_CLIENT_ID=your-google-oauth-client-id.apps.googleusercontent.com
 # Kakao Native App Key
 KAKAO_APP_KEY=your_kakao_native_app_key
 
-# Backend server (emulator: 10.0.2.2, real device: PC Wi-Fi IP)
+# Backend server (emulator: 10.0.2.2, real device on same Wi-Fi: PC Wi-Fi IP)
 SERVER_URL=http://10.0.2.2:8080/
 
-# Optional: override guest link base URL shown in app
-# WEB_SHARE_URL=http://YOUR_PC_IP:8080
+# 단기 일정 링크 공유용 공개 URL (카카오톡·문자 등 외부 공유 시 필수)
+# 로컬 개발: ngrok http 8080 실행 후 아래에 ngrok URL 입력
+# 배포: Railway/Render 등 배포 URL 입력
+# 예: WEB_SHARE_URL=https://abc123.ngrok-free.app
+WEB_SHARE_URL=

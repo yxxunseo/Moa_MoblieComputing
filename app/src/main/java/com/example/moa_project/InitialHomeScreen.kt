@@ -15,6 +15,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -33,8 +34,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Share
@@ -55,6 +56,7 @@ import com.example.moa_project.ui.meetings.MeetingsViewModel
 import com.example.moa_project.ui.my.UserState
 import com.example.moa_project.ui.my.UserViewModel
 import com.example.moa_project.ui.theme.SBAggroFontFamily
+import androidx.core.graphics.toColorInt
 import kotlinx.coroutines.launch
 import java.time.format.DateTimeFormatter
 
@@ -63,8 +65,6 @@ import java.time.format.DateTimeFormatter
 fun InitialHomeScreen(
     currentRoute: String = "home",
     onNavigate: (String) -> Unit = {},
-    onCreateMeetingClick: () -> Unit = {},
-    onJoinMeetingClick: () -> Unit = {},
     onGuestScheduleResultClick: (String) -> Unit = {},
     userViewModel: UserViewModel = viewModel(),
     dashboardViewModel: HomeDashboardViewModel = viewModel(),
@@ -96,8 +96,9 @@ fun InitialHomeScreen(
     val scope = rememberCoroutineScope()
     var showSheet by remember { mutableStateOf(false) }
     var showGuestSheet by remember { mutableStateOf(false) }
+    var guestCreateKey by remember { mutableIntStateOf(0) }
     // 0 = 만들기 탭, 1 = 입장 탭
-    var sheetInitialTab by remember { mutableStateOf(0) }
+    var sheetInitialTab by remember { mutableIntStateOf(0) }
 
     if (showGuestSheet) {
         ModalBottomSheet(
@@ -110,6 +111,7 @@ fun InitialHomeScreen(
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         ) {
             CreateGuestScheduleSheet(
+                viewModel = viewModel(key = "guest_create_$guestCreateKey"),
                 onDismiss = {
                     scope.launch { guestSheetState.hide() }.invokeOnCompletion {
                         showGuestSheet = false
@@ -154,7 +156,7 @@ fun InitialHomeScreen(
     Scaffold(
         bottomBar = {
             // 하단 네비게이션 바 부착 (추후 프로필 이미지 전달 가능)
-            com.example.moa_project.ui.components.MoaBottomNavigationBar(
+            MoaBottomNavigationBar(
                 currentRoute = currentRoute,
                 profileImageResId = null, // 기본값 ic_character 사용
                 onNavigate = onNavigate
@@ -207,7 +209,7 @@ fun InitialHomeScreen(
                     state = dashboardState,
                     onCalendarClick = { onNavigate("calendar") },
                     onMeetingsClick = { onNavigate("meetings") },
-                    onCreateGuestClick = { showGuestSheet = true },
+                    onCreateGuestClick = { guestCreateKey++; showGuestSheet = true },
                     onGuestResultClick = onGuestScheduleResultClick,
                     guestListViewModel = guestListViewModel,
                 )
@@ -221,7 +223,7 @@ fun InitialHomeScreen(
                         sheetInitialTab = 1
                         showSheet = true
                     },
-                    onGuestScheduleClick = { showGuestSheet = true },
+                    onGuestScheduleClick = { guestCreateKey++; showGuestSheet = true },
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))
@@ -281,7 +283,7 @@ private fun OnboardingActionSection(
                 description = "초대코드나 링크로\n모임에 참여해요",
                 icon = {
                     Icon(
-                        imageVector = Icons.Default.ArrowForward,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = "입장하기",
                         modifier = Modifier.size(24.dp)
                     )
@@ -317,7 +319,7 @@ private fun OnboardingActionSection(
                 .zIndex(1f)
                 .size(85.dp)
                 .align(Alignment.TopEnd)
-                .offset(x = (-30).dp, y = -10.dp)
+                .offset(x = (-30).dp, y = (-10).dp)
         )
     }
 }
@@ -560,5 +562,5 @@ private fun DashboardMessage(text: String) {
 }
 
 private fun parseColor(hex: String): Color {
-    return runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(Color(0xFF2179FE))
+    return runCatching { Color(hex.toColorInt()) }.getOrDefault(Color(0xFF2179FE))
 }

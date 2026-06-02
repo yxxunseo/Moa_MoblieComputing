@@ -4,14 +4,15 @@ data class GoogleLoginRequest(val idToken: String)
 
 data class KakaoLoginRequest(val accessToken: String)
 
-data class EmailLoginRequest(val email: String, val password: String)
+data class EmailLoginRequest(val loginId: String, val password: String)
 
-data class SignupRequest(val email: String, val password: String, val nickname: String)
+data class SignupRequest(val loginId: String, val email: String, val password: String, val nickname: String)
 
 data class UpdateProfileRequest(val nickname: String, val profileImageUrl: String? = null)
 
 data class UserResponse(
     val id: Long,
+    val loginId: String?,
     val email: String?,
     val nickname: String,
     val provider: String,

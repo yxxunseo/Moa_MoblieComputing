@@ -172,8 +172,6 @@ fun MainScreen(initialScheduleLink: String? = null) {
             InitialHomeScreen(
                 currentRoute = currentRoute,
                 onNavigate = navigateBottomBar,
-                onCreateMeetingClick = { navigateBottomBar("meetings") },
-                onJoinMeetingClick = { navigateBottomBar("meetings") },
                 onGuestScheduleResultClick = { link ->
                     navController.navigate("schedule_result/$link")
                 },
@@ -373,6 +371,7 @@ private fun GroupScheduleCoordinationRoute(
         endDate = endDate,
         isGuest = false,
         blockedSlots = blockedSlots,
+        coordinationKey = "group_$scheduleId",
         onBackClick = onBackClick,
         onSubmitClick = { _, slots ->
             viewModel.submitTimeSlots(slots, onSubmitSuccess)
@@ -385,7 +384,9 @@ private fun GuestScheduleCoordinationRoute(
     link: String,
     onBackClick: () -> Unit,
     onSubmitSuccess: () -> Unit,
-    viewModel: com.example.moa_project.ui.schedule.GuestScheduleViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    viewModel: com.example.moa_project.ui.schedule.GuestScheduleViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+        key = "guest_coord_$link"
+    )
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -433,6 +434,7 @@ private fun GuestScheduleCoordinationRoute(
                 startDate = startDate,
                 endDate = endDate,
                 isGuest = true,
+                coordinationKey = link,
                 onBackClick = onBackClick,
                 onSubmitClick = { guestName, slots ->
                     viewModel.submitTimeSlots(link, guestName, slots)

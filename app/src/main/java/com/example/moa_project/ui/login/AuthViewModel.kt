@@ -111,12 +111,12 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    fun loginWithEmail(email: String, password: String, onSuccess: () -> Unit = {}) {
+    fun loginWithEmail(loginId: String, password: String, onSuccess: () -> Unit = {}) {
         _loginState.value = LoginState.Loading
         viewModelScope.launch {
             try {
                 val response = RetrofitClient.instance.loginWithEmail(
-                    com.example.moa_project.network.EmailLoginRequest(email, password)
+                    com.example.moa_project.network.EmailLoginRequest(loginId, password)
                 )
                 TokenManager.saveTokens(response.token, response.refreshToken)
                 TokenManager.saveUserInfo(response.user.id, response.user.nickname)
@@ -133,12 +133,12 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    fun signup(email: String, password: String, nickname: String, onSuccess: () -> Unit = {}) {
+    fun signup(loginId: String, email: String, password: String, nickname: String, onSuccess: () -> Unit = {}) {
         _loginState.value = LoginState.Loading
         viewModelScope.launch {
             try {
                 val response = RetrofitClient.instance.signup(
-                    com.example.moa_project.network.SignupRequest(email, password, nickname)
+                    com.example.moa_project.network.SignupRequest(loginId, email, password, nickname)
                 )
                 TokenManager.saveTokens(response.token, response.refreshToken)
                 TokenManager.saveUserInfo(response.user.id, response.user.nickname)
@@ -146,7 +146,7 @@ class AuthViewModel : ViewModel() {
                 onSuccess()
             } catch (e: retrofit2.HttpException) {
                 val msg = when (e.code()) {
-                    409 -> "이미 사용 중인 이메일입니다."
+                    409 -> "이미 사용 중인 아이디 또는 이메일입니다."
                     400 -> "입력 정보를 확인해주세요."
                     else -> "회원가입 실패 (${e.code()})"
                 }

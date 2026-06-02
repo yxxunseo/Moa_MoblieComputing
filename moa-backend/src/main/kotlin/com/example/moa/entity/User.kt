@@ -10,6 +10,10 @@ data class User(
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0,
 
+    // 일반 로그인 아이디 (LOCAL 가입 시 사용)
+    @Column(name = "login_id", unique = true, nullable = true)
+    var loginId: String? = null,
+
     @Column(unique = true, nullable = true)
     var email: String? = null,
 

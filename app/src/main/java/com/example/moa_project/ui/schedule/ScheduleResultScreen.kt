@@ -33,9 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,7 +91,7 @@ fun ScheduleResultScreen(
     uniqueLink: String = "DEMO",
     onBackClick: () -> Unit = {},
     onConfirmClick: () -> Unit = {},
-    viewModel: GuestScheduleViewModel = viewModel()
+    viewModel: GuestScheduleViewModel = viewModel(key = "guest_result_$uniqueLink")
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
@@ -172,7 +170,11 @@ fun ScheduleResultScreen(
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "멤버들의 일정을 분석한 결과입니다.",
+                        text = when {
+                            isLoading -> "참여자 응답을 불러오는 중..."
+                            totalCount == 0 -> "링크를 공유하고 참여자들의 가능 시간을 기다려주세요."
+                            else -> "참여자 ${totalCount}명의 응답을 분석한 결과입니다."
+                        },
                         fontFamily = SBAggroFontFamily,
                         fontWeight = FontWeight.Medium,
                         fontSize = 14.sp,
@@ -202,11 +204,12 @@ fun ScheduleResultScreen(
                 }
             } else if (recommendations.isEmpty()) {
                 item {
-                    Text(
-                        text = "아직 참여자가 없거나 추천 시간을 계산할 수 없습니다.",
-                        color = TextSecondary,
-                        fontFamily = SBAggroFontFamily,
-                        fontSize = 14.sp
+                    EmptyGuestResultCard(
+                        message = if (totalCount == 0) {
+                            "아직 참여자가 없어요.\n링크를 공유하면 브라우저에서 이름과 가능 시간을 입력할 수 있어요."
+                        } else {
+                            "참여자는 있지만 겹치는 시간을 찾지 못했어요."
+                        }
                     )
                 }
             } else {
@@ -599,23 +602,42 @@ private fun ReactionBar(
 }
 
 @Composable
+private fun EmptyGuestResultCard(message: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White)
+            .padding(20.dp)
+    ) {
+        Text(
+            text = message,
+            color = TextSecondary,
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Medium,
+            fontSize = 14.sp,
+            lineHeight = 22.sp
+        )
+    }
+}
+
+@Composable
 private fun HeatmapPreview(heatmap: Map<String, Map<String, Int>>? = null) {
-    val dates = heatmap?.keys?.sorted()?.take(4).orEmpty()
+    val dates = heatmap?.keys?.sorted().orEmpty()
     val hours = heatmap
         ?.values
         ?.flatMap { it.keys }
         ?.distinct()
         ?.sorted()
-        ?.take(4)
         .orEmpty()
     val maxCount = heatmap
         ?.values
         ?.flatMap { it.values }
         ?.maxOrNull()
-        ?.coerceAtLeast(1) ?: 5
+        ?.coerceAtLeast(1) ?: 1
     val hasRealHeatmap = dates.isNotEmpty() && hours.isNotEmpty()
-    val displayDates = if (hasRealHeatmap) dates else listOf("20(수)", "21(목)", "22(금)", "23(토)")
-    val displayHours = if (hasRealHeatmap) hours else listOf("10:00", "12:00", "14:00", "16:00")
+    val displayDates = dates.take(4)
+    val displayHours = hours.take(5)
 
     Column(
         modifier = Modifier
@@ -634,21 +656,41 @@ private fun HeatmapPreview(heatmap: Map<String, Map<String, Int>>? = null) {
         )
         Spacer(modifier = Modifier.height(6.dp))
         Text(
-            text = "색상이 진할수록 가능한 멤버가 많습니다.",
+            text = "색상이 진할수록 가능한 참여자가 많습니다.",
             fontFamily = SBAggroFontFamily,
             fontWeight = FontWeight.Medium,
             fontSize = 12.sp,
             color = TextSecondary
         )
-        
+
         Spacer(modifier = Modifier.height(20.dp))
-        
-        // Mock Heatmap Grid
+
+        if (!hasRealHeatmap) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFF7F8FC))
+                    .padding(vertical = 32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "참여자가 시간을 입력하면\n히트맵이 표시됩니다.",
+                    fontFamily = SBAggroFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 13.sp,
+                    color = TextSecondary,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 20.sp
+                )
+            }
+            return@Column
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Hours Column
             Column(modifier = Modifier.width(40.dp)) {
                 Spacer(modifier = Modifier.height(30.dp))
                 displayHours.forEach {
@@ -662,40 +704,31 @@ private fun HeatmapPreview(heatmap: Map<String, Map<String, Int>>? = null) {
                     )
                 }
             }
-            
-            // Days Columns
-            displayDates.forEachIndexed { dayIdx, day ->
+
+            displayDates.forEach { day ->
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = if (hasRealHeatmap) day.substringAfterLast("-") else day,
+                        text = day.substringAfterLast("-"),
                         fontFamily = SBAggroFontFamily,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-                    
-                    // Blocks
-                    displayHours.forEachIndexed { hourIdx, hour ->
-                        val count = if (hasRealHeatmap) heatmap?.get(day)?.get(hour) ?: 0 else 0
 
-                        val intensity = if (hasRealHeatmap) {
-                            (count.toFloat() / maxCount.toFloat()).coerceIn(0f, 1f)
-                        } else {
-                            when {
-                                dayIdx == 1 && hourIdx == 0 -> 1.0f
-                                dayIdx == 3 && hourIdx == 3 -> 0.8f
-                                dayIdx == 0 && hourIdx == 2 -> 0.6f
-                                else -> Math.random().toFloat() * 0.4f
-                            }
-                        }
-                        
+                    displayHours.forEach { hour ->
+                        val count = heatmap?.get(day)?.get(hour) ?: 0
+                        val intensity = (count.toFloat() / maxCount.toFloat()).coerceIn(0f, 1f)
+
                         Box(
                             modifier = Modifier
                                 .padding(vertical = 2.dp)
                                 .size(48.dp, 20.dp)
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(MoaBlue.copy(alpha = 0.1f + intensity * 0.9f))
+                                .background(
+                                    if (count > 0) MoaBlue.copy(alpha = 0.15f + intensity * 0.85f)
+                                    else Color(0xFFF0F2F8)
+                                )
                         )
                     }
                 }

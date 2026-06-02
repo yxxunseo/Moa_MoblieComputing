@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -36,6 +38,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -55,10 +60,17 @@ fun SignUpScreen(
 ) {
     val context = LocalContext.current
     val loginState by authViewModel.loginState.collectAsState()
+    var loginId by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var nickname by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
+
+    val hasLower = password.any { it in 'a'..'z' }
+    val hasUpper = password.any { it in 'A'..'Z' }
+    val hasSpecial = password.any { !it.isLetterOrDigit() }
+    val hasMinLen = password.length >= 8
+    val isPasswordValid = hasLower && hasUpper && hasSpecial && hasMinLen
 
     LaunchedEffect(loginState) {
         when (val state = loginState) {
@@ -116,11 +128,20 @@ fun SignUpScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            SignUpField("아이디", loginId, { loginId = it }, "로그인에 사용할 아이디를 입력하세요")
+            Spacer(modifier = Modifier.height(16.dp))
             SignUpField("닉네임", nickname, { nickname = it }, "닉네임을 입력하세요")
             Spacer(modifier = Modifier.height(16.dp))
             SignUpField("이메일", email, { email = it }, "이메일을 입력하세요")
             Spacer(modifier = Modifier.height(16.dp))
             SignUpField("비밀번호", password, { password = it }, "비밀번호를 입력하세요", isPassword = true)
+
+            Spacer(modifier = Modifier.height(10.dp))
+            PasswordRequirement("영문 소문자 포함", hasLower)
+            PasswordRequirement("영문 대문자 포함", hasUpper)
+            PasswordRequirement("특수문자 포함 (!@#$ 등)", hasSpecial)
+            PasswordRequirement("8자 이상", hasMinLen)
+
             Spacer(modifier = Modifier.height(16.dp))
             SignUpField("비밀번호 확인", confirmPassword, { confirmPassword = it }, "비밀번호를 다시 입력하세요", isPassword = true)
 
@@ -129,16 +150,16 @@ fun SignUpScreen(
             Button(
                 onClick = {
                     when {
-                        nickname.isBlank() || email.isBlank() || password.isBlank() -> {
+                        loginId.isBlank() || nickname.isBlank() || email.isBlank() || password.isBlank() -> {
                             android.widget.Toast.makeText(context, "모든 항목을 입력해주세요.", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                        !isPasswordValid -> {
+                            android.widget.Toast.makeText(context, "비밀번호 조건을 모두 충족해주세요.", android.widget.Toast.LENGTH_SHORT).show()
                         }
                         password != confirmPassword -> {
                             android.widget.Toast.makeText(context, "비밀번호가 일치하지 않습니다.", android.widget.Toast.LENGTH_SHORT).show()
                         }
-                        password.length < 6 -> {
-                            android.widget.Toast.makeText(context, "비밀번호는 6자 이상이어야 합니다.", android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                        else -> authViewModel.signup(email, password, nickname, onSuccess = onSignUpSuccess)
+                        else -> authViewModel.signup(loginId, email, password, nickname, onSuccess = onSignUpSuccess)
                     }
                 },
                 modifier = Modifier
@@ -219,8 +240,35 @@ private fun SignUpField(
                     color = MoaTextPrimary
                 ),
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                singleLine = true,
+                visualTransformation = if (isPassword) PasswordVisualTransformation(mask = '*') else VisualTransformation.None,
+                keyboardOptions = if (isPassword) KeyboardOptions(keyboardType = KeyboardType.Password) else KeyboardOptions.Default
             )
         }
+    }
+}
+
+@Composable
+private fun PasswordRequirement(text: String, satisfied: Boolean) {
+    val color = if (satisfied) MoaBlue else MoaTextSecondary
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = if (satisfied) "✓" else "•",
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp,
+            color = color
+        )
+        Spacer(modifier = Modifier.height(0.dp))
+        Text(
+            text = "  $text",
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Medium,
+            fontSize = 12.sp,
+            color = color
+        )
     }
 }

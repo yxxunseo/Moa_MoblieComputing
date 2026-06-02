@@ -36,12 +36,14 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.core.graphics.toColorInt
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -119,7 +121,7 @@ private fun participantSummary(memberCount: Int): String {
 }
 
 private fun parseGroupColor(hex: String): Color {
-    return runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(MoaBlue)
+    return runCatching { Color(hex.toColorInt()) }.getOrDefault(MoaBlue)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -140,7 +142,8 @@ fun MeetingsScreen(
     val scope = rememberCoroutineScope()
     var showSheet by remember { mutableStateOf(false) }
     var showGuestSheet by remember { mutableStateOf(false) }
-    var favoriteRevision by remember { mutableStateOf(0) }
+    var guestCreateKey by remember { mutableIntStateOf(0) }
+    var favoriteRevision by remember { mutableIntStateOf(0) }
     val favoriteIds = remember(favoriteRevision) { GroupFavoriteManager.favoriteIds(context) }
 
     // 토큰 만료 시 즉시 로그인 화면으로 이동
@@ -183,6 +186,7 @@ fun MeetingsScreen(
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
         ) {
             CreateGuestScheduleSheet(
+                viewModel = viewModel(key = "guest_create_$guestCreateKey"),
                 onDismiss = {
                     scope.launch { guestSheetState.hide() }.invokeOnCompletion {
                         showGuestSheet = false
@@ -289,13 +293,13 @@ fun MeetingsScreen(
                     item {
                         MeetingsHeader(
                             onCreateMeetingClick = { showSheet = true },
-                            onCreateGuestScheduleClick = { showGuestSheet = true }
+                            onCreateGuestScheduleClick = { guestCreateKey++; showGuestSheet = true }
                         )
                     }
 
                     item {
                         MyGuestSchedulesSection(
-                            onCreateClick = { showGuestSheet = true },
+                            onCreateClick = { guestCreateKey++; showGuestSheet = true },
                             onViewResult = onGuestScheduleResultClick,
                             viewModel = guestListViewModel,
                         )
@@ -378,7 +382,7 @@ fun MeetingsScreen(
                     item {
                         MeetingsHeader(
                             onCreateMeetingClick = { showSheet = true },
-                            onCreateGuestScheduleClick = { showGuestSheet = true }
+                            onCreateGuestScheduleClick = { guestCreateKey++; showGuestSheet = true }
                         )
                     }
                     item {

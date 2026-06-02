@@ -2,37 +2,42 @@ spring:
   profiles:
     include: secret
   datasource:
-    url: jdbc:mysql://localhost:3306/moa_db?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true
-    username: root
+    # 로컬: localhost MySQL / Railway: 환경변수 MYSQL_URL 주입
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/moa_db?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true}
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
         dialect: org.hibernate.dialect.MySQLDialect
 
 server:
-  port: 8080
+  port: ${PORT:8080}
   address: 0.0.0.0
-  # 브라우저/카톡 공유용 — PC Wi-Fi IP (터미널: ipconfig getifaddr en0)
-  public-url: http://localhost:8080
+  public-url: ${PUBLIC_URL:http://localhost:8080}
 
 jwt:
+  secret: ${JWT_SECRET:}
   expiration: 86400000
   refresh-expiration: 604800000
 
-# DB 비밀번호, JWT secret, OAuth 키 → application-secret.yml (Git 제외)
+# DB 비밀번호, JWT secret, OAuth 키 → application-secret.yml (Git 제외) 또는 환경변수
 google:
-  redirect-uri: http://localhost:8080/api/auth/google/callback
+  redirect-uri: ${PUBLIC_URL:http://localhost:8080}/api/auth/google/callback
+  client-id: ${GOOGLE_CLIENT_ID:}
+  client-secret: ${GOOGLE_CLIENT_SECRET:}
 
 kakao:
-  redirect-uri: http://localhost:8080/api/auth/kakao/callback
+  redirect-uri: ${PUBLIC_URL:http://localhost:8080}/api/auth/kakao/callback
+  client-id: ${KAKAO_CLIENT_ID:}
 
 logging:
   level:
-    com.example.moa: DEBUG
-    org.springframework.security: INFO
+    com.example.moa: INFO
+    org.springframework.security: WARN

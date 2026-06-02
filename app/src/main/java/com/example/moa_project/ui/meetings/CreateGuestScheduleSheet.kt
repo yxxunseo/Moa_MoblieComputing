@@ -30,12 +30,12 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,11 +63,20 @@ fun CreateGuestScheduleSheet(
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
-    var title by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var startDateText by remember { mutableStateOf(LocalDate.now().toString()) }
-    var endDateText by remember { mutableStateOf(LocalDate.now().plusDays(5).toString()) }
+    var title by rememberSaveable { mutableStateOf("") }
+    var description by rememberSaveable { mutableStateOf("") }
+    var startDateText by rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
+    var endDateText by rememberSaveable { mutableStateOf(LocalDate.now().plusDays(5).toString()) }
     var localError by remember { mutableStateOf<String?>(null) }
+
+    fun resetForm() {
+        title = ""
+        description = ""
+        startDateText = LocalDate.now().toString()
+        endDateText = LocalDate.now().plusDays(5).toString()
+        localError = null
+        viewModel.reset()
+    }
     val success = state as? GuestScheduleActionState.Success
     val isLoading = state is GuestScheduleActionState.Loading
     val uniqueLink = success?.schedule?.uniqueLink
@@ -220,26 +229,19 @@ fun CreateGuestScheduleSheet(
                             fontSize = 11.sp
                         )
                     }
-                    if (!linkReachable) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            text = "⚠️ 이 링크는 외부에서 열 수 없어요. 백엔드 application.yml의 server.public-url을 PC Wi-Fi IP로 설정하고 서버를 재시작해주세요.",
-                            color = Color(0xFFFF6262),
-                            fontFamily = SBAggroFontFamily,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 11.sp,
-                            lineHeight = 16.sp
-                        )
-                    } else {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "같은 Wi-Fi에 연결된 기기에서 브라우저로 열 수 있어요.",
-                            color = TextSecondary,
-                            fontFamily = SBAggroFontFamily,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 11.sp
-                        )
-                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = if (linkReachable) {
+                            "카카오톡·문자 등으로 링크를 보내면 앱 없이 가능한 시간을 입력할 수 있어요."
+                        } else {
+                            "⚠️ 지금 링크는 이 기기/같은 Wi-Fi에서만 열려요. 다른 사람에게 보내려면 local.properties의 WEB_SHARE_URL(ngrok 등 공개 URL)을 설정하거나 서버를 배포해주세요."
+                        },
+                        color = if (linkReachable) TextSecondary else Color(0xFFFF6262),
+                        fontFamily = SBAggroFontFamily,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp
+                    )
                 }
             }
 
@@ -285,14 +287,45 @@ fun CreateGuestScheduleSheet(
                 Text("조율 결과 보기", color = Color.White, fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold)
             }
             Spacer(modifier = Modifier.height(10.dp))
-            TextButton(
-                onClick = {
-                    viewModel.reset()
-                    onDismiss()
-                },
-                modifier = Modifier.align(Alignment.CenterHorizontally)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("완료", color = TextSecondary, fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold)
+                Button(
+                    onClick = { resetForm() },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(46.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEAF1FF))
+                ) {
+                    Text(
+                        "새 일정 만들기",
+                        color = MoaBlue,
+                        fontFamily = SBAggroFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                }
+                Button(
+                    onClick = {
+                        resetForm()
+                        onDismiss()
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(46.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF0F2F8))
+                ) {
+                    Text(
+                        "완료",
+                        color = TextSecondary,
+                        fontFamily = SBAggroFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                }
             }
         }
     }

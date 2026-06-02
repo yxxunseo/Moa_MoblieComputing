@@ -70,6 +70,7 @@ fun ScheduleCoordinationScreen(
     endDate: LocalDate = LocalDate.of(2026, 5, 25),
     isGuest: Boolean = true,
     blockedSlots: Set<TimeSlot> = emptySet(),
+    coordinationKey: String = scheduleTitle,
     onBackClick: () -> Unit = {},
     onSubmitClick: (String, List<TimeSlot>) -> Unit = { _, _ -> }
 ) {
@@ -83,9 +84,11 @@ fun ScheduleCoordinationScreen(
         }
     }
 
-    var selectedDate by remember(startDate, endDate) { mutableStateOf(dates.firstOrNull() ?: startDate) }
-    val selectedTimeSlots = remember { mutableStateListOf<TimeSlot>() }
-    var guestName by remember { mutableStateOf("") }
+    var selectedDate by remember(startDate, endDate, coordinationKey) {
+        mutableStateOf(dates.firstOrNull() ?: startDate)
+    }
+    val selectedTimeSlots = remember(coordinationKey) { mutableStateListOf<TimeSlot>() }
+    var guestName by remember(coordinationKey) { mutableStateOf("") }
 
     val dateIndex = dates.indexOf(selectedDate).coerceAtLeast(0)
 
