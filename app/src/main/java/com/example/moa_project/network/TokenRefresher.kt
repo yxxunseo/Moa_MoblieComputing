@@ -18,7 +18,7 @@ object TokenRefresher {
             val body = gson.toJson(RefreshTokenRequest(refreshToken))
                 .toRequestBody("application/json".toMediaType())
             val request = Request.Builder()
-                .url("${BuildConfig.SERVER_URL}api/auth/refresh")
+                .url("${BuildConfig.SERVER_URL.trimEnd('/')}api/auth/refresh")
                 .post(body)
                 .build()
             client.newCall(request).execute().use { response ->

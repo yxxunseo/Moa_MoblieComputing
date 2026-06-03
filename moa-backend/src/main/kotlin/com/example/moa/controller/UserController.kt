@@ -5,7 +5,10 @@ import com.example.moa.service.UserService
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.core.userdetails.UserDetails
+import org.springframework.http.MediaType
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.multipart.MultipartFile
+import com.example.moa.service.ProfileImageStorageService
 
 data class UpdateProfileRequest(
     val nickname: String,
@@ -16,12 +19,26 @@ data class UpdateProfileRequest(
 @RequestMapping("/api/users")
 class UserController(
     private val userService: UserService,
-    private val groupService: GroupService
+    private val groupService: GroupService,
+    private val profileImageStorageService: ProfileImageStorageService
 ) {
     @GetMapping("/me")
     fun getMyProfile(@AuthenticationPrincipal userDetails: UserDetails): ResponseEntity<UserResponse> {
         val userId = userDetails.username.toLong()
         return ResponseEntity.ok(userService.getUserProfile(userId))
+    }
+
+    @PostMapping("/me/profile-image", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    fun uploadProfileImage(
+        @AuthenticationPrincipal userDetails: UserDetails,
+        @RequestParam("file") file: MultipartFile
+    ): ResponseEntity<UserResponse> {
+        val userId = userDetails.username.toLong()
+        val imageUrl = profileImageStorageService.storeProfileImage(userId, file)
+        val user = userService.getUserProfile(userId)
+        return ResponseEntity.ok(
+            userService.updateProfile(userId, user.nickname, imageUrl)
+        )
     }
 
     @PutMapping("/me")

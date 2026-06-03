@@ -35,6 +35,14 @@
                     android:scheme="moa"
                     android:host="schedule" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="moa"
+                    android:host="schedule-result" />
+            </intent-filter>
         </activity>
 
         <activity 

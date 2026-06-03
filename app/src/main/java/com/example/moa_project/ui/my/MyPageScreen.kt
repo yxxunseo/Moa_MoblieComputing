@@ -1,7 +1,5 @@
 package com.example.moa_project.ui.my
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,14 +19,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -65,33 +66,31 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.moa_project.R
 import com.example.moa_project.ui.components.MoaBottomNavigationBar
+import com.example.moa_project.ui.components.MoaCaptionText
+import com.example.moa_project.ui.components.MoaLabelText
+import com.example.moa_project.ui.components.MoaTitleText
+import com.example.moa_project.ui.components.ProfileAvatar
+import com.example.moa_project.ui.theme.MoaBlue
+import com.example.moa_project.ui.theme.MoaBlueSoft
+import com.example.moa_project.ui.theme.MoaDivider
+import com.example.moa_project.ui.theme.MoaError
+import com.example.moa_project.ui.theme.MoaScreenBackground
+import com.example.moa_project.ui.theme.MoaSpacing
+import com.example.moa_project.ui.theme.MoaTextSecondary
+import com.example.moa_project.util.userMessage
+import com.example.moa_project.ui.components.MoaMascot
+import android.content.Intent
+import android.net.Uri
 import com.example.moa_project.ui.theme.Moa_ProjectTheme
 import com.example.moa_project.ui.theme.SBAggroFontFamily
-
-private val MoaBlue = Color(0xFF2179FE)
-private val ScreenBackground = Color(0xFFF7F8FC)
-private val TextPrimary = Color(0xFF101B33)
-private val TextSecondary = Color(0xFF737C99)
-private val Divider = Color(0xFFE8ECF4)
+import com.example.moa_project.ui.theme.moaCard
 
 @Immutable
 private data class MyMenuItem(
@@ -107,6 +106,7 @@ fun MyPageScreen(
     currentRoute: String = "my",
     onNavigate: (String) -> Unit = {},
     onEditProfileClick: () -> Unit = {},
+    onNavigateToFavoriteMeetings: () -> Unit = {},
     onLogoutClick: () -> Unit = {},
     userViewModel: UserViewModel = viewModel(),
     meetingsViewModel: MeetingsViewModel = viewModel()
@@ -149,7 +149,45 @@ fun MyPageScreen(
     }
 
     var showFixedSheet by remember { mutableStateOf(false) }
+    var dialogType by remember { mutableStateOf<MyPageDialog?>(null) }
     val fixedSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    dialogType?.let { type ->
+        AlertDialog(
+            onDismissRequest = { dialogType = null },
+            title = {
+                Text(type.title, fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            },
+            text = {
+                Text(type.body, fontFamily = SBAggroFontFamily, fontSize = 14.sp, color = MoaTextSecondary)
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (type == MyPageDialog.Support) {
+                        val intent = Intent(Intent.ACTION_SENDTO).apply {
+                            data = Uri.parse("mailto:moa.support@example.com")
+                            putExtra(Intent.EXTRA_SUBJECT, "MOA 문의")
+                        }
+                        runCatching { context.startActivity(intent) }
+                    }
+                    dialogType = null
+                }) {
+                    Text(
+                        if (type == MyPageDialog.Support) "메일 보내기" else "확인",
+                        fontFamily = SBAggroFontFamily,
+                        color = MoaBlue,
+                    )
+                }
+            },
+            dismissButton = if (type == MyPageDialog.Support) {
+                {
+                    TextButton(onClick = { dialogType = null }) {
+                        Text("닫기", fontFamily = SBAggroFontFamily)
+                    }
+                }
+            } else null,
+        )
+    }
 
     if (showFixedSheet) {
         ModalBottomSheet(
@@ -166,22 +204,24 @@ fun MyPageScreen(
 
     Scaffold(
         bottomBar = {
+            val profileUrl = (uiState as? UserState.Success)?.user?.profileImageUrl
             MoaBottomNavigationBar(
                 currentRoute = currentRoute,
+                profileImageUrl = profileUrl,
                 onNavigate = onNavigate,
             )
         },
-        containerColor = ScreenBackground,
+        containerColor = MoaScreenBackground,
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .background(ScreenBackground)
+                .background(MoaScreenBackground)
                 .padding(innerPadding),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                start = 20.dp,
-                end = 20.dp,
-                top = 36.dp,
+                start = MoaSpacing.screen,
+                end = MoaSpacing.screen,
+                top = 28.dp,
                 bottom = 32.dp,
             ),
             verticalArrangement = Arrangement.spacedBy(18.dp),
@@ -202,10 +242,14 @@ fun MyPageScreen(
                     items = listOf(
                         MyMenuItem("내 일정", "예정된 일정 ${upcomingEventCount}개", Icons.Default.DateRange),
                         MyMenuItem("고정 일정", "시간표·알바 등록", Icons.Default.Star),
-                        MyMenuItem("관심 모임", "하트한 모임 ${favoriteCount}개", Icons.Default.Favorite, Color(0xFFFF6B9A)),
+                        MyMenuItem("관심 모임", "하트한 모임 ${favoriteCount}개", Icons.Default.Favorite),
                     ),
                     onItemClick = { title ->
-                        if (title == "고정 일정") showFixedSheet = true
+                        when (title) {
+                            "내 일정" -> onNavigate("calendar")
+                            "고정 일정" -> showFixedSheet = true
+                            "관심 모임" -> onNavigateToFavoriteMeetings()
+                        }
                     }
                 )
             }
@@ -224,10 +268,15 @@ fun MyPageScreen(
                         MyMenuItem("고객센터", "문의하기, 이용 가이드", Icons.Default.Info),
                         MyMenuItem("앱 정보", "버전 1.0.0", Icons.Default.Settings),
                     ),
+                    onItemClick = { title ->
+                        when (title) {
+                            "계정 정보" -> onEditProfileClick()
+                            "보안 설정" -> dialogType = MyPageDialog.Security
+                            "고객센터" -> dialogType = MyPageDialog.Support
+                            "앱 정보" -> dialogType = MyPageDialog.AppInfo
+                        }
+                    },
                 )
-            }
-            item {
-                ReviewBanner()
             }
             item {
                 LogoutButton(onClick = onLogoutClick)
@@ -280,10 +329,14 @@ private fun IntegrationSettingsCard() {
                 googleCalendarEnabled = true
                 sharedPreferences.edit().putBoolean("google_calendar", true).apply()
                 android.widget.Toast.makeText(context, "구글 캘린더가 연동되었습니다.", android.widget.Toast.LENGTH_SHORT).show()
-            }.onFailure {
+            }.onFailure { e ->
                 googleCalendarEnabled = false
                 sharedPreferences.edit().putBoolean("google_calendar", false).apply()
-                android.widget.Toast.makeText(context, "구글 캘린더 연동에 실패했습니다.", android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(
+                    context,
+                    e.userMessage("구글 캘린더 연동에 실패했습니다."),
+                    android.widget.Toast.LENGTH_LONG,
+                ).show()
             }
         }
     }
@@ -291,10 +344,7 @@ private fun IntegrationSettingsCard() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(8.dp, RoundedCornerShape(18.dp), spotColor = Color(0xFFDDE4F2))
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color.White)
-            .padding(vertical = 4.dp)
+            .moaCard(padding = 0.dp),
     ) {
         SettingsToggleRow(
             title = "Google Calendar",
@@ -359,28 +409,16 @@ private fun SettingsToggleRow(
             modifier = Modifier
                 .size(38.dp)
                 .clip(RoundedCornerShape(13.dp))
-                .background(Color(0xFFEAF1FF)),
+                .background(MoaBlueSoft),
             contentAlignment = Alignment.Center
         ) {
             Icon(icon, contentDescription = null, tint = MoaBlue, modifier = Modifier.size(20.dp))
         }
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                color = TextPrimary,
-                fontFamily = SBAggroFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
-            )
-            Spacer(modifier = Modifier.height(5.dp))
-            Text(
-                text = description,
-                color = TextSecondary,
-                fontFamily = SBAggroFontFamily,
-                fontWeight = FontWeight.Medium,
-                fontSize = 11.sp
-            )
+            MoaLabelText(text = title, fontSize = 15.sp)
+            Spacer(modifier = Modifier.height(4.dp))
+            MoaCaptionText(text = description)
         }
         Switch(
             checked = checked,
@@ -402,33 +440,22 @@ private fun SettingsDivider() {
             .fillMaxWidth()
             .padding(start = 66.dp)
             .height(1.dp)
-            .background(Divider)
+            .background(MoaDivider)
     )
 }
 
 @Composable
 private fun MyHeader() {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = "마이페이지",
-            color = TextPrimary,
-            fontFamily = SBAggroFontFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = 32.sp,
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        Text(
-            text = buildAnnotatedString {
-                append("내 정보와 활동을 확인하세요")
-                withStyle(SpanStyle(color = MoaBlue)) {
-                    append(" ·")
-                }
-            },
-            color = TextSecondary,
-            fontFamily = SBAggroFontFamily,
-            fontWeight = FontWeight.Medium,
-            fontSize = 14.sp,
-        )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            MoaTitleText(text = "마이페이지", fontSize = 22.sp)
+            Spacer(modifier = Modifier.height(6.dp))
+            MoaCaptionText(text = "내 정보와 활동을 확인하세요")
+        }
+        MoaMascot(size = 52.dp)
     }
 }
 
@@ -440,29 +467,27 @@ private fun ProfileSummaryCard(
     onEditProfileClick: () -> Unit
 ) {
     val nickname = if (uiState is UserState.Success) uiState.user.nickname else "사용자"
-    val description = if (uiState is UserState.Success) {
-        if (uiState.user.provider == "LOCAL") "모아와 함께하는 중! ✨"
-        else "${uiState.user.provider} 계정 연동 완료! ✨"
+    val statusText = if (uiState is UserState.Success) {
+        if (uiState.user.provider == "LOCAL") "모아와 함께하는 중"
+        else "${uiState.user.provider} 계정 연동 완료"
     } else "로딩 중..."
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(10.dp, RoundedCornerShape(22.dp), spotColor = Color(0xFFDDE4F2))
-            .clip(RoundedCornerShape(22.dp))
-            .background(Color.White)
-            .padding(18.dp),
+            .moaCard(padding = 18.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(94.dp), contentAlignment = Alignment.Center) {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_character),
-                    contentDescription = "프로필 캐릭터",
-                    modifier = Modifier.size(88.dp),
+            Box(contentAlignment = Alignment.BottomEnd) {
+                val profileUrl = (uiState as? UserState.Success)?.user?.profileImageUrl
+                val nick = (uiState as? UserState.Success)?.user?.nickname
+                ProfileAvatar(
+                    imageUrl = profileUrl,
+                    nickname = nick,
+                    size = 80.dp,
                 )
                 Box(
                     modifier = Modifier
-                        .align(Alignment.BottomEnd)
                         .size(26.dp)
                         .clip(RoundedCornerShape(13.dp))
                         .background(Color.White)
@@ -472,7 +497,7 @@ private fun ProfileSummaryCard(
                     Icon(
                         imageVector = Icons.Default.Settings,
                         contentDescription = "프로필 편집",
-                        tint = TextSecondary,
+                        tint = MoaTextSecondary,
                         modifier = Modifier.size(15.dp),
                     )
                 }
@@ -481,36 +506,34 @@ private fun ProfileSummaryCard(
             Spacer(modifier = Modifier.width(16.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
+                MoaTitleText(
                     text = nickname,
-                    color = TextPrimary,
-                    fontFamily = SBAggroFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 24.sp,
+                    fontSize = 20.sp,
+                    maxLines = 1,
                 )
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = description,
-                    color = TextSecondary,
-                    fontFamily = SBAggroFontFamily,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 12.sp,
-                    lineHeight = 18.sp,
-                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Verified,
+                        contentDescription = null,
+                        tint = MoaBlue,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    MoaCaptionText(text = statusText)
+                }
                 Spacer(modifier = Modifier.height(10.dp))
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFFEAF1FF))
+                        .background(MoaBlueSoft)
                         .clickable(onClick = onEditProfileClick)
                         .padding(horizontal = 13.dp, vertical = 7.dp),
                 ) {
-                    Text(
+                    MoaLabelText(
                         text = "프로필 편집",
-                        color = TextSecondary,
-                        fontFamily = SBAggroFontFamily,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
+                        color = MoaBlue,
                     )
                 }
             }
@@ -521,7 +544,7 @@ private fun ProfileSummaryCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(Divider),
+                .background(MoaDivider),
         )
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -529,14 +552,14 @@ private fun ProfileSummaryCard(
             MyStatItem(
                 title = "참여 중인 모임",
                 value = groupCount,
-                color = Color(0xFF43C879),
+                color = MoaBlue,
                 icon = Icons.Default.Person,
                 modifier = Modifier.weight(1f),
             )
             MyStatItem(
                 title = "관심 모임",
                 value = favoriteCount,
-                color = Color(0xFFFF6B9A),
+                color = MoaBlue,
                 icon = Icons.Default.Favorite,
                 modifier = Modifier.weight(1f),
             )
@@ -558,32 +581,24 @@ private fun MyStatItem(
     ) {
         Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
         Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = title,
-            color = TextSecondary,
-            fontFamily = SBAggroFontFamily,
-            fontWeight = FontWeight.Medium,
-            fontSize = 11.sp,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
+        MoaCaptionText(text = title)
+        Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = value,
             color = color,
             fontFamily = SBAggroFontFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = 22.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 20.sp,
         )
     }
 }
 
 @Composable
 private fun SectionTitle(text: String) {
-    Text(
+    MoaLabelText(
         text = text,
-        color = TextSecondary,
-        fontFamily = SBAggroFontFamily,
-        fontWeight = FontWeight.Bold,
         fontSize = 13.sp,
+        color = MoaTextSecondary,
     )
 }
 
@@ -595,9 +610,7 @@ private fun MenuGroup(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(8.dp, RoundedCornerShape(18.dp), spotColor = Color(0xFFDDE4F2))
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color.White),
+            .moaCard(padding = 0.dp),
     ) {
         items.forEachIndexed { index, item ->
             MenuRow(item, onClick = { onItemClick(item.title) })
@@ -607,7 +620,7 @@ private fun MenuGroup(
                         .fillMaxWidth()
                         .height(1.dp)
                         .padding(horizontal = 18.dp)
-                        .background(Divider),
+                        .background(MoaDivider),
                 )
             }
         }
@@ -619,97 +632,23 @@ private fun MenuRow(item: MyMenuItem, onClick: () -> Unit = {}) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(58.dp)
             .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp),
+            .padding(horizontal = 18.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(item.icon, contentDescription = null, tint = item.iconColor, modifier = Modifier.size(22.dp))
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(
-            text = item.title,
-            color = TextPrimary,
-            fontFamily = SBAggroFontFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = 14.sp,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            text = item.description,
-            color = TextSecondary,
-            fontFamily = SBAggroFontFamily,
-            fontWeight = FontWeight.Medium,
-            fontSize = 11.sp,
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Icon(Icons.Default.KeyboardArrowRight, contentDescription = "이동", tint = TextSecondary, modifier = Modifier.size(22.dp))
-    }
-}
-
-@Composable
-private fun ReviewBanner() {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(82.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFFEAF2FF))
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Canvas(modifier = Modifier.size(58.dp)) {
-            val center = Offset(size.width * 0.42f, size.height * 0.55f)
-            val r = size.minDimension * 0.28f
-            drawRoundRect(
-                brush = Brush.verticalGradient(listOf(Color(0xFF68A2FF), Color(0xFF4D7DFF))),
-                topLeft = Offset(center.x - r, center.y - r),
-                size = Size(r * 2f, r * 2.15f),
-                cornerRadius = CornerRadius(r, r),
-            )
-            drawCircle(Color.Black, r * 0.06f, Offset(center.x - r * 0.28f, center.y - r * 0.10f))
-            drawCircle(Color.Black, r * 0.06f, Offset(center.x + r * 0.28f, center.y - r * 0.10f))
-            drawArc(Color.Black, 20f, 140f, false, Offset(center.x - r * 0.13f, center.y - r * 0.05f), Size(r * 0.26f, r * 0.20f), style = Stroke(1.2.dp.toPx(), cap = StrokeCap.Round))
-            drawRoundRect(
-                color = Color.White,
-                topLeft = Offset(size.width * 0.62f, size.height * 0.12f),
-                size = Size(size.width * 0.30f, size.height * 0.28f),
-                cornerRadius = CornerRadius(14.dp.toPx()),
-            )
-            drawCircle(MoaBlue, 3.dp.toPx(), Offset(size.width * 0.76f, size.height * 0.26f))
-        }
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "더 좋은 모임 경험을 만들어주세요!",
-                color = TextPrimary,
-                fontFamily = SBAggroFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp,
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "리뷰를 남겨주시면 큰 힘이 됩니다 💙",
-                color = TextSecondary,
-                fontFamily = SBAggroFontFamily,
-                fontWeight = FontWeight.Medium,
-                fontSize = 10.sp,
-            )
+            MoaLabelText(text = item.title, fontSize = 15.sp)
+            Spacer(modifier = Modifier.height(3.dp))
+            MoaCaptionText(text = item.description)
         }
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color.White)
-                .clickable { }
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-        ) {
-            Text(
-                text = "리뷰 남기기",
-                color = MoaBlue,
-                fontFamily = SBAggroFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 11.sp,
-            )
-        }
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = "이동",
+            tint = MoaTextSecondary,
+            modifier = Modifier.size(22.dp),
+        )
     }
 }
 
@@ -719,20 +658,34 @@ private fun LogoutButton(onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .height(64.dp)
-            .shadow(8.dp, RoundedCornerShape(18.dp), spotColor = Color(0xFFDDE4F2))
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(Color.White)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = "로그아웃",
-            color = Color(0xFFFF5E70),
+            color = MoaError,
             fontFamily = SBAggroFontFamily,
             fontWeight = FontWeight.Bold,
             fontSize = 15.sp,
         )
     }
+}
+
+private enum class MyPageDialog(val title: String, val body: String) {
+    Security(
+        title = "보안 설정",
+        body = "Google·카카오 로그인은 해당 서비스 보안 정책을 따릅니다.\n이메일 가입 계정은 비밀번호 변경을 웹 고객센터로 요청해 주세요.",
+    ),
+    Support(
+        title = "고객센터",
+        body = "이용 중 문제가 있으면 메일로 문의해 주세요.\nFAQ: 모임 초대코드 복사 → 친구에게 공유 → 일정 조율",
+    ),
+    AppInfo(
+        title = "앱 정보",
+        body = "MOA v1.0.0\n한밭대 모바일컴퓨팅과응용 팀 프로젝트",
+    ),
 }
 
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)

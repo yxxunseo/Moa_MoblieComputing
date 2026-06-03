@@ -30,6 +30,8 @@ jwt:
 # DB 비밀번호, JWT secret, OAuth 키 → application-secret.yml (Git 제외) 또는 환경변수
 google:
   redirect-uri: ${PUBLIC_URL:http://localhost:8080}/api/auth/google/callback
+  # Android server auth code 교환 시 빈 redirect (웹 로그인 콜백과 분리)
+  calendar-redirect-uri: ""
   client-id: ${GOOGLE_CLIENT_ID:}
   client-secret: ${GOOGLE_CLIENT_SECRET:}
 

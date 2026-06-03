@@ -17,6 +17,8 @@ data class ScheduleResponse(
     val status: String,
     val startDate: String,
     val endDate: String,
+    val confirmedStart: String? = null,
+    val confirmedEnd: String? = null,
     val respondedCount: Long,
     val totalMembers: Long
 )
@@ -36,7 +38,8 @@ data class ScheduleAnalysisResponse(
     val title: String,
     val totalMembers: Long,
     val recommendations: List<RecommendationDto>,
-    val heatmap: Map<String, Map<String, Int>>
+    val heatmap: Map<String, Map<String, Int>>,
+    val heatmapMembers: Map<String, Map<String, List<String>>> = emptyMap(),
 )
 
 fun Schedule.toResponse(respondedCount: Long, totalMembers: Long): ScheduleResponse {
@@ -57,6 +60,8 @@ fun Schedule.toResponse(respondedCount: Long, totalMembers: Long): ScheduleRespo
         status = displayStatus,
         startDate = startDate.toString(),
         endDate = endDate.toString(),
+        confirmedStart = confirmedStart?.toString(),
+        confirmedEnd = confirmedEnd?.toString(),
         respondedCount = respondedCount,
         totalMembers = totalMembers
     )
@@ -168,10 +173,12 @@ class ScheduleService(
         val allSlots = timeSlotRepository.findAllBySchedule(schedule)
         
         val heatmap = mutableMapOf<String, MutableMap<String, Int>>()
+        val heatmapMembers = mutableMapOf<String, MutableMap<String, MutableList<String>>>()
         val userAvailability = mutableMapOf<LocalDateTime, MutableList<String>>()
         
         // 1시간 단위로 나누어 가능한 인원수 카운트
         allSlots.forEach { slot ->
+            val nickname = slot.user!!.nickname
             var current = slot.slotStart
             while (current.isBefore(slot.slotEnd)) {
                 val dateStr = current.toLocalDate().toString()
@@ -179,9 +186,15 @@ class ScheduleService(
                 
                 heatmap.putIfAbsent(dateStr, mutableMapOf())
                 heatmap[dateStr]!![timeStr] = heatmap[dateStr]!!.getOrDefault(timeStr, 0) + 1
+
+                heatmapMembers.putIfAbsent(dateStr, mutableMapOf())
+                heatmapMembers[dateStr]!!.putIfAbsent(timeStr, mutableListOf())
+                if (!heatmapMembers[dateStr]!![timeStr]!!.contains(nickname)) {
+                    heatmapMembers[dateStr]!![timeStr]!!.add(nickname)
+                }
                 
                 userAvailability.putIfAbsent(current, mutableListOf())
-                userAvailability[current]!!.add(slot.user!!.nickname)
+                userAvailability[current]!!.add(nickname)
                 
                 current = current.plusHours(1)
             }
@@ -189,7 +202,10 @@ class ScheduleService(
         
         // 가장 많이 겹치는 시간대 상위 3개 추천
         val recommendations = userAvailability.entries
-            .sortedByDescending { it.value.size }
+            .sortedWith(
+                compareByDescending<Map.Entry<LocalDateTime, MutableList<String>>> { it.value.size }
+                    .thenBy { it.key }
+            )
             .take(3)
             .mapIndexed { index, entry ->
                 RecommendationDto(
@@ -206,7 +222,8 @@ class ScheduleService(
             title = schedule.title,
             totalMembers = totalMembers,
             recommendations = recommendations,
-            heatmap = heatmap
+            heatmap = heatmap,
+            heatmapMembers = heatmapMembers,
         )
     }
     

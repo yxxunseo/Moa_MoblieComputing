@@ -17,7 +17,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -97,7 +97,7 @@ fun SignUpScreen(
                 .padding(horizontal = 24.dp, vertical = 48.dp)
         ) {
             IconButton(onClick = onBackClick) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "뒤로가기", tint = MoaTextPrimary)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로가기", tint = MoaTextPrimary)
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -130,7 +130,7 @@ fun SignUpScreen(
 
             SignUpField("아이디", loginId, { loginId = it }, "로그인에 사용할 아이디를 입력하세요")
             Spacer(modifier = Modifier.height(16.dp))
-            SignUpField("닉네임", nickname, { nickname = it }, "닉네임을 입력하세요")
+            SignUpField("닉네임 (최대 20자)", nickname, { if (it.length <= 20) nickname = it }, "닉네임을 입력하세요")
             Spacer(modifier = Modifier.height(16.dp))
             SignUpField("이메일", email, { email = it }, "이메일을 입력하세요")
             Spacer(modifier = Modifier.height(16.dp))

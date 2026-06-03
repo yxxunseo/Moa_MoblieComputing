@@ -1,5 +1,8 @@
 package com.example.moa_project.ui.meetings
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,11 +22,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.SubcomposeAsyncImage
 import androidx.compose.ui.platform.LocalContext
 import android.content.Context
 import android.content.ClipboardManager
@@ -56,12 +62,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.moa_project.network.GroupResponse
 import com.example.moa_project.network.GroupMemberResponse
 import com.example.moa_project.network.ScheduleDetailResponse
+import com.example.moa_project.ui.theme.MoaBlueSoft
 import com.example.moa_project.ui.theme.SBAggroFontFamily
 import java.time.LocalDate
 
@@ -105,6 +113,13 @@ fun GroupDetailScreen(
         }
     }
 
+    // 현재 로그인 유저가 관리자인지 확인 (state에서 읽기)
+    val isCurrentUserAdmin = (state as? GroupDetailState.Success)?.let { s ->
+        s.members.any { m ->
+            m.userId == com.example.moa_project.network.TokenManager.getUserId() && m.role == "ADMIN"
+        }
+    } ?: false
+
     if (showLeaveDialog) {
         AlertDialog(
             onDismissRequest = { showLeaveDialog = false },
@@ -113,7 +128,10 @@ fun GroupDetailScreen(
             },
             text = {
                 Text(
-                    "이 모임에서 나가시겠어요? 다시 입장하려면 초대 코드가 필요합니다.",
+                    if (isCurrentUserAdmin)
+                        "관리자가 나가면 모임이 완전히 삭제됩니다.\n멤버, 일정, 모든 데이터가 사라집니다.\n정말 나가시겠어요?"
+                    else
+                        "이 모임에서 나가시겠어요? 다시 입장하려면 초대 코드가 필요합니다.",
                     fontFamily = SBAggroFontFamily,
                     fontSize = 14.sp
                 )
@@ -122,7 +140,11 @@ fun GroupDetailScreen(
                 TextButton(onClick = {
                     showLeaveDialog = false
                     viewModel.leaveGroup(
-                        onSuccess = onBackClick,
+                        onSuccess = { groupDeleted ->
+                            val msg = if (groupDeleted) "모임이 삭제되었습니다." else "모임에서 나갔습니다."
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                            onBackClick()
+                        },
                         onError = { msg -> Toast.makeText(context, msg, Toast.LENGTH_SHORT).show() }
                     )
                 }) {
@@ -163,13 +185,15 @@ fun GroupDetailScreen(
                         fontFamily = SBAggroFontFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp,
-                        color = TextPrimary
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "뒤로가기",
                             tint = TextPrimary
                         )
@@ -231,7 +255,22 @@ fun GroupDetailScreen(
                 ) {
                     // 그룹 정보 카드
                     item {
-                        GroupInfoCard(group = s.group)
+                        GroupInfoCard(
+                            group = s.group,
+                            isAdmin = isCurrentUserAdmin,
+                            onUploadCover = { uri ->
+                                viewModel.uploadCoverImage(
+                                    context = context,
+                                    uri = uri,
+                                    onSuccess = {
+                                        Toast.makeText(context, "모임 사진이 등록되었습니다.", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onError = { msg ->
+                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                    },
+                                )
+                            },
+                        )
                     }
 
                     if (s.members.isNotEmpty()) {
@@ -303,12 +342,7 @@ fun GroupDetailScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        imageVector = Icons.Default.DateRange,
-                                        contentDescription = null,
-                                        tint = Color(0xFFDDE4F2),
-                                        modifier = Modifier.size(40.dp)
-                                    )
+                                    com.example.moa_project.ui.components.MoaMascot(size = 56.dp)
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
                                         text = "아직 일정이 없어요\n새 일정 조율을 시작해보세요!",
@@ -358,46 +392,80 @@ fun GroupDetailScreen(
 }
 
 @Composable
-private fun GroupInfoCard(group: GroupResponse) {
+private fun GroupInfoCard(
+    group: GroupResponse,
+    isAdmin: Boolean = false,
+    onUploadCover: (Uri) -> Unit = {},
+) {
     val context = LocalContext.current
+    val coverPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri -> if (uri != null) onUploadCover(uri) }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(8.dp, RoundedCornerShape(20.dp), spotColor = Color(0xFFDDE4F2))
-            .clip(RoundedCornerShape(20.dp))
+            .shadow(2.dp, RoundedCornerShape(16.dp), spotColor = Color(0xFFDDE4F2))
+            .clip(RoundedCornerShape(16.dp))
             .background(Color.White)
             .padding(20.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            // 그룹 색상 아이콘
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(
-                        try { Color(android.graphics.Color.parseColor(group.color)) }
-                        catch (e: Exception) { MoaBlue }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(140.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(MoaBlueSoft)
+                .then(
+                    if (isAdmin) Modifier.clickable { coverPicker.launch("image/*") }
+                    else Modifier
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (!group.coverImageUrl.isNullOrBlank()) {
+                SubcomposeAsyncImage(
+                    model = group.coverImageUrl,
+                    contentDescription = "모임 사진",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+            } else {
                 Text(
                     text = group.name.take(1),
-                    color = Color.White,
+                    color = MoaBlue,
                     fontFamily = SBAggroFontFamily,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp
+                    fontSize = 36.sp,
                 )
             }
+            if (isAdmin) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(10.dp)
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(MoaBlue)
+                        .clickable { coverPicker.launch("image/*") },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = "사진 등록", tint = Color.White, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
 
-            Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = group.name,
                     color = TextPrimary,
                     fontFamily = SBAggroFontFamily,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp
+                    fontSize = 20.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 if (!group.description.isNullOrBlank()) {
                     Spacer(modifier = Modifier.height(4.dp))
@@ -406,7 +474,9 @@ private fun GroupInfoCard(group: GroupResponse) {
                         color = TextSecondary,
                         fontFamily = SBAggroFontFamily,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 13.sp
+                        fontSize = 13.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
@@ -494,21 +564,12 @@ private fun GroupMembersCard(members: List<GroupMemberResponse>) {
                     .padding(vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(MoaBlue.copy(alpha = 0.12f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = member.nickname.take(1),
-                        color = MoaBlue,
-                        fontFamily = SBAggroFontFamily,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
-                    )
-                }
+                com.example.moa_project.ui.components.ProfileAvatar(
+                    imageUrl = member.profileImageUrl,
+                    nickname = member.nickname,
+                    size = 36.dp,
+                    defaultImageResId = com.example.moa_project.R.drawable.ic_character,
+                )
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -516,7 +577,9 @@ private fun GroupMembersCard(members: List<GroupMemberResponse>) {
                         color = TextPrimary,
                         fontFamily = SBAggroFontFamily,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         text = if (member.role == "ADMIN") "관리자" else "멤버",
@@ -584,7 +647,9 @@ private fun ScheduleCard(
                 color = TextPrimary,
                 fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.Bold,
-                fontSize = 15.sp
+                fontSize = 15.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
@@ -592,7 +657,7 @@ private fun ScheduleCard(
                 color = TextSecondary,
                 fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.Medium,
-                fontSize = 12.sp
+                fontSize = 12.sp,
             )
             Spacer(modifier = Modifier.height(4.dp))
             Box(
@@ -612,7 +677,7 @@ private fun ScheduleCard(
         }
 
         Icon(
-            imageVector = Icons.Default.KeyboardArrowRight,
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = "상세 보기",
             tint = TextSecondary,
             modifier = Modifier.size(22.dp)
@@ -650,14 +715,14 @@ private fun CreateScheduleDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 MoaOutlinedTextField(
                     value = title,
-                    onValueChange = { title = it },
-                    label = "일정 제목",
+                    onValueChange = { if (it.length <= 30) title = it },
+                    label = "일정 제목 (최대 30자)",
                     modifier = Modifier.fillMaxWidth(),
                 )
                 MoaOutlinedTextField(
                     value = description,
-                    onValueChange = { description = it },
-                    label = "설명",
+                    onValueChange = { if (it.length <= 80) description = it },
+                    label = "설명 (선택, 최대 80자)",
                     modifier = Modifier.fillMaxWidth(),
                 )
                 MoaOutlinedTextField(

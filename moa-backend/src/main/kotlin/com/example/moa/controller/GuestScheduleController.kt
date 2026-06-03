@@ -1,6 +1,7 @@
 package com.example.moa.controller
 
 import com.example.moa.service.*
+import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -17,7 +18,8 @@ data class CreateGuestScheduleRequest(
 
 data class AddGuestTimeSlotsRequest(
     val guestName: String,
-    val slots: List<GuestTimeSlotDto>
+    val slots: List<GuestTimeSlotDto>,
+    val visitorId: String? = null,
 )
 
 data class ConfirmGuestScheduleRequest(
@@ -30,7 +32,6 @@ data class ConfirmGuestScheduleRequest(
 class GuestScheduleController(
     private val guestScheduleService: GuestScheduleService
 ) {
-    // 1. 일회성 일정 만들기 (로그인한 주최자 전용)
     @PostMapping
     fun createGuestSchedule(
         @AuthenticationPrincipal userDetails: UserDetails,
@@ -55,28 +56,45 @@ class GuestScheduleController(
         return ResponseEntity.ok(guestScheduleService.getMyGuestSchedules(userId))
     }
     
-    // 2. 링크로 일정 정보 확인 (비회원/링크 받은 사람 누구나 가능)
     @GetMapping("/{link}")
     fun getScheduleByLink(@PathVariable link: String): ResponseEntity<GuestScheduleResponse> {
         return ResponseEntity.ok(guestScheduleService.getScheduleByLink(link))
     }
     
-    // 3. 이름 입력하고 내 가능 시간 제출하기 (비회원 누구나 가능)
     @PostMapping("/{link}/timeslots")
     fun addGuestTimeSlots(
         @PathVariable link: String,
-        @RequestBody request: AddGuestTimeSlotsRequest
+        @RequestBody request: AddGuestTimeSlotsRequest,
+        @RequestHeader(value = "X-Moa-Visitor-Id", required = false) visitorHeader: String?,
+        httpRequest: HttpServletRequest,
     ): ResponseEntity<Map<String, Any>> {
-        return ResponseEntity.ok(guestScheduleService.addGuestTimeSlots(link, request.guestName, request.slots))
+        val visitorId = request.visitorId ?: visitorHeader
+        return ResponseEntity.ok(
+            guestScheduleService.addGuestTimeSlots(
+                uniqueLink = link,
+                guestName = request.guestName,
+                slots = request.slots,
+                visitorId = visitorId,
+                clientIp = resolveClientIp(httpRequest),
+            )
+        )
     }
     
-    // 4. 익명 일정 분석 (어디에 사람이 제일 많이 겹치는지 히트맵 확인)
     @GetMapping("/{link}/analysis")
-    fun analyzeGuestSchedule(@PathVariable link: String): ResponseEntity<Map<String, Any>> {
-        return ResponseEntity.ok(guestScheduleService.analyzeGuestSchedule(link))
+    fun analyzeGuestSchedule(
+        @PathVariable link: String,
+        @RequestHeader(value = "X-Moa-Visitor-Id", required = false) visitorId: String?,
+        httpRequest: HttpServletRequest,
+    ): ResponseEntity<Map<String, Any>> {
+        return ResponseEntity.ok(
+            guestScheduleService.analyzeGuestSchedule(
+                uniqueLink = link,
+                visitorId = visitorId,
+                clientIp = resolveClientIp(httpRequest),
+            )
+        )
     }
 
-    // 5. 주최자가 최종 시간 확정 (로그인 필요)
     @PutMapping("/{link}/confirm")
     fun confirmGuestSchedule(
         @AuthenticationPrincipal userDetails: UserDetails,
@@ -96,5 +114,11 @@ class GuestScheduleController(
     ): ResponseEntity<Map<String, Any>> {
         val userId = userDetails.username.toLong()
         return ResponseEntity.ok(guestScheduleService.completeGuestSchedule(userId, link))
+    }
+
+    private fun resolveClientIp(request: HttpServletRequest): String? {
+        val forwarded = request.getHeader("X-Forwarded-For")?.split(",")?.firstOrNull()?.trim()
+        if (!forwarded.isNullOrBlank()) return forwarded
+        return request.remoteAddr?.takeIf { it.isNotBlank() }
     }
 }

@@ -10,13 +10,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
-import java.time.YearMonth
-import java.time.format.DateTimeFormatter
 
 data class HomeEventItem(
     val title: String,
     val start: LocalDateTime,
-    val color: String
+    val color: String,
+    val subtitle: String? = null,
 )
 
 data class HomeActivityItem(
@@ -31,7 +30,10 @@ sealed class HomeDashboardState {
     data class Success(
         val groups: List<GroupResponse>,
         val upcomingEvents: List<HomeEventItem>,
-        val recentActivities: List<HomeActivityItem>
+        val pendingCoordinationCount: Int,
+        val confirmedThisWeekCount: Int,
+        val recentActivities: List<HomeActivityItem>,
+        val weeklyTimetable: WeeklyTimetableData,
     ) : HomeDashboardState()
     data class Error(val message: String) : HomeDashboardState()
 }
@@ -49,16 +51,22 @@ class HomeDashboardViewModel : ViewModel() {
             _state.value = HomeDashboardState.Loading
             try {
                 val groups = RetrofitClient.instance.getMyGroups()
-                val month = YearMonth.now().format(DateTimeFormatter.ofPattern("yyyy-MM"))
-                val eventsResponse = RetrofitClient.instance.getMonthlyEvents(month)
-                val events = parseEvents(eventsResponse)
-                    .filter { !it.start.isBefore(LocalDateTime.now().minusMinutes(1)) }
-                    .sortedBy { it.start }
-                    .take(3)
-
+                val allUpcoming = HomeEventLoader.loadUpcomingEvents(groups)
+                val upcomingEvents = allUpcoming.take(5)
                 val activities = loadRecentActivities(groups)
+                val weeklyTimetable = WeeklyTimetableLoader.loadCurrentWeek()
+                val pendingCoordinationCount = activities.count {
+                    it.statusLabel == "조율 중" || it.statusLabel == "응답 대기"
+                }
 
-                _state.value = HomeDashboardState.Success(groups, events, activities)
+                _state.value = HomeDashboardState.Success(
+                    groups = groups,
+                    upcomingEvents = upcomingEvents,
+                    pendingCoordinationCount = pendingCoordinationCount,
+                    confirmedThisWeekCount = HomeEventLoader.countEventsThisWeek(allUpcoming),
+                    recentActivities = activities,
+                    weeklyTimetable = weeklyTimetable,
+                )
             } catch (e: Exception) {
                 Log.e("HomeDashboardVM", "Failed to load dashboard", e)
                 _state.value = HomeDashboardState.Error("홈 정보를 불러오지 못했습니다.")
@@ -104,15 +112,4 @@ class HomeDashboardViewModel : ViewModel() {
         else -> 1
     }
 
-    private fun parseEvents(response: Map<String, Any>): List<HomeEventItem> {
-        val data = (response["events"] as? List<*>) ?: (response["data"] as? List<*>) ?: return emptyList()
-        return data.mapNotNull { raw ->
-            val item = raw as? Map<*, *> ?: return@mapNotNull null
-            val title = item["title"] as? String ?: return@mapNotNull null
-            val startText = item["start"] as? String ?: return@mapNotNull null
-            val color = item["color"] as? String ?: "#2179FE"
-            val start = runCatching { LocalDateTime.parse(startText) }.getOrNull() ?: return@mapNotNull null
-            HomeEventItem(title, start, color)
-        }
-    }
 }

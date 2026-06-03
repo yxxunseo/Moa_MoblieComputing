@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -51,6 +52,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.graphics.Color
 import androidx.navigation.navDeepLink
+import android.app.Activity
 import androidx.compose.ui.platform.LocalContext
 import com.example.moa_project.util.BusyTimeHelper
 import com.example.moa_project.network.TokenManager
@@ -64,12 +66,17 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         requestNotificationPermissionIfNeeded()
-        val scheduleLink = intent?.data?.takeIf {
-            it.scheme == "moa" && it.host == "schedule"
-        }?.lastPathSegment
+        val initialGuestRoute = intent?.data?.takeIf { it.scheme == "moa" }?.let { uri ->
+            val link = uri.lastPathSegment ?: return@let null
+            when (uri.host) {
+                "schedule" -> "guest_entry/$link"
+                "schedule-result" -> "schedule_result/$link"
+                else -> null
+            }
+        }
         setContent {
             Moa_ProjectTheme {
-                MainScreen(initialScheduleLink = scheduleLink)
+                MainScreen(initialGuestRoute = initialGuestRoute)
             }
         }
     }
@@ -90,8 +97,23 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** 토큰·캐시·설정을 모두 지우고 Activity를 완전히 새로 시작 — 모든 ViewModel 초기화 */
+private fun restartApp(activity: Activity) {
+    com.example.moa_project.util.GroupFavoriteManager.clearAll(activity)
+    // 구글 캘린더 연동 상태·알림 설정 등 사용자별 로컬 설정 초기화
+    activity.getSharedPreferences("moa_settings", android.content.Context.MODE_PRIVATE)
+        .edit().clear().apply()
+    TokenManager.clear()
+    val intent = Intent(activity, MainActivity::class.java).apply {
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+    }
+    activity.startActivity(intent)
+    activity.finish()
+}
+
 @Composable
-fun MainScreen(initialScheduleLink: String? = null) {
+fun MainScreen(initialGuestRoute: String? = null) {
+    val activity = LocalContext.current as Activity
     val navController = rememberNavController()
     // 현재 네비게이션 상태를 가져옴
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -124,13 +146,14 @@ fun MainScreen(initialScheduleLink: String? = null) {
         composable("splash") {
             MoaSplashScreen(
                 onSplashFinished = {
-                    val destination = if (TokenManager.isLoggedIn()) "home" else "login"
-                    if (initialScheduleLink != null) {
-                        navController.navigate("schedule_coordination/$initialScheduleLink") {
+                    if (initialGuestRoute != null) {
+                        // 단기 링크: 로그인 없이 투표·결과(확정 후) 화면으로
+                        navController.navigate(initialGuestRoute) {
                             popUpTo("splash") { inclusive = true }
                             launchSingleTop = true
                         }
                     } else {
+                        val destination = if (TokenManager.isLoggedIn()) "home" else "login"
                         navController.navigate(destination) {
                             popUpTo("splash") { inclusive = true }
                             launchSingleTop = true
@@ -172,9 +195,6 @@ fun MainScreen(initialScheduleLink: String? = null) {
             InitialHomeScreen(
                 currentRoute = currentRoute,
                 onNavigate = navigateBottomBar,
-                onGuestScheduleResultClick = { link ->
-                    navController.navigate("schedule_result/$link")
-                },
             )
         }
         
@@ -195,11 +215,24 @@ fun MainScreen(initialScheduleLink: String? = null) {
                     navController.navigate("schedule_result/$link")
                 },
                 onNeedsReLogin = {
-                    TokenManager.clear()
-                    navController.navigate("login") {
-                        popUpTo(0) { inclusive = true }
-                        launchSingleTop = true
-                    }
+                    restartApp(activity)
+                }
+            )
+        }
+
+        composable("meetings_favorites") {
+            MeetingsScreen(
+                currentRoute = "meetings",
+                favoritesOnly = true,
+                onNavigate = navigateBottomBar,
+                onMeetingClick = { groupId ->
+                    navController.navigate("group_detail/$groupId")
+                },
+                onGuestScheduleResultClick = { link ->
+                    navController.navigate("schedule_result/$link")
+                },
+                onNeedsReLogin = {
+                    restartApp(activity)
                 }
             )
         }
@@ -232,12 +265,14 @@ fun MainScreen(initialScheduleLink: String? = null) {
                 onEditProfileClick = {
                     navController.navigate("edit_profile")
                 },
-                onLogoutClick = {
-                    TokenManager.clear()
-                    navController.navigate("login") {
-                        popUpTo(0) { inclusive = true }
+                onNavigateToFavoriteMeetings = {
+                    navController.navigate("meetings_favorites") {
+                        popUpTo("home") { saveState = true }
                         launchSingleTop = true
                     }
+                },
+                onLogoutClick = {
+                    restartApp(activity)
                 }
             )
         }
@@ -249,22 +284,42 @@ fun MainScreen(initialScheduleLink: String? = null) {
             )
         }
 
-        // 일정 조율 시간 선택 화면 (link 파라미터로 연동)
+        // 게스트 링크 진입 (로그인 불필요) — 확정 전 투표 / 확정 후 결과
         composable(
-            route = "schedule_coordination/{link}",
+            route = "guest_entry/{link}",
             deepLinks = listOf(
-                navDeepLink { uriPattern = "moa://schedule/{link}" }
-            )
+                navDeepLink { uriPattern = "moa://schedule/{link}" },
+            ),
         ) { backStackEntry ->
+            val link = backStackEntry.arguments?.getString("link") ?: return@composable
+            GuestScheduleEntryRoute(
+                link = link,
+                onBackClick = { if (!navController.popBackStack()) activity.finish() },
+                onOpenCoordination = {
+                    navController.navigate("schedule_coordination/$link") {
+                        popUpTo("guest_entry/$link") { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
+                onOpenResult = {
+                    navController.navigate("schedule_result/$link") {
+                        popUpTo("guest_entry/$link") { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
+            )
+        }
+
+        composable(route = "schedule_coordination/{link}") { backStackEntry ->
             val link = backStackEntry.arguments?.getString("link") ?: "DEMO"
             GuestScheduleCoordinationRoute(
                 link = link,
-                onBackClick = { navController.popBackStack() },
+                onBackClick = { if (!navController.popBackStack()) activity.finish() },
                 onSubmitSuccess = {
                     navController.navigate("schedule_result/$link") {
                         launchSingleTop = true
                     }
-                }
+                },
             )
         }
 
@@ -291,18 +346,25 @@ fun MainScreen(initialScheduleLink: String? = null) {
             )
         }
 
-        // 조율 결과 (히트맵/추천) 화면
-        composable("schedule_result/{link}") { backStackEntry ->
+        // 조율 결과 (히트맵/추천) — 게스트도 로그인 없이 조회 가능
+        composable(
+            route = "schedule_result/{link}",
+            deepLinks = listOf(
+                navDeepLink { uriPattern = "moa://schedule-result/{link}" },
+            ),
+        ) { backStackEntry ->
             val link = backStackEntry.arguments?.getString("link") ?: "DEMO"
             ScheduleResultScreen(
                 uniqueLink = link,
-                onBackClick = { navController.popBackStack() },
+                onBackClick = { if (!navController.popBackStack()) activity.finish() },
                 onConfirmClick = {
-                    navController.navigate("calendar") {
-                        popUpTo("home") { inclusive = false }
-                        launchSingleTop = true
+                    if (TokenManager.isLoggedIn()) {
+                        navController.navigate("calendar") {
+                            popUpTo("home") { inclusive = false }
+                            launchSingleTop = true
+                        }
                     }
-                }
+                },
             )
         }
 
@@ -380,6 +442,63 @@ private fun GroupScheduleCoordinationRoute(
 }
 
 @Composable
+private fun GuestScheduleEntryRoute(
+    link: String,
+    onBackClick: () -> Unit,
+    onOpenCoordination: () -> Unit,
+    onOpenResult: () -> Unit,
+    viewModel: com.example.moa_project.ui.schedule.GuestScheduleViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+        key = "guest_entry_$link",
+    ),
+) {
+    val uiState by viewModel.uiState.collectAsState()
+
+    LaunchedEffect(link) {
+        viewModel.fetchSchedule(link)
+    }
+
+    when (val state = uiState) {
+        is com.example.moa_project.ui.schedule.GuestScheduleState.Loading,
+        is com.example.moa_project.ui.schedule.GuestScheduleState.Idle -> {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Color(0xFF2179FE))
+            }
+        }
+        is com.example.moa_project.ui.schedule.GuestScheduleState.Error -> {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = state.message)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = { viewModel.fetchSchedule(link) },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2179FE)),
+                    ) {
+                        Text("다시 시도")
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(onClick = onBackClick) {
+                        Text("닫기")
+                    }
+                }
+            }
+        }
+        is com.example.moa_project.ui.schedule.GuestScheduleState.Success -> {
+            val schedule = state.schedule
+            LaunchedEffect(schedule.status) {
+                if (schedule.status == "CONFIRMED" || schedule.status == "DONE") {
+                    onOpenResult()
+                } else {
+                    onOpenCoordination()
+                }
+            }
+        }
+        else -> {
+            LaunchedEffect(Unit) { onOpenResult() }
+        }
+    }
+}
+
+@Composable
 private fun GuestScheduleCoordinationRoute(
     link: String,
     onBackClick: () -> Unit,
@@ -426,6 +545,11 @@ private fun GuestScheduleCoordinationRoute(
         }
         is com.example.moa_project.ui.schedule.GuestScheduleState.Success -> {
             val schedule = state.schedule
+            if (schedule.status == "CONFIRMED" || schedule.status == "DONE") {
+                androidx.compose.runtime.LaunchedEffect(link) {
+                    onSubmitSuccess()
+                }
+            } else {
             val startDate = schedule.startDate.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: LocalDate.now()
             val endDate = schedule.endDate.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: startDate.plusDays(5)
 
@@ -440,6 +564,7 @@ private fun GuestScheduleCoordinationRoute(
                     viewModel.submitTimeSlots(link, guestName, slots)
                 }
             )
+            }
         }
         is com.example.moa_project.ui.schedule.GuestScheduleState.SubmitSuccess -> {
             androidx.compose.runtime.LaunchedEffect(state) {

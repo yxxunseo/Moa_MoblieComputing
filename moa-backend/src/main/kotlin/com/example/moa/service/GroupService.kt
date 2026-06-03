@@ -1,11 +1,15 @@
 package com.example.moa.service
 
+import com.example.moa.controller.GroupMemberPreview
 import com.example.moa.controller.GroupResponse
 import com.example.moa.controller.GroupMemberResponse
 import com.example.moa.entity.GroupMember
 import com.example.moa.entity.MeetingGroup
 import com.example.moa.repository.GroupMemberRepository
 import com.example.moa.repository.GroupRepository
+import com.example.moa.repository.ScheduleRepository
+import com.example.moa.repository.ScheduleReactionRepository
+import com.example.moa.repository.TimeSlotRepository
 import com.example.moa.repository.UserRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -15,6 +19,9 @@ import java.util.UUID
 class GroupService(
     private val groupRepository: GroupRepository,
     private val groupMemberRepository: GroupMemberRepository,
+    private val scheduleRepository: ScheduleRepository,
+    private val timeSlotRepository: TimeSlotRepository,
+    private val scheduleReactionRepository: ScheduleReactionRepository,
     private val userRepository: UserRepository
 ) {
     @Transactional
@@ -45,7 +52,7 @@ class GroupService(
             )
         )
         
-        return group.toResponse(1)
+        return group.toResponse(1, memberPreviewsFor(group))
     }
 
     @Transactional(readOnly = true)
@@ -58,7 +65,7 @@ class GroupService(
         return members.map { member ->
             val group = member.group!!
             val memberCount = groupMemberRepository.countByGroup(group)
-            group.toResponse(memberCount)
+            group.toResponse(memberCount, memberPreviewsFor(group))
         }
     }
 
@@ -89,12 +96,29 @@ class GroupService(
     }
     
     @Transactional(readOnly = true)
-    fun getGroupDetail(groupId: Long): GroupResponse {
-        val group = groupRepository.findById(groupId).orElseThrow { 
-            IllegalArgumentException("그룹을 찾을 수 없습니다.") 
+    fun getGroupDetail(userId: Long, groupId: Long): GroupResponse {
+        val user = userRepository.findById(userId).orElseThrow {
+            IllegalArgumentException("사용자를 찾을 수 없습니다.")
+        }
+        val group = groupRepository.findById(groupId).orElseThrow {
+            IllegalArgumentException("그룹을 찾을 수 없습니다.")
+        }
+        if (!groupMemberRepository.existsByGroupAndUser(group, user)) {
+            throw IllegalArgumentException("해당 그룹의 멤버가 아닙니다.")
         }
         val count = groupMemberRepository.countByGroup(group)
-        return group.toResponse(count)
+        return group.toResponse(count, memberPreviewsFor(group))
+    }
+
+    private fun memberPreviewsFor(group: MeetingGroup): List<GroupMemberPreview> {
+        return groupMemberRepository.findAllByGroup(group)
+            .take(4)
+            .map { member ->
+                GroupMemberPreview(
+                    nickname = member.user!!.nickname,
+                    profileImageUrl = member.user!!.profileImageUrl
+                )
+            }
     }
 
     @Transactional(readOnly = true)
@@ -119,27 +143,68 @@ class GroupService(
     }
 
     @Transactional
+    fun updateGroupCover(userId: Long, groupId: Long, imageUrl: String): GroupResponse {
+        if (!isAdmin(userId, groupId)) {
+            throw IllegalArgumentException("모임 사진은 관리자만 등록할 수 있습니다.")
+        }
+        val group = groupRepository.findById(groupId).orElseThrow {
+            IllegalArgumentException("그룹을 찾을 수 없습니다.")
+        }
+        group.coverImageUrl = imageUrl
+        val count = groupMemberRepository.countByGroup(group)
+        return group.toResponse(count, memberPreviewsFor(group))
+    }
+
+    @Transactional(readOnly = true)
+    fun isAdmin(userId: Long, groupId: Long): Boolean {
+        val user = userRepository.findById(userId).orElse(null) ?: return false
+        val group = groupRepository.findById(groupId).orElse(null) ?: return false
+        val member = groupMemberRepository.findByGroupAndUser(group, user) ?: return false
+        return member.role == "ADMIN"
+    }
+
+    @Transactional
     fun leaveGroup(userId: Long, groupId: Long) {
-        val user = userRepository.findById(userId).orElseThrow { 
-            IllegalArgumentException("사용자를 찾을 수 없습니다.") 
+        val user = userRepository.findById(userId).orElseThrow {
+            IllegalArgumentException("사용자를 찾을 수 없습니다.")
         }
-        val group = groupRepository.findById(groupId).orElseThrow { 
-            IllegalArgumentException("그룹을 찾을 수 없습니다.") 
+        val group = groupRepository.findById(groupId).orElseThrow {
+            IllegalArgumentException("그룹을 찾을 수 없습니다.")
         }
-        
-        val member = groupMemberRepository.findByGroupAndUser(group, user) 
+
+        val member = groupMemberRepository.findByGroupAndUser(group, user)
             ?: throw IllegalArgumentException("해당 그룹의 멤버가 아닙니다.")
-            
-        groupMemberRepository.delete(member)
+
+        if (member.role == "ADMIN") {
+            // 관리자가 나가면 그룹 전체 삭제
+            deleteGroupAndAllRelatedData(group)
+        } else {
+            groupMemberRepository.delete(member)
+        }
+    }
+
+    /** 그룹과 모든 연관 데이터(일정, 타임슬롯, 반응, 멤버)를 순서대로 삭제 */
+    @Transactional
+    fun deleteGroupAndAllRelatedData(group: MeetingGroup) {
+        val schedules = scheduleRepository.findAllByGroup(group)
+        schedules.forEach { schedule ->
+            timeSlotRepository.deleteAll(timeSlotRepository.findAllBySchedule(schedule))
+            scheduleReactionRepository.deleteAll(scheduleReactionRepository.findAllBySchedule(schedule))
+        }
+        scheduleRepository.deleteAll(schedules)
+        groupMemberRepository.deleteAllByGroup(group)
+        groupRepository.delete(group)
     }
 }
 
-fun MeetingGroup.toResponse(memberCount: Long) = GroupResponse(
+fun MeetingGroup.toResponse(memberCount: Long, memberPreviews: List<GroupMemberPreview> = emptyList()) = GroupResponse(
     id = id,
     name = name,
     description = description,
     inviteCode = inviteCode,
     color = color,
+    coverImageUrl = coverImageUrl,
     memberCount = memberCount,
-    createdAt = createdAt.toString()
+    createdAt = createdAt.toString(),
+    memberPreviews = memberPreviews
 )

@@ -51,7 +51,8 @@ class GroupActionViewModel : ViewModel() {
             _state.value = GroupActionState.Loading
             try {
                 val response = RetrofitClient.instance.joinGroup(JoinGroupRequest(inviteCode = inviteCode.trim()))
-                val groupId = (response["groupId"] as? Double)?.toLong() ?: 0L
+                // Gson은 JSON number를 Map<String,Any> 역직렬화 시 Double로 반환하므로 Number로 받아 toLong
+                val groupId = (response["groupId"] as? Number)?.toLong() ?: 0L
                 val groupName = response["groupName"] as? String ?: "모임"
                 _state.value = GroupActionState.JoinSuccess(groupName, groupId)
             } catch (e: Exception) {

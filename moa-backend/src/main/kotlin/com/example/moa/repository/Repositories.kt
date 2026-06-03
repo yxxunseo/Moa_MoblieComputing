@@ -28,11 +28,13 @@ interface GroupMemberRepository : JpaRepository<GroupMember, Long> {
     fun findAllByGroup(group: MeetingGroup): List<GroupMember>
     fun existsByGroupAndUser(group: MeetingGroup, user: User): Boolean
     fun countByGroup(group: MeetingGroup): Long
+    fun deleteAllByGroup(group: MeetingGroup)
 }
 
 @Repository
 interface ScheduleRepository : JpaRepository<Schedule, Long> {
     fun findAllByGroup(group: MeetingGroup): List<Schedule>
+    fun deleteAllByGroup(group: MeetingGroup)
 }
 
 @Repository
@@ -60,6 +62,15 @@ interface GuestScheduleRepository : JpaRepository<GuestSchedule, Long> {
 interface GuestTimeSlotRepository : JpaRepository<GuestTimeSlot, Long> {
     fun findAllByGuestSchedule(guestSchedule: GuestSchedule): List<GuestTimeSlot>
     fun deleteAllByGuestScheduleAndGuestName(guestSchedule: GuestSchedule, guestName: String)
+}
+
+@Repository
+interface GuestVisitorSessionRepository : JpaRepository<com.example.moa.entity.GuestVisitorSession, Long> {
+    fun findByUniqueLinkAndVisitorId(uniqueLink: String, visitorId: String): com.example.moa.entity.GuestVisitorSession?
+    fun findFirstByUniqueLinkAndClientIpOrderByUpdatedAtDesc(
+        uniqueLink: String,
+        clientIp: String,
+    ): com.example.moa.entity.GuestVisitorSession?
 }
 
 @Repository

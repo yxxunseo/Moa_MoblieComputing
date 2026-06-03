@@ -4,12 +4,19 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import android.content.Context
+import android.net.Uri
 import com.example.moa_project.network.GroupResponse
 import com.example.moa_project.network.RetrofitClient
 import com.example.moa_project.network.ScheduleDetailResponse
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import java.io.File
+import java.io.FileOutputStream
 
 sealed class GroupDetailState {
     object Loading : GroupDetailState()
@@ -46,11 +53,44 @@ class GroupDetailViewModel(private val groupId: Long) : ViewModel() {
         }
     }
 
-    fun leaveGroup(onSuccess: () -> Unit, onError: (String) -> Unit) {
+    /**
+     * @param onSuccess groupDeleted=true이면 관리자 나가기(그룹 삭제), false이면 일반 멤버 나가기
+     */
+    fun uploadCoverImage(context: Context, uri: Uri, onSuccess: () -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
             try {
-                RetrofitClient.instance.leaveGroup(groupId)
+                val tempFile = copyUriToTempFile(context, uri)
+                val body = tempFile.asRequestBody("image/*".toMediaTypeOrNull())
+                val part = MultipartBody.Part.createFormData("file", tempFile.name, body)
+                val group = RetrofitClient.instance.uploadGroupCoverImage(groupId, part)
+                tempFile.delete()
+                val current = _state.value
+                if (current is GroupDetailState.Success) {
+                    _state.value = current.copy(group = group)
+                } else {
+                    loadGroupDetail()
+                }
                 onSuccess()
+            } catch (e: Exception) {
+                onError("모임 사진 업로드에 실패했습니다.")
+            }
+        }
+    }
+
+    private fun copyUriToTempFile(context: Context, uri: Uri): File {
+        val temp = File.createTempFile("group_cover_", ".jpg", context.cacheDir)
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            FileOutputStream(temp).use { output -> input.copyTo(output) }
+        } ?: throw IllegalArgumentException("이미지를 읽을 수 없습니다.")
+        return temp
+    }
+
+    fun leaveGroup(onSuccess: (groupDeleted: Boolean) -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val result = RetrofitClient.instance.leaveGroup(groupId)
+                val groupDeleted = result["groupDeleted"] as? Boolean ?: false
+                onSuccess(groupDeleted)
             } catch (e: Exception) {
                 Log.e("GroupDetailVM", "그룹 나가기 실패", e)
                 onError("그룹 나가기에 실패했습니다.")

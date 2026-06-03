@@ -22,6 +22,9 @@ data class MeetingGroup(
     @Column(nullable = false)
     var color: String = "#2179FE",
 
+    @Column(name = "cover_image_url")
+    var coverImageUrl: String? = null,
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")
     var createdBy: User? = null,

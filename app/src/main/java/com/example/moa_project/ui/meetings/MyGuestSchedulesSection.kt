@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -46,6 +47,8 @@ import com.example.moa_project.ui.theme.MoaBlue
 import com.example.moa_project.ui.theme.MoaTextPrimary
 import com.example.moa_project.ui.theme.MoaTextSecondary
 import com.example.moa_project.ui.theme.SBAggroFontFamily
+import com.example.moa_project.ui.components.Moa3DIcon
+import com.example.moa_project.ui.components.Moa3DIconType
 import com.example.moa_project.util.GuestLinkHelper
 
 @Composable
@@ -68,21 +71,25 @@ fun MyGuestSchedulesSection(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column {
-                Text(
-                    text = "내 단기 일정",
-                    fontFamily = SBAggroFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = MoaTextPrimary,
-                )
-                Text(
-                    text = "만든 링크 일정을 한곳에서 관리해요",
-                    fontFamily = SBAggroFontFamily,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 11.sp,
-                    color = MoaTextSecondary,
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Moa3DIcon(type = Moa3DIconType.Link, size = 32.dp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = "내 단기 일정",
+                        fontFamily = SBAggroFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = MoaTextPrimary,
+                    )
+                    Text(
+                        text = "앱 없이 참여하는 링크 일정",
+                        fontFamily = SBAggroFontFamily,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 11.sp,
+                        color = MoaTextSecondary,
+                    )
+                }
             }
             IconButton(onClick = onCreateClick) {
                 Icon(Icons.Default.Add, contentDescription = "단기 일정 만들기", tint = MoaBlue)
@@ -166,7 +173,7 @@ private fun GuestScheduleListItem(
         else -> "조율 중"
     }
     val statusColor = when (schedule.status) {
-        "CONFIRMED" -> Color(0xFF35A96D)
+        "CONFIRMED" -> com.example.moa_project.ui.theme.MoaStatusConfirmed
         "DONE" -> MoaTextSecondary
         else -> MoaBlue
     }

@@ -16,12 +16,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -47,6 +49,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.moa_project.util.GuestLinkHelper
+import com.example.moa_project.ui.components.Moa3DIcon
+import com.example.moa_project.ui.components.Moa3DIconType
 import com.example.moa_project.ui.theme.SBAggroFontFamily
 import java.time.LocalDate
 
@@ -108,22 +112,26 @@ fun CreateGuestScheduleSheet(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text(
-                    text = "단기 일정 링크",
-                    color = TextPrimary,
-                    fontFamily = SBAggroFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 22.sp
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "앱 설치 없이 참여할 수 있는 링크를 만들어요",
-                    color = TextSecondary,
-                    fontFamily = SBAggroFontFamily,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 12.sp
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Moa3DIcon(type = Moa3DIconType.Link, size = 40.dp)
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "단기 일정 링크",
+                        color = TextPrimary,
+                        fontFamily = SBAggroFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 22.sp,
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "앱 설치 없이 참여할 수 있는 링크를 만들어요",
+                        color = TextSecondary,
+                        fontFamily = SBAggroFontFamily,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 12.sp,
+                    )
+                }
             }
             IconButton(onClick = onDismiss) {
                 Icon(Icons.Default.Close, contentDescription = "닫기", tint = TextSecondary)
@@ -133,9 +141,9 @@ fun CreateGuestScheduleSheet(
         Spacer(modifier = Modifier.height(22.dp))
 
         if (success == null) {
-            GuestTextField(title, { title = it }, "일정 제목", "예: 팀플 최종 회의")
+            GuestTextField(title, { if (it.length <= 30) title = it }, "일정 제목 (최대 30자)", "예: 팀플 최종 회의")
             Spacer(modifier = Modifier.height(14.dp))
-            GuestTextField(description, { description = it }, "설명", "장소나 안건을 적어주세요", singleLine = false)
+            GuestTextField(description, { if (it.length <= 80) description = it }, "설명 (선택, 최대 80자)", "장소나 안건을 적어주세요", singleLine = false)
             Spacer(modifier = Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 GuestTextField(
@@ -229,19 +237,35 @@ fun CreateGuestScheduleSheet(
                             fontSize = 11.sp
                         )
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = if (linkReachable) {
-                            "카카오톡·문자 등으로 링크를 보내면 앱 없이 가능한 시간을 입력할 수 있어요."
-                        } else {
-                            "⚠️ 지금 링크는 이 기기/같은 Wi-Fi에서만 열려요. 다른 사람에게 보내려면 local.properties의 WEB_SHARE_URL(ngrok 등 공개 URL)을 설정하거나 서버를 배포해주세요."
-                        },
-                        color = if (linkReachable) TextSecondary else Color(0xFFFF6262),
-                        fontFamily = SBAggroFontFamily,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 11.sp,
-                        lineHeight = 16.sp
-                    )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                    if (linkReachable) {
+                        Text(
+                            text = "카카오톡·문자 등으로 링크를 보내면 앱 없이 가능한 시간을 입력할 수 있어요.",
+                            color = TextSecondary,
+                            fontFamily = SBAggroFontFamily,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 11.sp,
+                            lineHeight = 16.sp,
+                        )
+                    } else {
+                        Row(verticalAlignment = Alignment.Top) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = Color(0xFFFF6262),
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "지금 링크는 이 기기/같은 Wi-Fi에서만 열려요. 다른 사람에게 보내려면 local.properties의 WEB_SHARE_URL(ngrok 등 공개 URL)을 설정하거나 서버를 배포해주세요.",
+                                color = Color(0xFFFF6262),
+                                fontFamily = SBAggroFontFamily,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 11.sp,
+                                lineHeight = 16.sp,
+                            )
+                        }
+                    }
                 }
             }
 

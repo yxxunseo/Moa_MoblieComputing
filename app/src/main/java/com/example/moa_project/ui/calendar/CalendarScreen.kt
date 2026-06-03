@@ -65,6 +65,8 @@ import com.example.moa_project.ui.theme.MoaDivider
 import com.example.moa_project.ui.theme.MoaScreenBackground
 import com.example.moa_project.ui.theme.MoaTextPrimary
 import com.example.moa_project.ui.theme.MoaTextSecondary
+import com.example.moa_project.ui.my.UserState
+import com.example.moa_project.ui.my.UserViewModel
 import com.example.moa_project.ui.theme.Moa_ProjectTheme
 import com.example.moa_project.ui.theme.SBAggroFontFamily
 import com.kizitonwose.calendar.compose.HorizontalCalendar
@@ -113,8 +115,11 @@ data class CalendarEventColor(
 fun CalendarScreen(
     currentRoute: String,
     onNavigate: (String) -> Unit,
-    viewModel: CalendarViewModel = viewModel()
+    viewModel: CalendarViewModel = viewModel(),
+    userViewModel: UserViewModel = viewModel(),
 ) {
+    val userState by userViewModel.uiState.collectAsState()
+    val profileImageUrl = (userState as? UserState.Success)?.user?.profileImageUrl
     val context = LocalContext.current
     val sharedPreferences = remember {
         context.getSharedPreferences("moa_settings", Context.MODE_PRIVATE)
@@ -259,6 +264,7 @@ fun CalendarScreen(
         bottomBar = {
             MoaBottomNavigationBar(
                 currentRoute = currentRoute,
+                profileImageUrl = profileImageUrl,
                 onNavigate = onNavigate,
             )
         },

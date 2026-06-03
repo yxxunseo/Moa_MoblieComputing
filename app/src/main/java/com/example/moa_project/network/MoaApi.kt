@@ -99,6 +99,12 @@ interface MoaApi {
     @retrofit2.http.PUT("api/users/me")
     suspend fun updateMyProfile(@Body request: UpdateProfileRequest): UserResponse
 
+    @retrofit2.http.Multipart
+    @POST("api/users/me/profile-image")
+    suspend fun uploadProfileImage(
+        @retrofit2.http.Part image: okhttp3.MultipartBody.Part
+    ): UserResponse
+
     @GET("api/users/me/groups")
     suspend fun getMyGroups(): List<GroupResponse>
 
@@ -124,8 +130,15 @@ interface MoaApi {
         @Body request: CreateScheduleRequest
     ): ScheduleDetailResponse
 
+    @retrofit2.http.Multipart
+    @POST("api/groups/{id}/cover-image")
+    suspend fun uploadGroupCoverImage(
+        @retrofit2.http.Path("id") groupId: Long,
+        @retrofit2.http.Part image: okhttp3.MultipartBody.Part
+    ): GroupResponse
+
     @retrofit2.http.DELETE("api/groups/{id}/leave")
-    suspend fun leaveGroup(@retrofit2.http.Path("id") groupId: Long): retrofit2.Response<Void>
+    suspend fun leaveGroup(@retrofit2.http.Path("id") groupId: Long): Map<String, Any>
 
     @POST("api/schedules/{id}/timeslots")
     suspend fun submitGroupTimeSlots(

@@ -49,7 +49,8 @@ class SecurityConfig(
                         "/guest.html",
                         "/api/guest-schedules/*",
                         "/api/guest-schedules/*/timeslots",
-                        "/api/guest-schedules/*/analysis"
+                        "/api/guest-schedules/*/analysis",
+                        "/uploads/**"
                     ).permitAll()
                     // 나머지는 JWT 필요
                     .anyRequest().authenticated()

@@ -2,6 +2,7 @@ package com.example.moa_project.ui.meetings
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,9 +24,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,7 +34,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.SubcomposeAsyncImage
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -60,6 +63,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -67,7 +71,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import com.example.moa_project.ui.components.MoaBottomNavigationBar
+import com.example.moa_project.ui.components.MoaMascot
+import com.example.moa_project.ui.components.MoaBodyText
+import com.example.moa_project.ui.components.MoaCaptionText
+import com.example.moa_project.ui.components.MoaTitleText
+import com.example.moa_project.ui.components.ProfileAvatar
+import com.example.moa_project.network.GroupMemberPreviewDto
 import com.example.moa_project.util.GroupFavoriteManager
+import com.example.moa_project.ui.my.UserState
+import com.example.moa_project.ui.my.UserViewModel
+import com.example.moa_project.ui.theme.MoaBlueSoft
 import com.example.moa_project.ui.theme.Moa_ProjectTheme
 import com.example.moa_project.ui.theme.SBAggroFontFamily
 
@@ -83,12 +96,18 @@ private data class MeetingItem(
     val category: String,
     val categoryColor: Color,
     val categoryBackground: Color,
+    val coverImageUrl: String? = null,
     val memberCount: Int,
     val illustration: MeetingIllustration,
-    val avatarColors: List<Color>,
+    val memberPreviews: List<GroupMemberPreviewDto> = emptyList(),
     val extraMemberCount: Int = 0,
     val isFavorite: Boolean = false,
 )
+
+private enum class MeetingsPageTab {
+    Groups,
+    Guest,
+}
 
 private enum class MeetingIllustration {
     Team,
@@ -128,13 +147,17 @@ private fun parseGroupColor(hex: String): Color {
 @Composable
 fun MeetingsScreen(
     currentRoute: String = "meetings",
+    favoritesOnly: Boolean = false,
     onNavigate: (String) -> Unit = {},
     onMeetingClick: (Long) -> Unit = {},
     onGuestScheduleResultClick: (String) -> Unit = {},
     onNeedsReLogin: () -> Unit = {},
     viewModel: MeetingsViewModel = viewModel(),
     guestListViewModel: GuestScheduleListViewModel = viewModel(),
+    userViewModel: UserViewModel = viewModel(),
 ) {
+    val userState by userViewModel.uiState.collectAsState()
+    val profileImageUrl = (userState as? UserState.Success)?.user?.profileImageUrl
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -143,8 +166,17 @@ fun MeetingsScreen(
     var showSheet by remember { mutableStateOf(false) }
     var showGuestSheet by remember { mutableStateOf(false) }
     var guestCreateKey by remember { mutableIntStateOf(0) }
+    var selectedTab by remember { mutableStateOf(MeetingsPageTab.Groups) }
+    var filterFavoritesOnly by remember { mutableStateOf(favoritesOnly) }
+    LaunchedEffect(favoritesOnly) { filterFavoritesOnly = favoritesOnly }
     var favoriteRevision by remember { mutableIntStateOf(0) }
     val favoriteIds = remember(favoriteRevision) { GroupFavoriteManager.favoriteIds(context) }
+
+    // 화면 진입 시 항상 현재 로그인 사용자의 목록을 새로 요청
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        viewModel.fetchMyGroups()
+        guestListViewModel.fetchMySchedules()
+    }
 
     // 토큰 만료 시 즉시 로그인 화면으로 이동
     androidx.compose.runtime.LaunchedEffect(uiState) {
@@ -208,6 +240,7 @@ fun MeetingsScreen(
         bottomBar = {
             MoaBottomNavigationBar(
                 currentRoute = currentRoute,
+                profileImageUrl = profileImageUrl,
                 onNavigate = onNavigate,
             )
         },
@@ -269,12 +302,15 @@ fun MeetingsScreen(
                         category = group.description?.takeIf { it.isNotBlank() } ?: "그룹 모임",
                         categoryColor = groupColor,
                         categoryBackground = groupColor.copy(alpha = 0.12f),
+                        coverImageUrl = group.coverImageUrl,
                         memberCount = memberCount,
                         illustration = MeetingIllustration.Team,
-                        avatarColors = avatarColorsForCount(memberCount),
+                        memberPreviews = group.memberPreviews.orEmpty(),
                         extraMemberCount = if (memberCount > 4) memberCount - 4 else 0,
                         isFavorite = favoriteIds.contains(group.id),
                     )
+                }.filter { meeting ->
+                    !filterFavoritesOnly || meeting.isFavorite
                 }
 
                 LazyColumn(
@@ -292,20 +328,43 @@ fun MeetingsScreen(
                 ) {
                     item {
                         MeetingsHeader(
+                            selectedTab = selectedTab,
+                            onTabSelected = { selectedTab = it },
                             onCreateMeetingClick = { showSheet = true },
-                            onCreateGuestScheduleClick = { guestCreateKey++; showGuestSheet = true }
                         )
                     }
 
-                    item {
-                        MyGuestSchedulesSection(
-                            onCreateClick = { guestCreateKey++; showGuestSheet = true },
-                            onViewResult = onGuestScheduleResultClick,
-                            viewModel = guestListViewModel,
-                        )
+                    if (filterFavoritesOnly && selectedTab == MeetingsPageTab.Groups) {
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(MoaBlueSoft)
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                MoaCaptionText(text = "관심 모임만 표시 중", color = MoaBlue)
+                                Spacer(modifier = Modifier.weight(1f))
+                                MoaCaptionText(
+                                    text = "전체 보기",
+                                    color = MoaBlue,
+                                    modifier = Modifier.clickable { filterFavoritesOnly = false },
+                                )
+                            }
+                        }
                     }
 
-                    if (displayMeetings.isEmpty()) {
+                    if (selectedTab == MeetingsPageTab.Guest) {
+                        item {
+                            MyGuestSchedulesSection(
+                                onCreateClick = { guestCreateKey++; showGuestSheet = true },
+                                onViewResult = onGuestScheduleResultClick,
+                                viewModel = guestListViewModel,
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
+                    } else if (displayMeetings.isEmpty()) {
                         item {
                             Box(
                                 modifier = Modifier
@@ -319,19 +378,16 @@ fun MeetingsScreen(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
+                                    MoaMascot(size = 56.dp)
                                     Text(
-                                        text = "🫂",
-                                        fontSize = 40.sp
-                                    )
-                                    Text(
-                                        text = "아직 참여 중인 모임이 없어요",
+                                        text = if (filterFavoritesOnly) "관심 모임이 없어요" else "아직 참여 중인 모임이 없어요",
                                         color = TextPrimary,
                                         fontFamily = SBAggroFontFamily,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp
                                     )
                                     Text(
-                                        text = "오른쪽 + 버튼으로 모임을 만들어보세요!",
+                                        text = "위 + 버튼으로 모임을 만들어보세요!",
                                         color = TextSecondary,
                                         fontFamily = SBAggroFontFamily,
                                         fontWeight = FontWeight.Medium,
@@ -340,7 +396,7 @@ fun MeetingsScreen(
                                 }
                             }
                         }
-                    } else {
+                    } else if (selectedTab == MeetingsPageTab.Groups) {
                         items(displayMeetings) { meeting ->
                             MeetingListCard(
                                 meeting = meeting,
@@ -381,8 +437,9 @@ fun MeetingsScreen(
                 ) {
                     item {
                         MeetingsHeader(
+                            selectedTab = selectedTab,
+                            onTabSelected = { selectedTab = it },
                             onCreateMeetingClick = { showSheet = true },
-                            onCreateGuestScheduleClick = { guestCreateKey++; showGuestSheet = true }
                         )
                     }
                     item {
@@ -401,70 +458,96 @@ fun MeetingsScreen(
 
 @Composable
 private fun MeetingsHeader(
+    selectedTab: MeetingsPageTab,
+    onTabSelected: (MeetingsPageTab) -> Unit,
     onCreateMeetingClick: () -> Unit,
-    onCreateGuestScheduleClick: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "모임",
+                color = TextPrimary,
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 26.sp,
+                modifier = Modifier.weight(1f),
+            )
+            if (selectedTab == MeetingsPageTab.Groups) {
+                IconButton(
+                    onClick = onCreateMeetingClick,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .shadow(6.dp, RoundedCornerShape(12.dp), spotColor = Color(0xFFDDE6FA))
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "모임 만들기",
+                        tint = MoaBlue,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(14.dp))
+        MeetingsTabSelector(selectedTab = selectedTab, onTabSelected = onTabSelected)
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun MeetingsTabSelector(
+    selectedTab: MeetingsPageTab,
+    onTabSelected: (MeetingsPageTab) -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 12.dp),
-        verticalAlignment = Alignment.Top,
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFFECEFF5))
+            .padding(4.dp),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = buildAnnotatedString {
-                    append("모임")
-                    withStyle(SpanStyle(color = MoaBlue)) {
-                        append(" ·")
-                    }
-                },
-                color = TextPrimary,
-                fontFamily = SBAggroFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 34.sp,
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "내가 참여 중인 모든 모임이에요",
-                color = TextSecondary,
-                fontFamily = SBAggroFontFamily,
-                fontWeight = FontWeight.Medium,
-                fontSize = 14.sp,
-            )
-        }
+        MeetingsTabChip(
+            label = "내 모임",
+            selected = selectedTab == MeetingsPageTab.Groups,
+            onClick = { onTabSelected(MeetingsPageTab.Groups) },
+            modifier = Modifier.weight(1f),
+        )
+        MeetingsTabChip(
+            label = "단기 일정",
+            selected = selectedTab == MeetingsPageTab.Guest,
+            onClick = { onTabSelected(MeetingsPageTab.Guest) },
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
 
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            IconButton(
-                onClick = onCreateGuestScheduleClick,
-                modifier = Modifier
-                    .size(48.dp)
-                    .shadow(8.dp, RoundedCornerShape(14.dp), spotColor = Color(0xFFDDE6FA))
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color.White),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Share,
-                    contentDescription = "단기 일정 링크 만들기",
-                    tint = Color(0xFF35A96D),
-                    modifier = Modifier.size(24.dp),
-                )
-            }
-            IconButton(
-                onClick = onCreateMeetingClick,
-                modifier = Modifier
-                    .size(48.dp)
-                    .shadow(8.dp, RoundedCornerShape(14.dp), spotColor = Color(0xFFDDE6FA))
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color.White),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "모임 만들기",
-                    tint = MoaBlue,
-                    modifier = Modifier.size(26.dp),
-                )
-            }
-        }
+@Composable
+private fun MeetingsTabChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (selected) Color.White else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            fontFamily = SBAggroFontFamily,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            fontSize = 14.sp,
+            color = if (selected) MoaBlue else TextSecondary,
+        )
     }
 }
 
@@ -477,48 +560,29 @@ private fun MeetingListCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(156.dp)
-            .shadow(9.dp, RoundedCornerShape(22.dp), spotColor = Color(0xFFDDE4F2))
-            .clip(RoundedCornerShape(22.dp))
+            .shadow(2.dp, RoundedCornerShape(16.dp), spotColor = Color(0x14000000))
+            .clip(RoundedCornerShape(16.dp))
             .background(Color.White)
             .clickable(onClick = onClick)
-            .padding(start = 18.dp, end = 10.dp, top = 18.dp, bottom = 18.dp),
+            .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        MeetingThumbnail(type = meeting.illustration)
-
-        Spacer(modifier = Modifier.width(18.dp))
-
+        MeetingThumbnail(type = meeting.illustration, coverImageUrl = meeting.coverImageUrl)
+        Spacer(modifier = Modifier.width(14.dp))
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.Center,
         ) {
-            CategoryChip(meeting)
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
+            MoaCaptionText(text = meeting.category)
+            Spacer(modifier = Modifier.height(6.dp))
+            MoaTitleText(
                 text = meeting.title,
-                color = TextPrimary,
-                fontFamily = SBAggroFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp,
+                fontSize = 17.sp,
+                maxLines = 2,
             )
-            Spacer(modifier = Modifier.height(9.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = null,
-                    tint = TextSecondary,
-                    modifier = Modifier.size(15.dp),
-                )
-                Text(
-                    text = " 멤버 ${meeting.memberCount}명",
-                    color = TextSecondary,
-                    fontFamily = SBAggroFontFamily,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 12.sp,
-                )
-            }
-            Spacer(modifier = Modifier.height(13.dp))
+            Spacer(modifier = Modifier.height(6.dp))
+            MoaCaptionText(text = "멤버 ${meeting.memberCount}명")
+            Spacer(modifier = Modifier.height(10.dp))
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -526,18 +590,17 @@ private fun MeetingListCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (meeting.memberCount > 0) {
-                    AvatarStack(
-                        colors = meeting.avatarColors,
+                    MemberAvatarStack(
+                        previews = meeting.memberPreviews,
+                        totalCount = meeting.memberCount,
                         extraMemberCount = meeting.extraMemberCount,
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                 }
-                Text(
+                MoaBodyText(
                     text = participantSummary(meeting.memberCount),
-                    color = TextSecondary,
-                    fontFamily = SBAggroFontFamily,
-                    fontWeight = FontWeight.Medium,
                     fontSize = 11.sp,
+                    color = TextSecondary,
                 )
             }
         }
@@ -554,12 +617,12 @@ private fun MeetingListCard(
                 Icon(
                     imageVector = if (meeting.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                     contentDescription = "관심 모임",
-                    tint = if (meeting.isFavorite) Color(0xFFFF6B9A) else TextSecondary,
+                    tint = if (meeting.isFavorite) MoaBlue else TextSecondary,
                     modifier = Modifier.size(24.dp),
                 )
             }
             Icon(
-                imageVector = Icons.Default.KeyboardArrowRight,
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = "상세 보기",
                 tint = TextSecondary,
                 modifier = Modifier.size(30.dp),
@@ -569,18 +632,27 @@ private fun MeetingListCard(
 }
 
 @Composable
-private fun MeetingThumbnail(type: MeetingIllustration) {
+private fun MeetingThumbnail(type: MeetingIllustration, coverImageUrl: String? = null) {
     Box(
         modifier = Modifier
-            .size(104.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFFF1F5FF)),
+            .size(72.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(MoaBlueSoft),
         contentAlignment = Alignment.Center,
     ) {
-        MeetingIllustrationCanvas(
-            type = type,
-            modifier = Modifier.size(width = 90.dp, height = 98.dp),
-        )
+        if (!coverImageUrl.isNullOrBlank()) {
+            SubcomposeAsyncImage(
+                model = coverImageUrl,
+                contentDescription = "모임 사진",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+        } else {
+            MeetingIllustrationCanvas(
+                type = type,
+                modifier = Modifier.size(64.dp),
+            )
+        }
     }
 }
 
@@ -592,17 +664,24 @@ private fun CategoryChip(meeting: MeetingItem) {
         fontFamily = SBAggroFontFamily,
         fontWeight = FontWeight.Bold,
         fontSize = 11.sp,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
     )
 }
 
 @Composable
-private fun AvatarStack(
-    colors: List<Color>,
+private fun MemberAvatarStack(
+    previews: List<GroupMemberPreviewDto>,
+    totalCount: Int,
     extraMemberCount: Int,
 ) {
     val avatarSize = 34.dp
-    val visibleColors = colors.take(4)
-    val stackWidth = avatarSize + ((visibleColors.size - 1).coerceAtLeast(0) * 22).dp +
+    val visible = if (previews.isNotEmpty()) {
+        previews.take(4)
+    } else {
+        List(totalCount.coerceAtMost(4)) { GroupMemberPreviewDto("", null) }
+    }
+    val stackWidth = avatarSize + ((visible.size - 1).coerceAtLeast(0) * 22).dp +
         if (extraMemberCount > 0) 28.dp else 0.dp
 
     Box(
@@ -611,58 +690,34 @@ private fun AvatarStack(
             .height(avatarSize),
         contentAlignment = Alignment.CenterStart,
     ) {
-        visibleColors.forEachIndexed { index, color ->
-            MiniAvatar(
-                color = color,
-                modifier = Modifier.offset(x = (index * 22).dp),
+        visible.forEachIndexed { index, preview ->
+            ProfileAvatar(
+                imageUrl = preview.profileImageUrl,
+                nickname = preview.nickname.takeIf { it.isNotBlank() },
+                modifier = Modifier
+                    .offset(x = (index * 22).dp)
+                    .border(2.dp, Color.White, CircleShape),
+                size = avatarSize,
+                defaultImageResId = com.example.moa_project.R.drawable.ic_character,
             )
         }
         if (extraMemberCount > 0) {
             Box(
                 modifier = Modifier
-                    .offset(x = (visibleColors.size * 22).dp)
+                    .offset(x = (visible.size * 22).dp)
                     .size(34.dp)
                     .clip(CircleShape)
                     .background(Color(0xFFE8EBF2)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
+                MoaBodyText(
                     text = "+$extraMemberCount",
-                    color = TextSecondary,
-                    fontFamily = SBAggroFontFamily,
                     fontWeight = FontWeight.Bold,
                     fontSize = 11.sp,
+                    color = TextSecondary,
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun MiniAvatar(
-    color: Color,
-    modifier: Modifier = Modifier,
-) {
-    Canvas(
-        modifier = modifier
-            .size(34.dp)
-            .clip(CircleShape)
-            .background(Color.White)
-            .padding(2.dp),
-    ) {
-        val r = size.minDimension * 0.48f
-        val center = Offset(size.width / 2f, size.height / 2f)
-        drawCircle(color = Color(0xFFF0F3FA), radius = r, center = center)
-        drawCircle(color = Color(0xFF2A2530), radius = r * 0.72f, center = Offset(center.x, center.y - r * 0.12f))
-        drawCircle(color = color, radius = r * 0.50f, center = Offset(center.x, center.y - r * 0.02f))
-        drawArc(
-            color = Color(0xFF202436),
-            startAngle = 200f,
-            sweepAngle = 140f,
-            useCenter = true,
-            topLeft = Offset(center.x - r * 0.72f, center.y + r * 0.16f),
-            size = Size(r * 1.44f, r * 1.10f),
-        )
     }
 }
 

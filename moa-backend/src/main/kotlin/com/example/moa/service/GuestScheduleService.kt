@@ -3,8 +3,10 @@ package com.example.moa.service
 import com.example.moa.entity.CalendarEvent
 import com.example.moa.entity.GuestSchedule
 import com.example.moa.entity.GuestTimeSlot
+import com.example.moa.entity.GuestVisitorSession
 import com.example.moa.repository.GuestScheduleRepository
 import com.example.moa.repository.GuestTimeSlotRepository
+import com.example.moa.repository.GuestVisitorSessionRepository
 import com.example.moa.repository.UserRepository
 import com.example.moa.repository.CalendarEventRepository
 import org.springframework.beans.factory.annotation.Value
@@ -34,6 +36,7 @@ data class GuestTimeSlotDto(val start: String, val end: String)
 class GuestScheduleService(
     private val guestScheduleRepository: GuestScheduleRepository,
     private val guestTimeSlotRepository: GuestTimeSlotRepository,
+    private val guestVisitorSessionRepository: GuestVisitorSessionRepository,
     private val userRepository: UserRepository,
     private val calendarEventRepository: CalendarEventRepository,
     @Value("\${server.public-url:http://localhost:8080}") private val publicUrl: String
@@ -87,8 +90,61 @@ class GuestScheduleService(
     }
     
     // 3. 이름과 함께 내 가능 시간 입력하기 (비회원 가능)
+    private fun saveVisitorSession(
+        uniqueLink: String,
+        visitorId: String?,
+        guestName: String,
+        clientIp: String?,
+    ) {
+        val vid = visitorId?.trim()?.takeIf { it.isNotEmpty() }
+            ?: clientIp?.trim()?.takeIf { it.isNotEmpty() }?.let { "ip-$it" }
+            ?: return
+        val existing = guestVisitorSessionRepository.findByUniqueLinkAndVisitorId(uniqueLink, vid)
+        if (existing != null) {
+            existing.guestName = guestName
+            existing.clientIp = clientIp ?: existing.clientIp
+            existing.updatedAt = LocalDateTime.now()
+            guestVisitorSessionRepository.save(existing)
+        } else {
+            guestVisitorSessionRepository.save(
+                GuestVisitorSession(
+                    uniqueLink = uniqueLink,
+                    visitorId = vid,
+                    guestName = guestName,
+                    clientIp = clientIp,
+                ),
+            )
+        }
+    }
+
+    private fun resolveViewerGuestName(
+        uniqueLink: String,
+        visitorId: String?,
+        clientIp: String?,
+        participantNames: Set<String>,
+    ): Pair<String?, Boolean> {
+        val vid = visitorId?.trim()?.takeIf { it.isNotEmpty() }
+        var name: String? = null
+        if (vid != null) {
+            name = guestVisitorSessionRepository.findByUniqueLinkAndVisitorId(uniqueLink, vid)?.guestName
+        }
+        if (name.isNullOrBlank() && !clientIp.isNullOrBlank()) {
+            name = guestVisitorSessionRepository
+                .findFirstByUniqueLinkAndClientIpOrderByUpdatedAtDesc(uniqueLink, clientIp)
+                ?.guestName
+        }
+        val hasSubmitted = !name.isNullOrBlank() && participantNames.contains(name)
+        return name to hasSubmitted
+    }
+
     @Transactional
-    fun addGuestTimeSlots(uniqueLink: String, guestName: String, slots: List<GuestTimeSlotDto>): Map<String, Any> {
+    fun addGuestTimeSlots(
+        uniqueLink: String,
+        guestName: String,
+        slots: List<GuestTimeSlotDto>,
+        visitorId: String? = null,
+        clientIp: String? = null,
+    ): Map<String, Any> {
         val schedule = guestScheduleRepository.findByUniqueLink(uniqueLink) 
             ?: throw IllegalArgumentException("유효하지 않은 링크입니다.")
             
@@ -107,22 +163,34 @@ class GuestScheduleService(
                 )
             )
         }
+
+        saveVisitorSession(uniqueLink, visitorId, guestName, clientIp)
         
         return mapOf("message" to "${guestName}님의 가능 시간이 성공적으로 등록되었습니다.")
     }
     
     // 4. 익명 일정 겹치는 시간 히트맵 분석 (비회원 가능)
     @Transactional(readOnly = true)
-    fun analyzeGuestSchedule(uniqueLink: String): Map<String, Any> {
+    fun analyzeGuestSchedule(
+        uniqueLink: String,
+        visitorId: String? = null,
+        clientIp: String? = null,
+    ): Map<String, Any> {
         val schedule = guestScheduleRepository.findByUniqueLink(uniqueLink) 
             ?: throw IllegalArgumentException("유효하지 않은 링크입니다.")
             
         val allSlots = guestTimeSlotRepository.findAllByGuestSchedule(schedule)
         
         val heatmap = mutableMapOf<String, MutableMap<String, Int>>()
+        val heatmapMembers = mutableMapOf<String, MutableMap<String, MutableList<String>>>()
         val userAvailability = mutableMapOf<LocalDateTime, MutableList<String>>()
+        val participantSlots = mutableMapOf<String, MutableList<Map<String, String>>>()
         
         allSlots.forEach { slot ->
+            participantSlots.putIfAbsent(slot.guestName, mutableListOf())
+            participantSlots[slot.guestName]!!.add(
+                mapOf("start" to slot.slotStart.toString(), "end" to slot.slotEnd.toString())
+            )
             var current = slot.slotStart
             while (current.isBefore(slot.slotEnd)) {
                 val dateStr = current.toLocalDate().toString()
@@ -130,6 +198,12 @@ class GuestScheduleService(
                 
                 heatmap.putIfAbsent(dateStr, mutableMapOf())
                 heatmap[dateStr]!![timeStr] = heatmap[dateStr]!!.getOrDefault(timeStr, 0) + 1
+
+                heatmapMembers.putIfAbsent(dateStr, mutableMapOf())
+                heatmapMembers[dateStr]!!.putIfAbsent(timeStr, mutableListOf())
+                if (!heatmapMembers[dateStr]!![timeStr]!!.contains(slot.guestName)) {
+                    heatmapMembers[dateStr]!![timeStr]!!.add(slot.guestName)
+                }
                 
                 userAvailability.putIfAbsent(current, mutableListOf())
                 userAvailability[current]!!.add(slot.guestName)
@@ -139,9 +213,20 @@ class GuestScheduleService(
         }
         
         val totalParticipants = allSlots.map { it.guestName }.distinct().size
+
+        val participants = participantSlots.entries.map { (name, slots) ->
+            mapOf(
+                "name" to name,
+                "slotCount" to slots.size,
+                "slots" to slots
+            )
+        }.sortedByDescending { (it["slotCount"] as Int) }
         
         val recommendations = userAvailability.entries
-            .sortedByDescending { it.value.size }
+            .sortedWith(
+                compareByDescending<Map.Entry<LocalDateTime, MutableList<String>>> { it.value.size }
+                    .thenBy { it.key }
+            )
             .take(3)
             .mapIndexed { index, entry ->
                 RecommendationDto(
@@ -152,15 +237,31 @@ class GuestScheduleService(
                     availableMembers = entry.value.distinct()
                 )
             }
+
+        val participantNames = participants.mapNotNull { it["name"] as? String }.toSet()
+        val (viewerName, hasSubmitted) = resolveViewerGuestName(
+            uniqueLink,
+            visitorId,
+            clientIp,
+            participantNames,
+        )
             
-        return mapOf(
+        return mapOf<String, Any>(
             "scheduleId" to schedule.id,
             "title" to schedule.title,
             "uniqueLink" to schedule.uniqueLink,
             "status" to schedule.status,
+            "confirmedStart" to (schedule.confirmedStart?.toString() ?: ""),
+            "confirmedEnd" to (schedule.confirmedEnd?.toString() ?: ""),
             "totalParticipants" to totalParticipants,
             "recommendations" to recommendations,
-            "heatmap" to heatmap
+            "heatmap" to heatmap,
+            "heatmapMembers" to heatmapMembers,
+            "participants" to participants,
+            "viewer" to mapOf<String, Any>(
+                "guestName" to (viewerName ?: ""),
+                "hasSubmitted" to hasSubmitted,
+            ),
         )
     }
 

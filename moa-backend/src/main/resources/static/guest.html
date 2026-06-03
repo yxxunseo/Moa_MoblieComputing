@@ -173,6 +173,42 @@
       color: #8A6800;
       margin-bottom: 16px;
     }
+    .status-card { margin-top: 8px; }
+    .status-card h3 { margin: 0 0 10px; font-size: 15px; }
+    .participant-row {
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .participant-row:last-child { border-bottom: none; }
+    .participant-name { font-weight: 700; color: var(--text); }
+    .participant-times { color: var(--sub); font-size: 12px; margin-top: 4px; }
+    .heatmap-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .heatmap-table th, .heatmap-table td {
+      border: 1px solid var(--border);
+      padding: 4px 2px;
+      text-align: center;
+    }
+    .heatmap-table th { background: var(--bg); color: var(--sub); font-weight: 600; }
+    .heat-cell { border-radius: 6px; min-width: 28px; }
+    .heat-0 { background: #F0F2F8; color: var(--sub); }
+    .heat-1 { background: #D6E6FF; color: var(--main); }
+    .heat-2 { background: #8FB8FF; color: #fff; }
+    .heat-3 { background: var(--main); color: #fff; font-weight: 700; }
+    .rec-row { padding: 8px 0; border-bottom: 1px dashed var(--border); font-size: 13px; }
+    .secondary-btn {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: var(--white);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
@@ -198,11 +234,162 @@
     let guestName = "";
     const selected = new Set();
     let scheduleDates = [];
+    let confirmPollTimer = null;
+    let lastAnalysis = null;
+
+    function getVisitorId() {
+      const cookieMatch = document.cookie.match(/(?:^|;\s*)moa_vid=([^;]+)/);
+      if (cookieMatch) return decodeURIComponent(cookieMatch[1]);
+      let id = localStorage.getItem("moa_visitor_id");
+      if (!id) {
+        id = (typeof crypto !== "undefined" && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : ("v_" + Date.now() + "_" + Math.random().toString(36).slice(2));
+        localStorage.setItem("moa_visitor_id", id);
+      }
+      document.cookie = "moa_vid=" + encodeURIComponent(id) + ";path=/;max-age=31536000;SameSite=Lax";
+      return id;
+    }
+
+    function apiHeaders(extra) {
+      return Object.assign({
+        "ngrok-skip-browser-warning": "1",
+        "X-Moa-Visitor-Id": getVisitorId()
+      }, extra || {});
+    }
+
+    /* 브라우저 + 서버(visitorId/IP)로 제출자 식별 */
+    function storageKey() {
+      return "moa_guest_v1_" + link;
+    }
+
+    function saveGuestSession(name) {
+      try {
+        localStorage.setItem(storageKey(), JSON.stringify({
+          guestName: name,
+          savedAt: Date.now()
+        }));
+      } catch (_) { /* 사생활 모드 등 */ }
+    }
+
+    function loadGuestSession() {
+      try {
+        const raw = localStorage.getItem(storageKey());
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        return data && data.guestName ? data : null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function clearGuestSession() {
+      try { localStorage.removeItem(storageKey()); } catch (_) {}
+    }
+
+    function normalizeSlotKey(start) {
+      if (!start) return "";
+      const [date, timePart] = start.split("T");
+      const hour = parseInt((timePart || "").split(":")[0], 10);
+      if (isNaN(hour)) return "";
+      return `${date}T${String(hour).padStart(2, "0")}:00`;
+    }
+
+    function restoreSelectionsFromParticipant(participant) {
+      selected.clear();
+      (participant?.slots || []).forEach((s) => {
+        const key = normalizeSlotKey(s.start);
+        if (key) selected.add(key);
+      });
+    }
+
+    function findParticipant(analysis, name) {
+      if (!analysis || !name) return null;
+      return (analysis.participants || []).find((p) => p.name === name) || null;
+    }
+
+    function applyViewerFromAnalysis(analysis) {
+      if (!analysis || !analysis.viewer) return;
+      if (analysis.viewer.guestName) {
+        guestName = analysis.viewer.guestName;
+        saveGuestSession(guestName);
+      }
+    }
+
+    function shouldShowSubmittedView(analysis) {
+      if (!guestName) return false;
+      if (analysis && analysis.viewer && analysis.viewer.hasSubmitted) return true;
+      return !!findParticipant(analysis, guestName);
+    }
+
+    async function fetchAnalysisData() {
+      try {
+        const res = await fetch(`${apiBase}/api/guest-schedules/${link}/analysis`, {
+          headers: apiHeaders()
+        });
+        if (!res.ok) return null;
+        lastAnalysis = await res.json();
+        return lastAnalysis;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function stopConfirmPoll() {
+      if (confirmPollTimer) {
+        clearInterval(confirmPollTimer);
+        confirmPollTimer = null;
+      }
+    }
+
+    async function checkScheduleConfirmed() {
+      try {
+        const res = await fetch(`${apiBase}/api/guest-schedules/${link}`, {
+          headers: apiHeaders()
+        });
+        if (!res.ok) return false;
+        schedule = await res.json();
+        if (schedule.status === "CONFIRMED" || schedule.status === "DONE") {
+          stopConfirmPoll();
+          renderConfirmed();
+          return true;
+        }
+      } catch (_) { /* ignore */ }
+      return false;
+    }
+
+    async function refreshLiveView() {
+      if (await checkScheduleConfirmed()) return;
+      const analysis = await fetchAnalysisData();
+      if (!analysis) return;
+      if (analysis.status === "CONFIRMED" || analysis.status === "DONE") {
+        schedule.status = analysis.status;
+        schedule.confirmedStart = analysis.confirmedStart || schedule.confirmedStart;
+        schedule.confirmedEnd = analysis.confirmedEnd || schedule.confirmedEnd;
+        stopConfirmPoll();
+        renderConfirmed();
+        return;
+      }
+      applyViewerFromAnalysis(analysis);
+      const panel = document.getElementById("statusPanel");
+      if (panel) panel.innerHTML = buildStatusHtml(analysis);
+      if (shouldShowSubmittedView(analysis)) {
+        const onForm = document.getElementById("submit");
+        if (!onForm) {
+          renderSubmittedView(guestName, findParticipant(analysis, guestName));
+        }
+      }
+    }
+
+    function startConfirmPoll() {
+      stopConfirmPoll();
+      confirmPollTimer = setInterval(refreshLiveView, 5000);
+    }
 
     async function init() {
       try {
         const res = await fetch(`${apiBase}/api/guest-schedules/${link}`, {
-          headers: { "ngrok-skip-browser-warning": "1" }
+          headers: apiHeaders()
         });
         if (!res.ok) throw new Error("일정을 찾을 수 없습니다.");
         schedule = await res.json();
@@ -215,11 +402,33 @@
 
         if (schedule.status === "CONFIRMED" || schedule.status === "DONE") {
           renderConfirmed();
+          return;
+        }
+
+        scheduleDates = dateRange(schedule.startDate, schedule.endDate);
+        currentDate = schedule.startDate;
+
+        const session = loadGuestSession();
+        if (session?.guestName) guestName = session.guestName;
+
+        const analysis = await fetchAnalysisData();
+        if (analysis?.status === "CONFIRMED" || analysis?.status === "DONE") {
+          schedule.status = analysis.status;
+          schedule.confirmedStart = analysis.confirmedStart || schedule.confirmedStart;
+          schedule.confirmedEnd = analysis.confirmedEnd || schedule.confirmedEnd;
+          renderConfirmed();
+          return;
+        }
+
+        applyViewerFromAnalysis(analysis);
+        if (!guestName && session?.guestName) guestName = session.guestName;
+
+        if (shouldShowSubmittedView(analysis)) {
+          renderSubmittedView(guestName, findParticipant(analysis, guestName));
         } else {
-          scheduleDates = dateRange(schedule.startDate, schedule.endDate);
-          currentDate = schedule.startDate;
           renderForm();
         }
+        startConfirmPoll();
       } catch (e) {
         document.getElementById("title").textContent = "오류";
         document.getElementById("content").innerHTML = `<p class="error">${e.message}</p>`;
@@ -247,7 +456,7 @@
 
       document.getElementById("content").innerHTML = `
         <div class="confirmed-banner">
-          <div class="badge">${isDone ? "✅ 완료된 일정" : "🎉 일정 확정"}</div>
+          <div class="badge">${isDone ? "완료된 일정" : "일정 확정"}</div>
           <h2>확정 시간이 정해졌어요!</h2>
           <p class="subtitle">${schedule.title}</p>
           <div class="confirmed-time-box">
@@ -257,18 +466,45 @@
           </div>
         </div>
         <div class="thankyou-card">
-          <div class="emoji">🙌</div>
+          <div class="emoji">MOA</div>
           <p><strong>일정이 확정되었습니다!</strong></p>
           <p>참여해 주셔서 감사해요.<br/>좋은 시간 되세요 😊</p>
         </div>
+        <div id="statusPanel" style="margin-top:16px"></div>
       `;
+      loadStatusPanel();
+    }
+
+    /* 제출 완료 후·새로고침 후: 성공 메시지 + 조율 현황(히트맵) */
+    function renderSubmittedView(name, participantEntry) {
+      guestName = name;
+      document.getElementById("content").innerHTML = `
+        <div class="success-msg">
+          <strong>${escapeHtml(name)}</strong>님의 가능 시간이 등록되었습니다!<br/>
+          아래에서 참여 현황과 히트맵을 확인할 수 있어요. 호스트가 확정하면 이 페이지에 확정 시간이 표시됩니다.
+        </div>
+        <div id="statusPanel"></div>
+        <button type="button" class="secondary-btn" id="editSlotsBtn">다시 시간 수정하기</button>
+      `;
+      loadStatusPanel();
+      document.getElementById("editSlotsBtn").onclick = () => {
+        restoreSelectionsFromParticipant(participantEntry || findParticipant(lastAnalysis, name));
+        renderForm();
+        loadStatusPanel();
+      };
     }
 
     /* ── 아직 미확정인 경우 입력 폼 ── */
     function renderForm() {
       const idx = scheduleDates.indexOf(currentDate);
+      const session = loadGuestSession();
+      const alreadySubmitted = session?.guestName && findParticipant(lastAnalysis, session.guestName);
       document.getElementById("content").innerHTML = `
-        <div class="pending-notice">⏳ 아직 일정이 확정되지 않았어요. 가능한 시간을 선택해 제출해주세요!</div>
+        <div class="pending-notice">아직 일정이 확정되지 않았어요. 가능한 시간을 선택해 제출해주세요!</div>
+        ${alreadySubmitted ? `<div class="success-msg" style="margin-bottom:12px">
+          <strong>${escapeHtml(session.guestName)}</strong>님은 이미 응답하셨어요. 수정하거나 아래 현황을 확인하세요.
+        </div>` : ""}
+        <div id="statusPanel" style="margin-bottom:12px"></div>
         <div class="card">
           <label for="name">이름</label>
           <input id="name" type="text" placeholder="예: 홍길동" maxlength="20" value="${escapeHtml(guestName)}" />
@@ -285,11 +521,15 @@
         <p class="error" id="err" hidden></p>
       `;
 
-      document.getElementById("name").addEventListener("input", (e) => { guestName = e.target.value; });
+      document.getElementById("name").addEventListener("input", (e) => {
+        guestName = e.target.value;
+        try { saveGuestSession(guestName.trim()); } catch (_) {}
+      });
       renderHours();
       document.getElementById("prev").onclick = () => moveDate(-1);
       document.getElementById("next").onclick = () => moveDate(1);
       document.getElementById("submit").onclick = submitSlots;
+      loadStatusPanel();
     }
 
     function dateRange(start, end) {
@@ -346,6 +586,83 @@
         .replace(/>/g, "&gt;");
     }
 
+    async function loadStatusPanel() {
+      const panel = document.getElementById("statusPanel");
+      if (!panel) return;
+      panel.innerHTML = '<div class="loading">현황 불러오는 중...</div>';
+      try {
+        const data = await fetchAnalysisData();
+        if (!data) throw new Error("현황을 불러올 수 없습니다.");
+        if (data.status === "CONFIRMED" || data.status === "DONE") {
+          schedule.status = data.status;
+          schedule.confirmedStart = data.confirmedStart || schedule.confirmedStart;
+          schedule.confirmedEnd = data.confirmedEnd || schedule.confirmedEnd;
+          stopConfirmPoll();
+          renderConfirmed();
+          return;
+        }
+        panel.innerHTML = buildStatusHtml(data);
+      } catch (e) {
+        panel.innerHTML = `<p class="error">${e.message}</p>`;
+      }
+    }
+
+    function buildStatusHtml(data) {
+      const participants = data.participants || [];
+      const recs = data.recommendations || [];
+      let html = `<div class="card status-card">
+        <h3>참여 현황 (${data.totalParticipants || 0}명)</h3>`;
+      if (participants.length === 0) {
+        html += '<p style="color:var(--sub);font-size:13px;">아직 응답이 없어요.</p>';
+      } else {
+        participants.forEach(p => {
+          const times = (p.slots || []).map(s => {
+            const st = s.start.split("T");
+            return st.length === 2 ? `${st[0].substring(5)} ${st[1].substring(0,5)}` : s.start;
+          }).slice(0, 8).join(", ");
+          html += `<div class="participant-row">
+            <div class="participant-name">${escapeHtml(p.name)} · ${p.slotCount}개 시간</div>
+            <div class="participant-times">${escapeHtml(times || "")}</div>
+          </div>`;
+        });
+      }
+      html += '</div>';
+
+      if (recs.length > 0) {
+        html += '<div class="card status-card"><h3>추천 시간</h3>';
+        recs.forEach(r => {
+          const st = r.start.split("T");
+          const en = r.end.split("T");
+          const label = st.length === 2 ? `${st[0]} ${st[1].substring(0,5)}~${en[1]?.substring(0,5) || ""}` : r.start;
+          html += `<div class="rec-row">${r.rank}위 · ${label} · <strong>${r.availableCount}명</strong> (${escapeHtml((r.availableMembers || []).join(", "))})</div>`;
+        });
+        html += '<p style="font-size:11px;color:var(--sub);margin:8px 0 0;">인원이 같으면 더 이른 시간을 우선 표시해요.</p></div>';
+      }
+
+      const heatmap = data.heatmap || {};
+      const dates = Object.keys(heatmap).sort();
+      if (dates.length > 0) {
+        const hours = [];
+        for (let h = 8; h <= 22; h++) hours.push(String(h).padStart(2, "0") + ":00");
+        html += '<div class="card status-card"><h3>시간대별 가능 인원</h3><div style="overflow-x:auto"><table class="heatmap-table"><thead><tr><th>날짜</th>';
+        hours.forEach(h => { html += `<th>${h.substring(0,2)}</th>`; });
+        html += '</tr></thead><tbody>';
+        dates.forEach(date => {
+          html += `<tr><th>${date.substring(5)}</th>`;
+          hours.forEach(h => {
+            const count = (heatmap[date] && heatmap[date][h]) || 0;
+            const cls = count === 0 ? "heat-0" : count === 1 ? "heat-1" : count === 2 ? "heat-2" : "heat-3";
+            const members = (data.heatmapMembers && data.heatmapMembers[date] && data.heatmapMembers[date][h]) || [];
+            const title = members.length ? members.join(", ") : "";
+            html += `<td class="heat-cell ${cls}" title="${escapeHtml(title)}">${count || ""}</td>`;
+          });
+          html += '</tr>';
+        });
+        html += '</tbody></table></div><p style="font-size:11px;color:var(--sub);margin:8px 0 0;">셀을 길게 누르면 참여자 이름을 볼 수 있어요.</p></div>';
+      }
+      return html;
+    }
+
     async function submitSlots() {
       guestName = document.getElementById("name").value.trim();
       const err = document.getElementById("err");
@@ -367,16 +684,15 @@
       try {
         const res = await fetch(`${apiBase}/api/guest-schedules/${link}/timeslots`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "1" },
-          body: JSON.stringify({ guestName, slots })
+          headers: apiHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify({ guestName, slots, visitorId: getVisitorId() })
         });
         if (!res.ok) throw new Error("제출에 실패했습니다.");
-        document.getElementById("content").innerHTML = `
-          <div class="success-msg">
-            ✅ <strong>${escapeHtml(guestName)}</strong>님의 가능 시간이 등록되었습니다!<br/>
-            주최자가 일정을 확정하면 이 페이지에서 확인할 수 있어요.
-          </div>
-        `;
+        saveGuestSession(guestName);
+        const analysis = await fetchAnalysisData();
+        const me = findParticipant(analysis, guestName);
+        renderSubmittedView(guestName, me);
+        startConfirmPoll();
       } catch (e) {
         err.textContent = e.message;
         err.hidden = false;

@@ -64,7 +64,7 @@ object RetrofitClient {
         val okHttpClient = OkHttpClient.Builder()
             .addInterceptor(AuthInterceptor())          // JWT 헤더 자동 주입
             .addInterceptor(TokenExpiredInterceptor())   // 401 시 토큰 자동 삭제
-            .addInterceptor(logging)                    // 디버그용 로그
+            .apply { if (BuildConfig.DEBUG) addInterceptor(logging) }  // 디버그 빌드에서만 로그
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)

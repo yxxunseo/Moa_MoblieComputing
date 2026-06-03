@@ -13,7 +13,9 @@ data class ScheduleDetailResponse(
     val description: String?,
     val startDate: String,
     val endDate: String,
-    val status: String
+    val status: String,
+    val confirmedStart: String? = null,
+    val confirmedEnd: String? = null,
 )
 
 data class TimeSlotDto(
@@ -44,7 +46,8 @@ data class ScheduleAnalysisResponse(
     val title: String,
     val totalMembers: Int,
     val recommendations: List<RecommendationDto>,
-    val heatmap: Map<String, Map<String, Int>>
+    val heatmap: Map<String, Map<String, Int>>,
+    val heatmapMembers: Map<String, Map<String, List<String>>>? = null,
 )
 
 data class ConfirmScheduleRequest(
@@ -89,11 +92,22 @@ data class GuestTimeSlotResponse(
     val message: String
 )
 
+data class GuestParticipantDto(
+    val name: String,
+    val slotCount: Int = 0,
+    val slots: List<TimeSlotDto>? = null,
+)
+
 data class GuestScheduleAnalysisResponse(
     val scheduleId: Long,
     val title: String,
     val uniqueLink: String,
+    val status: String? = null,
+    val confirmedStart: String? = null,
+    val confirmedEnd: String? = null,
     val totalParticipants: Int,
     val recommendations: List<RecommendationDto>,
-    val heatmap: Map<String, Map<String, Int>>
+    val heatmap: Map<String, Map<String, Int>>,
+    val heatmapMembers: Map<String, Map<String, List<String>>>? = null,
+    val participants: List<GuestParticipantDto>? = null
 )

@@ -2,7 +2,10 @@ package com.example.moa_project.ui.my
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,7 +27,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -34,15 +39,17 @@ import com.example.moa_project.network.CreateFixedSlotRequest
 import com.example.moa_project.network.FixedTimeSlotDto
 import com.example.moa_project.network.RetrofitClient
 import com.example.moa_project.ui.components.MoaOutlinedTextField
-import com.example.moa_project.ui.components.moaCard
 import com.example.moa_project.ui.theme.MoaBlue
 import com.example.moa_project.ui.theme.MoaError
+import com.example.moa_project.ui.theme.MoaInputBorder
 import com.example.moa_project.ui.theme.MoaTextPrimary
 import com.example.moa_project.ui.theme.MoaTextSecondary
 import com.example.moa_project.ui.theme.SBAggroFontFamily
+import com.example.moa_project.ui.theme.moaCard
 import kotlinx.coroutines.launch
 
 private val dayLabels = listOf("월", "화", "수", "목", "금", "토", "일")
+private val selectableHours = (8..22).toList()
 
 @Composable
 fun FixedScheduleSheet(onDismiss: () -> Unit) {
@@ -51,8 +58,8 @@ fun FixedScheduleSheet(onDismiss: () -> Unit) {
     val slots = remember { mutableStateListOf<FixedTimeSlotDto>() }
     var title by remember { mutableStateOf("수업") }
     var dayOfWeek by remember { mutableStateOf(1) }
-    var startHour by remember { mutableStateOf("9") }
-    var endHour by remember { mutableStateOf("12") }
+    var startHour by remember { mutableStateOf(9) }
+    var endHour by remember { mutableStateOf(12) }
 
     fun reload() {
         scope.launch {
@@ -68,21 +75,21 @@ fun FixedScheduleSheet(onDismiss: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 20.dp)
+            .padding(horizontal = 24.dp, vertical = 20.dp),
     ) {
         Text(
             text = "고정 일정 / 시간표",
             fontFamily = SBAggroFontFamily,
             fontWeight = FontWeight.Bold,
             fontSize = 20.sp,
-            color = MoaTextPrimary
+            color = MoaTextPrimary,
         )
         Spacer(modifier = Modifier.height(6.dp))
         Text(
-            text = "매주 반복되는 수업·알바 등을 등록하면 조율 시 자동으로 막혀요.",
+            text = "요일·시간을 눌러 등록하세요. 조율 화면에서도 시간 선택은 계속 가능해요.",
             fontFamily = SBAggroFontFamily,
             fontSize = 12.sp,
-            color = MoaTextSecondary
+            color = MoaTextSecondary,
         )
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -102,26 +109,42 @@ fun FixedScheduleSheet(onDismiss: () -> Unit) {
                         text = label,
                         color = if (selected) MoaBlue else MoaTextSecondary,
                         fontFamily = SBAggroFontFamily,
-                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                     )
                 }
             }
         }
-        Spacer(modifier = Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MoaOutlinedTextField(
-                value = startHour,
-                onValueChange = { startHour = it },
-                label = "시작(시)",
-                modifier = Modifier.weight(1f),
-            )
-            MoaOutlinedTextField(
-                value = endHour,
-                onValueChange = { endHour = it },
-                label = "종료(시)",
-                modifier = Modifier.weight(1f),
-            )
-        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "시작 시간",
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp,
+            color = MoaBlue,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        HourChipRow(
+            selectedHour = startHour,
+            onHourSelected = {
+                startHour = it
+                if (endHour <= startHour) endHour = (startHour + 1).coerceAtMost(22)
+            },
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "종료 시간",
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp,
+            color = MoaBlue,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        HourChipRow(
+            selectedHour = endHour,
+            onHourSelected = {
+                endHour = it.coerceAtLeast(startHour + 1)
+            },
+        )
         Spacer(modifier = Modifier.height(12.dp))
         Button(
             onClick = {
@@ -130,10 +153,10 @@ fun FixedScheduleSheet(onDismiss: () -> Unit) {
                         RetrofitClient.instance.addFixedTimeSlot(
                             CreateFixedSlotRequest(
                                 dayOfWeek = dayOfWeek,
-                                startHour = startHour.toInt(),
-                                endHour = endHour.toInt(),
-                                title = title
-                            )
+                                startHour = startHour,
+                                endHour = endHour,
+                                title = title,
+                            ),
                         )
                         reload()
                         Toast.makeText(context, "고정 일정이 추가됐어요.", Toast.LENGTH_SHORT).show()
@@ -144,7 +167,7 @@ fun FixedScheduleSheet(onDismiss: () -> Unit) {
             },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = MoaBlue),
-            shape = RoundedCornerShape(14.dp)
+            shape = RoundedCornerShape(14.dp),
         ) {
             Text("추가", color = Color.White, fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold)
         }
@@ -155,10 +178,8 @@ fun FixedScheduleSheet(onDismiss: () -> Unit) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .moaCard(cornerRadius = 14.dp)
-                        .background(Color.White, RoundedCornerShape(14.dp))
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .moaCard(padding = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Column {
                         Text(
@@ -166,13 +187,13 @@ fun FixedScheduleSheet(onDismiss: () -> Unit) {
                             fontFamily = SBAggroFontFamily,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
-                            color = MoaTextPrimary
+                            color = MoaTextPrimary,
                         )
                         Text(
                             text = "${dayLabels[slot.dayOfWeek - 1]} ${slot.startHour}:00~${slot.endHour}:00",
                             fontFamily = SBAggroFontFamily,
                             fontSize = 12.sp,
-                            color = MoaTextSecondary
+                            color = MoaTextSecondary,
                         )
                     }
                     TextButton(onClick = {
@@ -192,6 +213,43 @@ fun FixedScheduleSheet(onDismiss: () -> Unit) {
         Spacer(modifier = Modifier.height(12.dp))
         TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
             Text("닫기", fontFamily = SBAggroFontFamily, color = MoaTextSecondary)
+        }
+    }
+}
+
+@Composable
+private fun HourChipRow(
+    selectedHour: Int,
+    onHourSelected: (Int) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        selectableHours.chunked(5).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { hour ->
+                    val selected = hour == selectedHour
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(40.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (selected) MoaBlue else Color.White)
+                            .border(1.dp, if (selected) MoaBlue else MoaInputBorder, RoundedCornerShape(10.dp))
+                            .clickable { onHourSelected(hour) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = String.format("%02d:00", hour),
+                            fontFamily = SBAggroFontFamily,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 12.sp,
+                            color = if (selected) Color.White else MoaTextPrimary,
+                        )
+                    }
+                }
+                repeat(5 - row.size) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
         }
     }
 }

@@ -19,8 +19,8 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -107,7 +107,7 @@ fun ScheduleCoordinationScreen(
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(
-                            imageVector = Icons.Default.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "뒤로가기",
                             tint = TextPrimary
                         )
@@ -120,6 +120,7 @@ fun ScheduleCoordinationScreen(
         bottomBar = {
             BottomSubmitBar(
                 selectedCount = selectedTimeSlots.size,
+                submitEnabled = selectedTimeSlots.isNotEmpty() && (!isGuest || guestName.isNotBlank()),
                 onSubmit = { onSubmitClick(guestName, selectedTimeSlots) }
             )
         },
@@ -387,6 +388,7 @@ private fun HourChip(
 @Composable
 private fun BottomSubmitBar(
     selectedCount: Int,
+    submitEnabled: Boolean = selectedCount > 0,
     onSubmit: () -> Unit
 ) {
     Surface(
@@ -425,7 +427,7 @@ private fun BottomSubmitBar(
                     containerColor = MoaBlue,
                     disabledContainerColor = Color(0xFFDCE5F5)
                 ),
-                enabled = selectedCount > 0,
+                enabled = submitEnabled,
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier
                     .width(160.dp)

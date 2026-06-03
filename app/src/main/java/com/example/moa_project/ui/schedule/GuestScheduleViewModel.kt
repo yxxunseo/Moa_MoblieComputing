@@ -84,6 +84,18 @@ class GuestScheduleViewModel : ViewModel() {
         }
     }
 
+    /** 확정 대기 중 주기 갱신 (로딩 화면 없이) */
+    fun refreshAnalysis(link: String) {
+        viewModelScope.launch {
+            try {
+                val response = RetrofitClient.instance.getGuestScheduleAnalysis(link)
+                _uiState.value = GuestScheduleState.AnalysisSuccess(response)
+            } catch (e: Exception) {
+                Log.e("GuestScheduleVM", "Failed to refresh analysis", e)
+            }
+        }
+    }
+
     fun confirm(link: String, start: String, end: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
             _uiState.value = GuestScheduleState.Loading

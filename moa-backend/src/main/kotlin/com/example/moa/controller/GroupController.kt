@@ -1,7 +1,9 @@
 package com.example.moa.controller
 
+import com.example.moa.service.GroupImageStorageService
 import com.example.moa.service.GroupService
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.core.userdetails.UserDetails
@@ -17,14 +19,21 @@ data class JoinGroupRequest(
     val inviteCode: String
 )
 
+data class GroupMemberPreview(
+    val nickname: String,
+    val profileImageUrl: String?
+)
+
 data class GroupResponse(
     val id: Long,
     val name: String,
     val description: String?,
     val inviteCode: String,
     val color: String,
+    val coverImageUrl: String? = null,
     val memberCount: Long,
-    val createdAt: String
+    val createdAt: String,
+    val memberPreviews: List<GroupMemberPreview> = emptyList()
 )
 
 data class GroupMemberResponse(
@@ -37,7 +46,8 @@ data class GroupMemberResponse(
 @RestController
 @RequestMapping("/api/groups")
 class GroupController(
-    private val groupService: GroupService
+    private val groupService: GroupService,
+    private val groupImageStorageService: GroupImageStorageService
 ) {
     @PostMapping
     fun createGroup(
@@ -50,8 +60,12 @@ class GroupController(
     }
 
     @GetMapping("/{id}")
-    fun getGroupDetail(@PathVariable id: Long): ResponseEntity<GroupResponse> {
-        return ResponseEntity.ok(groupService.getGroupDetail(id))
+    fun getGroupDetail(
+        @AuthenticationPrincipal userDetails: UserDetails,
+        @PathVariable id: Long
+    ): ResponseEntity<GroupResponse> {
+        val userId = userDetails.username.toLong()
+        return ResponseEntity.ok(groupService.getGroupDetail(userId, id))
     }
 
     @GetMapping("/{id}/members")
@@ -72,13 +86,28 @@ class GroupController(
         return ResponseEntity.ok(groupService.joinGroup(userId, request.inviteCode))
     }
 
+    @PostMapping("/{id}/cover-image", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    fun uploadGroupCover(
+        @AuthenticationPrincipal userDetails: UserDetails,
+        @PathVariable id: Long,
+        @RequestParam("file") file: org.springframework.web.multipart.MultipartFile
+    ): ResponseEntity<GroupResponse> {
+        val userId = userDetails.username.toLong()
+        val imageUrl = groupImageStorageService.storeGroupCover(id, file)
+        return ResponseEntity.ok(groupService.updateGroupCover(userId, id, imageUrl))
+    }
+
     @DeleteMapping("/{id}/leave")
     fun leaveGroup(
         @AuthenticationPrincipal userDetails: UserDetails,
         @PathVariable id: Long
-    ): ResponseEntity<Void> {
+    ): ResponseEntity<Map<String, Any>> {
         val userId = userDetails.username.toLong()
+        val isAdmin = groupService.isAdmin(userId, id)
         groupService.leaveGroup(userId, id)
-        return ResponseEntity.noContent().build()
+        return ResponseEntity.ok(mapOf(
+            "groupDeleted" to isAdmin,
+            "message" to if (isAdmin) "관리자가 나가 모임이 삭제되었습니다." else "모임에서 나갔습니다."
+        ))
     }
 }

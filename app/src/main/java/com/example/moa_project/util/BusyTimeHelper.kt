@@ -39,30 +39,9 @@ object BusyTimeHelper {
             }
         }
 
-        runCatching {
-            val fixedSlots = RetrofitClient.instance.getFixedTimeSlots()
-            applyFixedSlots(fixedSlots, startDate, endDate, blocked)
-        }
+        // 고정 시간표는 주간 보기·조율 참고용으로만 쓰고, 가능 시간 선택은 막지 않음
 
         return blocked
-    }
-
-    private fun applyFixedSlots(
-        slots: List<com.example.moa_project.network.FixedTimeSlotDto>,
-        startDate: LocalDate,
-        endDate: LocalDate,
-        blocked: MutableSet<TimeSlot>
-    ) {
-        var date = startDate
-        while (!date.isAfter(endDate)) {
-            val dayOfWeek = date.dayOfWeek.value // 1=Mon ... 7=Sun
-            slots.filter { it.dayOfWeek == dayOfWeek }.forEach { slot ->
-                for (hour in slot.startHour until slot.endHour) {
-                    blocked.add(TimeSlot(date, hour))
-                }
-            }
-            date = date.plusDays(1)
-        }
     }
 
     private fun parseEventsToBlocked(
