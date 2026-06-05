@@ -195,6 +195,13 @@ fun MainScreen(initialGuestRoute: String? = null) {
             InitialHomeScreen(
                 currentRoute = currentRoute,
                 onNavigate = navigateBottomBar,
+                onNotificationsClick = { navController.navigate("notifications") },
+            )
+        }
+
+        composable("notifications") {
+            com.example.moa_project.ui.notifications.NotificationScreen(
+                onBackClick = { navController.popBackStack() },
             )
         }
         

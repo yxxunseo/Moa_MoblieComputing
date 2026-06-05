@@ -8,6 +8,7 @@ import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.http.MediaType
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder
 import com.example.moa.service.ProfileImageStorageService
 
 data class UpdateProfileRequest(
@@ -34,7 +35,8 @@ class UserController(
         @RequestParam("file") file: MultipartFile
     ): ResponseEntity<UserResponse> {
         val userId = userDetails.username.toLong()
-        val imageUrl = profileImageStorageService.storeProfileImage(userId, file)
+        val baseUrl = ServletUriComponentsBuilder.fromCurrentContextPath().build().toUriString()
+        val imageUrl = profileImageStorageService.storeProfileImage(userId, file, baseUrl)
         val user = userService.getUserProfile(userId)
         return ResponseEntity.ok(
             userService.updateProfile(userId, user.nickname, imageUrl)

@@ -6,6 +6,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
@@ -23,7 +26,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -31,24 +36,23 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Event
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material3.Icon
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.collectAsState
 import com.example.moa_project.ui.components.MeetingActionCard
 import com.example.moa_project.ui.components.MoaBodyText
 import com.example.moa_project.ui.components.MoaBottomNavigationBar
 import com.example.moa_project.ui.components.MoaMascot
-import com.example.moa_project.ui.components.MoaCaptionText
 import com.example.moa_project.ui.components.MoaLabelText
 import com.example.moa_project.ui.components.MoaTitleText
 import com.example.moa_project.ui.theme.MoaBlue
+import com.example.moa_project.ui.theme.MoaAccentBlue
+import com.example.moa_project.ui.theme.MoaAccentBlueBg
+import com.example.moa_project.ui.theme.MoaAccentPurple
+import com.example.moa_project.ui.theme.MoaAccentPurpleBg
+import com.example.moa_project.ui.theme.MoaAccentGreen
+import com.example.moa_project.ui.theme.MoaAccentGreenBg
+import com.example.moa_project.ui.theme.MoaAccentOrange
+import com.example.moa_project.ui.theme.MoaAccentOrangeBg
 import com.example.moa_project.ui.theme.SBAggroFontFamily
 import com.example.moa_project.ui.theme.MoaRadius
 import com.example.moa_project.ui.theme.MoaScreenBackground
@@ -65,6 +69,7 @@ import com.example.moa_project.ui.meetings.CreateOrJoinMeetingSheet
 import com.example.moa_project.ui.meetings.MeetingsViewModel
 import com.example.moa_project.ui.my.UserState
 import com.example.moa_project.ui.my.UserViewModel
+import com.example.moa_project.util.MoaInAppNotificationStore
 import androidx.core.graphics.toColorInt
 import kotlinx.coroutines.launch
 import java.time.format.DateTimeFormatter
@@ -74,18 +79,23 @@ import java.time.format.DateTimeFormatter
 fun InitialHomeScreen(
     currentRoute: String = "home",
     onNavigate: (String) -> Unit = {},
+    onNotificationsClick: () -> Unit = {},
     userViewModel: UserViewModel = viewModel(),
     dashboardViewModel: HomeDashboardViewModel = viewModel(),
     meetingsViewModel: MeetingsViewModel = viewModel(),
 ) {
+    val context = LocalContext.current
     val uiState by userViewModel.uiState.collectAsState()
     val dashboardState by dashboardViewModel.state.collectAsState()
     val user = (uiState as? UserState.Success)?.user
     val profileImageUrl = user?.profileImageUrl
+    val userNickname = user?.nickname
+    var unreadCount by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(currentRoute) {
         if (currentRoute == "home") {
             dashboardViewModel.refresh()
+            unreadCount = MoaInAppNotificationStore.unreadCount(context)
         }
     }
 
@@ -143,7 +153,13 @@ fun InitialHomeScreen(
                 .padding(horizontal = MoaSpacing.screen, vertical = 24.dp),
             verticalArrangement = Arrangement.Top,
         ) {
-            HomeHeaderRow()
+            HomeHeaderRow(
+                nickname = userNickname,
+                hasUnread = unreadCount > 0,
+                onNotificationsClick = onNotificationsClick,
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            HomeHeroBanner(nickname = userNickname)
             Spacer(modifier = Modifier.height(20.dp))
 
             if (isDashboardLoading && !hasGroups) {
@@ -187,20 +203,101 @@ fun InitialHomeScreen(
 }
 
 @Composable
-private fun HomeHeaderRow() {
+private fun HomeHeroBanner(nickname: String?) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(Color(0xFFEAF1FF), Color(0xFFEFEBFF), Color(0xFFE3F7EE)),
+                )
+            )
+            .padding(horizontal = 22.dp, vertical = 22.dp),
+    ) {
+        Column {
+            Text(
+                text = if (!nickname.isNullOrBlank()) {
+                    "$nickname 님,\n일정을 함께 맞춰볼까요?"
+                } else {
+                    "함께 맞추는 일정,\nMOA"
+                },
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 22.sp,
+                lineHeight = 30.sp,
+                color = MoaTextPrimary,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            MoaBodyText(
+                text = "모임·단기 일정을 한곳에서 조율하고 확정해요",
+                fontSize = 13.sp,
+                color = MoaTextSecondary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomeHeaderRow(
+    nickname: String?,
+    hasUnread: Boolean,
+    onNotificationsClick: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         MoaMascot(size = 40.dp)
         Spacer(modifier = Modifier.width(10.dp))
-        Text(
-            text = "MOA",
-            fontFamily = SBAggroFontFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = 26.sp,
-            color = MoaBlue,
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "MOA",
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 24.sp,
+                color = MoaBlue,
+            )
+            MoaBodyText(
+                text = if (!nickname.isNullOrBlank()) "$nickname 님, 오늘도 일정 모아볼까요?" else "함께 일정을 모아봐요",
+                fontSize = 12.sp,
+                color = MoaTextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        NotificationBell(hasUnread = hasUnread, onClick = onNotificationsClick)
+    }
+}
+
+@Composable
+private fun NotificationBell(hasUnread: Boolean, onClick: () -> Unit) {
+    Box {
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color.White)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Notifications,
+                contentDescription = "알림",
+                tint = MoaTextPrimary,
+                modifier = Modifier.size(24.dp),
+            )
+        }
+        if (hasUnread) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(10.dp)
+                    .size(8.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(com.example.moa_project.ui.theme.MoaAccentRed),
+            )
+        }
     }
 }
 
@@ -214,14 +311,9 @@ private fun OnboardingActionSection(
             titlePrefix = "모임",
             titleSuffix = " 생성하기",
             description = "새로운 모임을 만들고\n일정을 함께 조율해요",
-            icon = {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "생성하기",
-                    modifier = Modifier.size(24.dp),
-                )
-            },
             mascotSize = 76.dp,
+            containerColor = MoaAccentBlueBg,
+            titleColor = MoaAccentBlue,
             onClick = onCreateClick,
         )
 
@@ -231,14 +323,9 @@ private fun OnboardingActionSection(
             titlePrefix = "모임",
             titleSuffix = " 입장하기",
             description = "초대코드나 링크로\n모임에 참여해요",
-            icon = {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = "입장하기",
-                    modifier = Modifier.size(24.dp),
-                )
-            },
             mascotSize = 76.dp,
+            containerColor = MoaAccentPurpleBg,
+            titleColor = MoaAccentPurple,
             onClick = onJoinClick,
         )
     }
@@ -261,29 +348,13 @@ private fun HomeDashboardSection(
             is HomeDashboardState.Loading -> DashboardMessage("일정 정보를 불러오는 중이에요")
             is HomeDashboardState.Error -> DashboardMessage(state.message)
             is HomeDashboardState.Success -> {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    HomeSummaryCard(
-                        title = "조율 중",
-                        value = if (state.pendingCoordinationCount > 0) {
-                            "${state.pendingCoordinationCount}건"
-                        } else {
-                            "없음"
-                        },
-                        icon = Icons.Default.Schedule,
-                        iconColor = com.example.moa_project.ui.theme.MoaStatusAdjusting,
-                        onClick = onMeetingsClick,
-                        modifier = Modifier.weight(1f),
-                    )
-                    HomeSummaryCard(
-                        title = "이번 주 확정",
-                        value = "${state.confirmedThisWeekCount}건",
-                        icon = Icons.Default.Event,
-                        iconColor = com.example.moa_project.ui.theme.MoaStatusConfirmed,
-                        onClick = onCalendarClick,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                DashboardSectionCard(title = "다가오는 일정") {
+                HomeSummaryTwoLine(
+                    pendingCount = state.pendingCoordinationCount,
+                    confirmedCount = state.confirmedThisWeekCount,
+                    onConfirmedClick = onCalendarClick,
+                    onPendingClick = onMeetingsClick,
+                )
+                DashboardSectionCard(title = "다가오는 일정", accent = MoaAccentPurple) {
                     if (state.upcomingEvents.isEmpty()) {
                         DashboardMessage("확정된 일정이 없어요.\n모임·캘린더에서 일정을 확정하면 여기에 표시돼요.")
                     } else {
@@ -308,41 +379,87 @@ private fun HomeDashboardSection(
 @Composable
 private fun DashboardSectionCard(
     title: String,
+    accent: Color = MoaAccentBlue,
     content: @Composable () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxWidth().moaCard(padding = 16.dp)) {
-        MoaTitleText(text = title, fontSize = 16.sp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(3.dp, RoundedCornerShape(20.dp), spotColor = Color(0x14101B33))
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.White)
+            .padding(16.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(accent),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            MoaTitleText(text = title, fontSize = 16.sp)
+        }
         Spacer(modifier = Modifier.height(14.dp))
         content()
     }
 }
 
 @Composable
-private fun HomeSummaryCard(
-    title: String,
-    value: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    iconColor: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+private fun HomeSummaryTwoLine(
+    pendingCount: Int,
+    confirmedCount: Int,
+    onConfirmedClick: () -> Unit,
+    onPendingClick: () -> Unit,
 ) {
-    Box(
-        modifier = modifier
-            .height(100.dp)
-            .shadow(4.dp, RoundedCornerShape(MoaRadius.card), spotColor = Color(0x14000000))
-            .clip(RoundedCornerShape(MoaRadius.card))
-            .background(Color.White)
-            .clickable(onClick = onClick)
-            .padding(16.dp),
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(verticalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxSize()) {
-            Icon(icon, contentDescription = title, tint = iconColor, modifier = Modifier.size(22.dp))
-            Column {
-                MoaTitleText(text = value, fontSize = 22.sp)
-                Spacer(modifier = Modifier.height(2.dp))
-                MoaCaptionText(text = title)
-            }
-        }
+        SummaryStatCard(
+            modifier = Modifier.weight(1f),
+            label = "이번 주 확정",
+            count = confirmedCount,
+            accent = MoaAccentGreen,
+            accentBg = MoaAccentGreenBg,
+            onClick = onConfirmedClick,
+        )
+        SummaryStatCard(
+            modifier = Modifier.weight(1f),
+            label = "조율 중",
+            count = pendingCount,
+            accent = MoaAccentOrange,
+            accentBg = MoaAccentOrangeBg,
+            onClick = onPendingClick,
+        )
+    }
+}
+
+@Composable
+private fun SummaryStatCard(
+    modifier: Modifier = Modifier,
+    label: String,
+    count: Int,
+    accent: Color,
+    accentBg: Color,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(accentBg)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 18.dp),
+    ) {
+        MoaBodyText(text = label, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = accent)
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "${count}건",
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 26.sp,
+            color = accent,
+        )
     }
 }
 
@@ -380,21 +497,35 @@ private fun HomeActivityRow(activity: HomeActivityItem) {
 @Composable
 private fun UpcomingEventRow(event: HomeEventItem) {
     val formatter = DateTimeFormatter.ofPattern("M월 d일 HH:mm")
+    val accent = parseColor(event.color)
+    val accentBg = accent.copy(alpha = 0.12f)
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(accentBg)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .size(10.dp)
-                .clip(RoundedCornerShape(5.dp))
-                .background(parseColor(event.color))
-        )
-        Spacer(modifier = Modifier.width(10.dp))
+                .size(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(accent.copy(alpha = 0.22f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(12.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(accent),
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             MoaBodyText(
                 text = event.title,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
                 color = Color(0xFF101B33),
                 maxLines = 1,
@@ -411,7 +542,7 @@ private fun UpcomingEventRow(event: HomeEventItem) {
                 MoaBodyText(
                     text = sub,
                     fontSize = 11.sp,
-                    color = Color(0xFF737C99),
+                    color = accent,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

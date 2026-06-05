@@ -4,9 +4,9 @@ import android.app.Activity
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,12 +17,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -53,9 +49,22 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private val dayHeaders = listOf("월", "화", "수", "목", "금")
+private val dayHeaders = listOf("월", "화", "수", "목", "금", "토", "일")
 private const val GRID_START_HOUR = 9
 private const val GRID_END_HOUR = 22
+
+/** 시간표 블록 팔레트 — 범례 등에서 사용 */
+private val blockPalette = listOf(
+    Color(0xFF5B8DEF), // blue
+    Color(0xFF7C6FF0), // purple
+    Color(0xFF35A96D), // green
+    Color(0xFFF2994A), // orange
+    Color(0xFFEB5E8C), // pink
+    Color(0xFF22B8C2), // teal
+    Color(0xFFE0A82E), // amber
+    Color(0xFF8E7CC3), // violet
+    Color(0xFFEF5DA8), // magenta
+)
 
 @Composable
 fun WeeklyTimetableDashboardCard(
@@ -80,8 +89,8 @@ fun WeeklyTimetableDashboardCard(
             Text(
                 text = "이번 주 시간표",
                 fontFamily = SBAggroFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 20.sp,
                 color = MoaTextPrimary,
             )
             if (data != null && data.hasContent) {
@@ -122,13 +131,11 @@ fun WeeklyTimetableDashboardCard(
                     if (saving) {
                         CircularProgressIndicator(
                             color = MoaBlue,
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(18.dp),
                             strokeWidth = 2.dp,
                         )
                     } else {
-                        Icon(Icons.Default.SaveAlt, contentDescription = null, tint = MoaBlue, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("저장", fontFamily = SBAggroFontFamily, fontSize = 12.sp, color = MoaBlue)
+                        Text("저장", fontFamily = SBAggroFontFamily, fontSize = 14.sp, color = MoaBlue)
                     }
                 }
             }
@@ -156,29 +163,30 @@ fun WeeklyTimetableDashboardCard(
                     weekLabel = data.weekLabel,
                     blocks = data.blocks,
                     forExport = false,
-                    compact = true,
+                    compact = false,
                 )
                 Spacer(modifier = Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    LegendDot(color = Color(0xFF6B7FD7), label = "고정")
-                    LegendDot(color = MoaBlue, label = "확정")
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    blockPalette.take(5).forEach { c ->
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(c),
+                        )
+                    }
+                    Text(
+                        text = "일정마다 색이 달라요",
+                        fontFamily = SBAggroFontFamily,
+                        fontSize = 11.sp,
+                        color = MoaTextSecondary,
+                    )
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun LegendDot(color: Color, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .size(10.dp)
-                .clip(RoundedCornerShape(3.dp))
-                .background(color),
-        )
-        Spacer(modifier = Modifier.width(6.dp))
-        Text(label, fontFamily = SBAggroFontFamily, fontSize = 11.sp, color = MoaTextSecondary)
     }
 }
 
@@ -191,25 +199,19 @@ fun WeeklyTimetableGrid(
     modifier: Modifier = Modifier,
 ) {
     val hourHeight: Dp = when {
-        forExport -> 52.dp
-        compact -> 24.dp
-        else -> 44.dp
-    }
-    val dayWidth: Dp = when {
-        forExport -> 168.dp
-        compact -> 54.dp
-        else -> 56.dp
-    }
-    val timeColWidth: Dp = when {
         forExport -> 44.dp
         compact -> 22.dp
-        else -> 28.dp
+        else -> 30.dp
+    }
+    val timeColWidth: Dp = when {
+        forExport -> 40.dp
+        compact -> 20.dp
+        else -> 24.dp
     }
     val gridHeight = hourHeight * (GRID_END_HOUR - GRID_START_HOUR)
     val bg = if (forExport) Color(0xFF12141A) else Color(0xFFF3F5FA)
     val gridLine = if (forExport) Color(0xFF2A2F3A) else Color(0xFFE2E6EF)
     val headerText = if (forExport) Color(0xFFB8BFCF) else MoaTextSecondary
-    val scrollState = rememberScrollState()
 
     Column(
         modifier = modifier
@@ -225,101 +227,109 @@ fun WeeklyTimetableGrid(
             fontSize = when {
                 forExport -> 18.sp
                 compact -> 12.sp
-                else -> 13.sp
+                else -> 16.sp
             },
             color = if (forExport) Color.White else MoaTextPrimary,
         )
-        Spacer(modifier = Modifier.height(if (compact) 6.dp else 10.dp))
-        Row(modifier = Modifier.horizontalScroll(scrollState)) {
-            Column(modifier = Modifier.width(timeColWidth)) {
-                Spacer(modifier = Modifier.height(if (compact) 18.dp else 22.dp))
-                (GRID_START_HOUR until GRID_END_HOUR).forEach { hour ->
-                    Box(
-                        modifier = Modifier.height(hourHeight),
-                        contentAlignment = Alignment.TopCenter,
-                    ) {
-                        Text(
-                            text = "$hour",
-                            fontFamily = SBAggroFontFamily,
-                            fontSize = when {
-                                forExport -> 12.sp
-                                compact -> 8.sp
-                                else -> 9.sp
-                            },
-                            color = headerText,
-                        )
-                    }
-                }
-            }
-            Column {
-                Row {
-                    dayHeaders.forEach { label ->
+        Spacer(modifier = Modifier.height(if (compact) 6.dp else 8.dp))
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val dayWidth: Dp = (maxWidth - timeColWidth) / 7
+            Row {
+                Column(modifier = Modifier.width(timeColWidth)) {
+                    Spacer(modifier = Modifier.height(if (compact) 16.dp else 20.dp))
+                    (GRID_START_HOUR until GRID_END_HOUR).forEach { hour ->
                         Box(
-                            modifier = Modifier.width(dayWidth),
-                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.height(hourHeight),
+                            contentAlignment = Alignment.TopCenter,
                         ) {
                             Text(
-                                text = label,
+                                text = "$hour",
                                 fontFamily = SBAggroFontFamily,
-                                fontWeight = FontWeight.Bold,
                                 fontSize = when {
-                                    forExport -> 14.sp
-                                    compact -> 10.sp
-                                    else -> 11.sp
+                                    forExport -> 12.sp
+                                    compact -> 8.sp
+                                    else -> 10.sp
                                 },
                                 color = headerText,
                             )
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(4.dp))
-                Box(
-                    modifier = Modifier
-                        .height(gridHeight)
-                        .border(1.dp, gridLine, RoundedCornerShape(8.dp)),
-                ) {
+                Column {
                     Row {
-                        (1..5).forEach { _ ->
+                        dayHeaders.forEach { label ->
                             Box(
-                                modifier = Modifier
-                                    .width(dayWidth)
-                                    .fillMaxHeight()
-                                    .border(0.5.dp, gridLine),
-                            )
+                                modifier = Modifier.width(dayWidth),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontFamily = SBAggroFontFamily,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = when {
+                                        forExport -> 14.sp
+                                        compact -> 10.sp
+                                        else -> 13.sp
+                                    },
+                                    color = headerText,
+                                )
+                            }
                         }
                     }
-                    blocks.filter { it.dayOfWeek in 1..5 }.forEach { block ->
-                        val dayIndex = block.dayOfWeek - 1
-                        val top = hourHeight * (block.startHour - GRID_START_HOUR).coerceAtLeast(0)
-                        val height = hourHeight * (block.endHour - block.startHour).coerceAtLeast(1)
-                        val chipColor = if (block.isFixed) Color(0xFF6B7FD7) else MoaBlue
-                        Box(
-                            modifier = Modifier
-                                .offset(x = dayWidth * dayIndex + 2.dp, y = top + 2.dp)
-                                .width(dayWidth - 4.dp)
-                                .height(height - 4.dp)
-                                .clip(RoundedCornerShape(if (compact) 4.dp else 6.dp))
-                                .background(chipColor.copy(alpha = if (forExport) 0.92f else 0.88f))
-                                .padding(horizontal = 4.dp, vertical = if (compact) 2.dp else 4.dp),
-                        ) {
-                            Text(
-                                text = block.title,
-                                fontFamily = SBAggroFontFamily,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = when {
-                                    forExport -> 13.sp
-                                    compact -> 8.sp
-                                    else -> 9.sp
-                                },
-                                color = Color.White,
-                                maxLines = if (compact) 1 else 2,
-                                overflow = TextOverflow.Ellipsis,
-                                lineHeight = when {
-                                    forExport -> 16.sp
-                                    compact -> 10.sp
-                                    else -> 12.sp
-                                },
-                            )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .height(gridHeight)
+                            .border(1.dp, gridLine, RoundedCornerShape(8.dp)),
+                    ) {
+                        Row {
+                            (1..7).forEach { day ->
+                                val weekendTint = when (day) {
+                                    6, 7 -> Color(0xFFFFF8E8).copy(alpha = if (forExport) 0.15f else 0.55f)
+                                    else -> Color.Transparent
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .width(dayWidth)
+                                        .fillMaxHeight()
+                                        .background(weekendTint)
+                                        .border(0.5.dp, gridLine),
+                                )
+                            }
+                        }
+                        blocks.filter { it.dayOfWeek in 1..7 }.forEach { block ->
+                            val dayIndex = block.dayOfWeek - 1
+                            val top = hourHeight * (block.startHour - GRID_START_HOUR).coerceAtLeast(0)
+                            val height = hourHeight * (block.endHour - block.startHour).coerceAtLeast(1)
+                            val chipColor = block.color
+                            Box(
+                                modifier = Modifier
+                                    .offset(x = dayWidth * dayIndex + 1.dp, y = top + 1.dp)
+                                    .width(dayWidth - 2.dp)
+                                    .height(height - 2.dp)
+                                    .clip(RoundedCornerShape(if (compact) 4.dp else 5.dp))
+                                    .background(chipColor.copy(alpha = if (forExport) 0.92f else 0.88f))
+                                    .padding(horizontal = 2.dp, vertical = if (compact) 2.dp else 3.dp),
+                            ) {
+                                Text(
+                                    text = block.title,
+                                    fontFamily = SBAggroFontFamily,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = when {
+                                        forExport -> 13.sp
+                                        compact -> 8.sp
+                                        else -> 9.sp
+                                    },
+                                    color = Color.White,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    lineHeight = when {
+                                        forExport -> 16.sp
+                                        compact -> 10.sp
+                                        else -> 11.sp
+                                    },
+                                )
+                            }
                         }
                     }
                 }

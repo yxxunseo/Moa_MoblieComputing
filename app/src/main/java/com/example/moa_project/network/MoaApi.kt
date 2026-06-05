@@ -102,7 +102,7 @@ interface MoaApi {
     @retrofit2.http.Multipart
     @POST("api/users/me/profile-image")
     suspend fun uploadProfileImage(
-        @retrofit2.http.Part image: okhttp3.MultipartBody.Part
+        @retrofit2.http.Part("file") image: okhttp3.MultipartBody.Part
     ): UserResponse
 
     @GET("api/users/me/groups")
@@ -134,7 +134,7 @@ interface MoaApi {
     @POST("api/groups/{id}/cover-image")
     suspend fun uploadGroupCoverImage(
         @retrofit2.http.Path("id") groupId: Long,
-        @retrofit2.http.Part image: okhttp3.MultipartBody.Part
+        @retrofit2.http.Part("file") image: okhttp3.MultipartBody.Part
     ): GroupResponse
 
     @retrofit2.http.DELETE("api/groups/{id}/leave")

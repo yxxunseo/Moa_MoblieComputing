@@ -38,6 +38,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.SubcomposeAsyncImage
+import com.example.moa_project.util.ImageUrlHelper
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -642,7 +643,7 @@ private fun MeetingThumbnail(type: MeetingIllustration, coverImageUrl: String? =
     ) {
         if (!coverImageUrl.isNullOrBlank()) {
             SubcomposeAsyncImage(
-                model = coverImageUrl,
+                model = ImageUrlHelper.resolve(coverImageUrl),
                 contentDescription = "모임 사진",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,

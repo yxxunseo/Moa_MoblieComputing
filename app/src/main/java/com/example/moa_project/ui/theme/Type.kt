@@ -8,11 +8,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.example.moa_project.R
 
-/** 스플래시·로그인 전용 */
+/** 전역 폰트(기존 이름 유지로 참조 호환) */
 val SBAggroFontFamily = FontFamily(
-    Font(R.font.sb_aggro_l, FontWeight.Light),
-    Font(R.font.sb_aggro_m, FontWeight.Medium),
-    Font(R.font.sb_aggro_b, FontWeight.Bold)
+    Font(R.font.pretendard_regular, FontWeight.Normal),
+    Font(R.font.pretendard_medium, FontWeight.Medium),
+    Font(R.font.pretendard_semibold, FontWeight.SemiBold),
+    Font(R.font.pretendard_bold, FontWeight.Bold),
 )
 
 private val body = TextStyle(
@@ -28,8 +29,8 @@ val Typography = Typography(
     headlineMedium = body.copy(fontWeight = FontWeight.Bold, fontSize = 20.sp, lineHeight = 28.sp),
     headlineSmall = body.copy(fontWeight = FontWeight.Bold, fontSize = 18.sp, lineHeight = 26.sp),
     titleLarge = body.copy(fontWeight = FontWeight.Bold, fontSize = 17.sp, lineHeight = 24.sp),
-    titleMedium = body.copy(fontWeight = FontWeight.Medium, fontSize = 15.sp, lineHeight = 22.sp),
-    titleSmall = body.copy(fontWeight = FontWeight.Medium, fontSize = 13.sp, lineHeight = 18.sp),
+    titleMedium = body.copy(fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 22.sp),
+    titleSmall = body.copy(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, lineHeight = 18.sp),
     bodyLarge = body.copy(fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 24.sp),
     bodyMedium = body.copy(fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 21.sp),
     bodySmall = body.copy(fontWeight = FontWeight.Normal, fontSize = 12.sp, lineHeight = 18.sp),

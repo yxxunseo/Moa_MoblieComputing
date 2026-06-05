@@ -22,18 +22,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Groups
-import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.ThumbUp
-import androidx.compose.ui.graphics.vector.ImageVector
-import com.example.moa_project.ui.components.Moa3DIconType
 import com.example.moa_project.ui.components.MoaCaptionText
 import com.example.moa_project.ui.components.MoaMascot
-import com.example.moa_project.ui.components.MoaSectionTitle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -244,11 +236,16 @@ fun ScheduleResultScreen(
 
             if (!isConfirmed) {
                 item {
-                    MoaSectionTitle(title = "추천 시간대", iconType = Moa3DIconType.Trophy)
+                    Text(
+                        text = "추천 시간대",
+                        fontFamily = SBAggroFontFamily,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 18.sp,
+                        color = TextPrimary,
+                    )
                     Spacer(modifier = Modifier.height(6.dp))
                     MoaCaptionText(
                         text = "가능 인원이 같으면 더 이른 시간을 1순위로 표시해요.",
-                        modifier = Modifier.padding(start = 40.dp),
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                 }
@@ -407,11 +404,16 @@ fun GroupScheduleResultScreen(
             }
 
             item {
-                MoaSectionTitle(title = "추천 시간대", iconType = Moa3DIconType.Trophy)
+                Text(
+                    text = "추천 시간대",
+                    fontFamily = SBAggroFontFamily,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 18.sp,
+                    color = TextPrimary,
+                )
                 Spacer(modifier = Modifier.height(6.dp))
                 MoaCaptionText(
                     text = "가능 인원이 같으면 더 이른 시간을 1순위로 표시해요.",
-                    modifier = Modifier.padding(start = 40.dp),
                 )
                 Spacer(modifier = Modifier.height(12.dp))
             }
@@ -517,24 +519,13 @@ private fun RecommendationCard(
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (isTopRank) {
-                            Icon(
-                                imageVector = Icons.Default.Star,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                        }
-                        Text(
-                            text = "${recommendation.rank}순위",
-                            fontFamily = SBAggroFontFamily,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
-                            color = if (isTopRank) Color.White else TextSecondary
-                        )
-                    }
+                    Text(
+                        text = "${recommendation.rank}순위",
+                        fontFamily = SBAggroFontFamily,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp,
+                        color = if (isTopRank) Color.White else TextSecondary
+                    )
                 }
                 
                 Spacer(modifier = Modifier.weight(1f))
@@ -586,12 +577,7 @@ private fun RecommendationCard(
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-            ReactionBar(
-                reactions = reactions,
-                myUserId = myUserId,
-                onReactionClick = onReactionClick
-            )
-            
+
             if (showHostConfirm) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
@@ -611,94 +597,6 @@ private fun RecommendationCard(
                         fontSize = 15.sp,
                         color = Color.White,
                     )
-                }
-            }
-        }
-    }
-}
-
-private data class ReactionOption(val key: String, val icon: ImageVector)
-
-private val reactionOptions = listOf(
-    ReactionOption("👍", Icons.Default.ThumbUp),
-    ReactionOption("❤️", Icons.Default.Favorite),
-    ReactionOption("🔥", Icons.Default.LocalFireDepartment),
-    ReactionOption("👏", Icons.Default.EmojiEvents),
-)
-
-@Composable
-private fun ReactionIcon(
-    emoji: String,
-    tint: Color,
-    modifier: Modifier = Modifier,
-    iconSize: androidx.compose.ui.unit.Dp = 20.dp,
-) {
-    val icon = reactionOptions.firstOrNull { it.key == emoji }?.icon ?: Icons.Default.ThumbUp
-    Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = modifier.size(iconSize))
-}
-
-@Composable
-private fun ReactionBar(
-    reactions: List<ReactionDto>,
-    myUserId: Long,
-    onReactionClick: (String) -> Unit,
-) {
-    val myReaction = reactions.firstOrNull { it.userId == myUserId }?.emoji
-
-    Column {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            reactionOptions.forEach { option ->
-                val isSelected = myReaction == option.key
-                val count = reactions.count { it.emoji == option.key }
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(if (isSelected) Color(0xFFEAF1FF) else Color(0xFFF7F8FC))
-                        .border(
-                            width = 1.dp,
-                            color = if (isSelected) MoaBlue else Color(0xFFE8EBF2),
-                            shape = RoundedCornerShape(999.dp),
-                        )
-                        .clickable { onReactionClick(option.key) }
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        ReactionIcon(
-                            emoji = option.key,
-                            tint = if (isSelected) MoaBlue else TextSecondary,
-                        )
-                        if (count > 0) {
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = count.toString(),
-                                fontFamily = SBAggroFontFamily,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                color = if (isSelected) MoaBlue else TextPrimary,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        if (reactions.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                reactions.forEach { reaction ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        ReactionIcon(emoji = reaction.emoji, tint = MoaBlue, iconSize = 16.dp)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = reaction.nickname,
-                            fontFamily = SBAggroFontFamily,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 11.sp,
-                            color = TextSecondary,
-                        )
-                    }
                 }
             }
         }

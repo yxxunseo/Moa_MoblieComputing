@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder
 
 data class CreateGroupRequest(
     val name: String,
@@ -93,7 +94,8 @@ class GroupController(
         @RequestParam("file") file: org.springframework.web.multipart.MultipartFile
     ): ResponseEntity<GroupResponse> {
         val userId = userDetails.username.toLong()
-        val imageUrl = groupImageStorageService.storeGroupCover(id, file)
+        val baseUrl = ServletUriComponentsBuilder.fromCurrentContextPath().build().toUriString()
+        val imageUrl = groupImageStorageService.storeGroupCover(id, file, baseUrl)
         return ResponseEntity.ok(groupService.updateGroupCover(userId, id, imageUrl))
     }
 

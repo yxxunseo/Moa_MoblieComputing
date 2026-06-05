@@ -13,14 +13,19 @@ import java.time.temporal.TemporalAdjusters
 
 object WeeklyTimetableLoader {
     private val fixedPalette = listOf(
-        Color(0xFF6B7FD7),
         Color(0xFF5B8DEF),
-        Color(0xFF7B8EC8),
+        Color(0xFF7C6FF0),
+        Color(0xFF35A96D),
+        Color(0xFFF2994A),
+        Color(0xFFEB5E8C),
+        Color(0xFF22B8C2),
+        Color(0xFFE0A82E),
+        Color(0xFF8E7CC3),
     )
 
     suspend fun loadCurrentWeek(): WeeklyTimetableData {
         val monday = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-        val friday = monday.plusDays(4)
+        val sunday = monday.plusDays(6)
         val blocks = mutableListOf<WeeklyTimetableBlock>()
 
         runCatching {
@@ -33,12 +38,12 @@ object WeeklyTimetableLoader {
         runCatching {
             RetrofitClient.instance.getMonthlyEvents(month)
         }.onSuccess { response ->
-            blocks += parseCalendarEvents(response, monday, friday)
+            blocks += parseCalendarEvents(response, monday, sunday)
         }
 
         return WeeklyTimetableData(
             weekStart = monday,
-            weekEnd = friday,
+            weekEnd = sunday,
             blocks = blocks.sortedWith(compareBy({ it.dayOfWeek }, { it.startHour })),
         )
     }

@@ -9,14 +9,13 @@ import android.net.Uri
 import com.example.moa_project.network.GroupResponse
 import com.example.moa_project.network.RetrofitClient
 import com.example.moa_project.network.ScheduleDetailResponse
+import com.example.moa_project.util.ImageCompressor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
-import java.io.File
-import java.io.FileOutputStream
 
 sealed class GroupDetailState {
     object Loading : GroupDetailState()
@@ -59,8 +58,9 @@ class GroupDetailViewModel(private val groupId: Long) : ViewModel() {
     fun uploadCoverImage(context: Context, uri: Uri, onSuccess: () -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
             try {
-                val tempFile = copyUriToTempFile(context, uri)
-                val body = tempFile.asRequestBody("image/*".toMediaTypeOrNull())
+                // 갤러리 원본은 너무 커서 그대로 올리면 실패 → 리사이즈/압축 후 업로드
+                val tempFile = ImageCompressor.compressToTempFile(context, uri, "group_cover_")
+                val body = tempFile.asRequestBody("image/jpeg".toMediaTypeOrNull())
                 val part = MultipartBody.Part.createFormData("file", tempFile.name, body)
                 val group = RetrofitClient.instance.uploadGroupCoverImage(groupId, part)
                 tempFile.delete()
@@ -72,17 +72,16 @@ class GroupDetailViewModel(private val groupId: Long) : ViewModel() {
                 }
                 onSuccess()
             } catch (e: Exception) {
-                onError("모임 사진 업로드에 실패했습니다.")
+                Log.e("GroupDetailVM", "모임 사진 업로드 실패", e)
+                onError(
+                    when (e) {
+                        is retrofit2.HttpException -> "모임 사진 업로드 실패 (서버 ${e.code()})."
+                        is java.io.IOException -> "서버에 연결하지 못했어요. 네트워크를 확인해주세요."
+                        else -> "모임 사진 업로드에 실패했습니다."
+                    }
+                )
             }
         }
-    }
-
-    private fun copyUriToTempFile(context: Context, uri: Uri): File {
-        val temp = File.createTempFile("group_cover_", ".jpg", context.cacheDir)
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            FileOutputStream(temp).use { output -> input.copyTo(output) }
-        } ?: throw IllegalArgumentException("이미지를 읽을 수 없습니다.")
-        return temp
     }
 
     fun leaveGroup(onSuccess: (groupDeleted: Boolean) -> Unit, onError: (String) -> Unit) {

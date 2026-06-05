@@ -270,6 +270,7 @@
           savedAt: Date.now()
         }));
       } catch (_) { /* 사생활 모드 등 */ }
+      persistNameInUrl(name);
     }
 
     function loadGuestSession() {
@@ -285,6 +286,21 @@
 
     function clearGuestSession() {
       try { localStorage.removeItem(storageKey()); } catch (_) {}
+    }
+
+    /* localStorage/쿠키가 막힌 인앱 브라우저 대비: URL(?me=)에도 이름을 남겨 새로고침 시 세션 유지 */
+    function getNameFromUrl() {
+      const v = params.get("me");
+      return v ? decodeURIComponent(v) : "";
+    }
+
+    function persistNameInUrl(name) {
+      try {
+        const u = new URL(location.href);
+        if (name && name.trim()) u.searchParams.set("me", name.trim());
+        else u.searchParams.delete("me");
+        history.replaceState(null, "", u.toString());
+      } catch (_) { /* ignore */ }
     }
 
     function normalizeSlotKey(start) {
@@ -410,6 +426,12 @@
 
         const session = loadGuestSession();
         if (session?.guestName) guestName = session.guestName;
+        // URL(?me=)에 남아있는 이름을 최우선으로 복원 (저장소가 비워져도 새로고침 유지)
+        const urlName = getNameFromUrl();
+        if (urlName) {
+          guestName = urlName;
+          saveGuestSession(urlName);
+        }
 
         const analysis = await fetchAnalysisData();
         if (analysis?.status === "CONFIRMED" || analysis?.status === "DONE") {

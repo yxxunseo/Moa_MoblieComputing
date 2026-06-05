@@ -12,7 +12,7 @@ class ProfileImageStorageService(
     @Value("\${moa.upload-dir:uploads}") private val uploadDir: String,
     @Value("\${server.public-url:http://localhost:8080}") private val publicUrl: String
 ) {
-    fun storeProfileImage(userId: Long, file: MultipartFile): String {
+    fun storeProfileImage(userId: Long, file: MultipartFile, baseUrl: String? = null): String {
         if (file.isEmpty) throw IllegalArgumentException("이미지 파일이 비어 있습니다.")
         val contentType = file.contentType ?: ""
         if (!contentType.startsWith("image/")) {
@@ -28,7 +28,7 @@ class ProfileImageStorageService(
         val filename = "user_${userId}_${UUID.randomUUID().toString().take(8)}.$ext"
         val target = dir.resolve(filename)
         Files.write(target, file.bytes)
-        val base = publicUrl.trimEnd('/')
-        return "$base/uploads/profiles/$filename"
+        // 상대 경로만 저장 — 클라이언트가 SERVER_URL과 조합해 로드
+        return "/uploads/profiles/$filename"
     }
 }

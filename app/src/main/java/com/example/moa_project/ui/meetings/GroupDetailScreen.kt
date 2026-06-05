@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.SubcomposeAsyncImage
+import com.example.moa_project.util.ImageUrlHelper
 import androidx.compose.ui.platform.LocalContext
 import android.content.Context
 import android.content.ClipboardManager
@@ -424,7 +425,7 @@ private fun GroupInfoCard(
         ) {
             if (!group.coverImageUrl.isNullOrBlank()) {
                 SubcomposeAsyncImage(
-                    model = group.coverImageUrl,
+                    model = ImageUrlHelper.resolve(group.coverImageUrl),
                     contentDescription = "모임 사진",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,

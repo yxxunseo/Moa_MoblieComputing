@@ -10,6 +10,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.example.moa_project.R
+import com.example.moa_project.ui.notifications.MoaNotificationType
+import com.example.moa_project.util.MoaInAppNotificationStore
 
 object MoaNotificationHelper {
     private const val CHANNEL_ID = "moa_schedule"
@@ -30,6 +32,12 @@ object MoaNotificationHelper {
     }
 
     fun notifyScheduleConfirmed(context: Context, title: String, timeText: String) {
+        MoaInAppNotificationStore.add(
+            context,
+            MoaNotificationType.CONFIRMED,
+            "일정이 확정됐어요",
+            "$title · $timeText",
+        )
         if (!isEnabled(context, "schedule_confirmed_push")) return
         show(
             context = context,
@@ -40,6 +48,12 @@ object MoaNotificationHelper {
     }
 
     fun notifyCalendarAdded(context: Context, title: String, timeText: String) {
+        MoaInAppNotificationStore.add(
+            context,
+            MoaNotificationType.UPCOMING,
+            "캘린더에 일정이 추가됐어요",
+            "$title · $timeText",
+        )
         if (!isEnabled(context, "calendar_added_push")) return
         show(
             context = context,

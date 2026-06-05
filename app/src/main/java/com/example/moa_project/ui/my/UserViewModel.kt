@@ -9,14 +9,13 @@ import com.example.moa_project.network.RetrofitClient
 import com.example.moa_project.network.UpdateProfileRequest
 import com.example.moa_project.network.UserResponse
 import com.example.moa_project.network.TokenManager
+import com.example.moa_project.util.ImageCompressor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
-import java.io.File
-import java.io.FileOutputStream
 
 sealed class UserState {
     object Loading : UserState()
@@ -66,8 +65,9 @@ class UserViewModel : ViewModel() {
         viewModelScope.launch {
             _uiState.value = UserState.Loading
             try {
-                val tempFile = copyUriToTempFile(context, uri)
-                val body = tempFile.asRequestBody("image/*".toMediaTypeOrNull())
+                // 갤러리 원본은 너무 커서 그대로 올리면 실패 → 리사이즈/압축 후 업로드
+                val tempFile = ImageCompressor.compressToTempFile(context, uri, "profile_")
+                val body = tempFile.asRequestBody("image/jpeg".toMediaTypeOrNull())
                 val part = MultipartBody.Part.createFormData("file", tempFile.name, body)
                 val response = RetrofitClient.instance.uploadProfileImage(part)
                 tempFile.delete()
@@ -76,16 +76,15 @@ class UserViewModel : ViewModel() {
                 onSuccess()
             } catch (e: Exception) {
                 Log.e("UserViewModel", "Failed to upload profile image", e)
-                _uiState.value = UserState.Error("프로필 사진 업로드에 실패했습니다.")
+                _uiState.value = UserState.Error(uploadErrorMessage(e))
             }
         }
     }
 
-    private fun copyUriToTempFile(context: Context, uri: Uri): File {
-        val temp = File.createTempFile("profile_", ".jpg", context.cacheDir)
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            FileOutputStream(temp).use { output -> input.copyTo(output) }
-        } ?: throw IllegalArgumentException("이미지를 읽을 수 없습니다.")
-        return temp
+    private fun uploadErrorMessage(e: Throwable): String = when (e) {
+        is retrofit2.HttpException -> "프로필 사진 업로드 실패 (서버 ${e.code()}). 잠시 후 다시 시도해주세요."
+        is java.net.SocketTimeoutException -> "업로드 시간이 초과됐어요. 네트워크를 확인해주세요."
+        is java.io.IOException -> "서버에 연결하지 못했어요. 네트워크를 확인해주세요."
+        else -> "프로필 사진 업로드에 실패했습니다."
     }
 }

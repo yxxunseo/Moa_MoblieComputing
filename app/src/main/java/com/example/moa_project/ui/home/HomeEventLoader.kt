@@ -26,14 +26,15 @@ object HomeEventLoader {
     }
 
     suspend fun loadUpcomingEvents(groups: List<GroupResponse>): List<HomeEventItem> {
-        val now = LocalDateTime.now()
+        // 오늘 0시 기준: 오늘 이미 지난 시각의 일정도 "다가오는 일정"에 포함
+        val todayStart = LocalDate.now().atStartOfDay()
         val fromCalendar = loadCalendarEvents()
         val fromGroups = loadConfirmedGroupSchedules(groups)
         val fromGuest = loadConfirmedGuestSchedules()
 
         return (fromCalendar + fromGroups + fromGuest)
             .distinctBy { "${it.title}|${it.start}" }
-            .filter { !it.start.isBefore(now.minusMinutes(1)) }
+            .filter { !it.start.toLocalDate().isBefore(todayStart.toLocalDate()) }
             .sortedBy { it.start }
     }
 

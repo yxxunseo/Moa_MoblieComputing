@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -32,8 +31,9 @@ fun MeetingActionCard(
     titlePrefix: String,
     titleSuffix: String,
     description: String,
-    icon: @Composable () -> Unit,
     mascotSize: androidx.compose.ui.unit.Dp = 72.dp,
+    containerColor: Color = Color.White,
+    titleColor: Color = MoaTextPrimary,
     onClick: () -> Unit,
 ) {
     Card(
@@ -43,7 +43,7 @@ fun MeetingActionCard(
             .shadow(4.dp, RoundedCornerShape(MoaRadius.card), spotColor = Color(0x14000000))
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(MoaRadius.card),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
     ) {
         Row(
             modifier = Modifier
@@ -61,14 +61,10 @@ fun MeetingActionCard(
                     text = titlePrefix + titleSuffix,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MoaTextPrimary,
+                    color = titleColor,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 MoaCaptionText(text = description)
-                Spacer(modifier = Modifier.height(12.dp))
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-                    icon()
-                }
             }
         }
     }

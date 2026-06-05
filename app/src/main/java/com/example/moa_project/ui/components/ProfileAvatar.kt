@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
+import com.example.moa_project.util.ImageUrlHelper
 import com.example.moa_project.R
 import com.example.moa_project.ui.theme.MoaBlue
 import com.example.moa_project.ui.theme.MoaBlueSoft
@@ -41,7 +42,7 @@ fun ProfileAvatar(
         when {
             !imageUrl.isNullOrBlank() -> {
                 SubcomposeAsyncImage(
-                    model = imageUrl,
+                    model = ImageUrlHelper.resolve(imageUrl),
                     contentDescription = "프로필",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
