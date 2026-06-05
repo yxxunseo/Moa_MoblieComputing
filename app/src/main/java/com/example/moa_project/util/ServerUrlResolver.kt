@@ -35,9 +35,14 @@ object ServerUrlResolver {
             Build.FINGERPRINT.startsWith("unknown", ignoreCase = true) ||
             Build.HARDWARE.contains("goldfish", ignoreCase = true) ||
             Build.HARDWARE.contains("ranchu", ignoreCase = true) ||
+            Build.HARDWARE.contains("virtio", ignoreCase = true) ||
             Build.MODEL.contains("Emulator", ignoreCase = true) ||
             Build.MODEL.contains("Android SDK built for x86", ignoreCase = true) ||
-            Build.PRODUCT.contains("sdk", ignoreCase = true)
+            Build.MODEL.contains("sdk_gphone", ignoreCase = true) ||
+            Build.PRODUCT.contains("sdk", ignoreCase = true) ||
+            Build.PRODUCT.contains("google_sdk", ignoreCase = true) ||
+            Build.PRODUCT.contains("sdk_gphone", ignoreCase = true) ||
+            Build.BRAND.startsWith("generic", ignoreCase = true)
 
     private fun isLocalHost(url: String): Boolean {
         val lower = url.lowercase()

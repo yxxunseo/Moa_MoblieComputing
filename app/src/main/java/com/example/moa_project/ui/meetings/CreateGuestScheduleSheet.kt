@@ -1,9 +1,5 @@
 package com.example.moa_project.ui.meetings
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -49,7 +45,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.moa_project.util.GuestLinkHelper
-import com.example.moa_project.util.KakaoShareHelper
 import com.example.moa_project.ui.components.Moa3DIcon
 import com.example.moa_project.ui.components.Moa3DIconType
 import com.example.moa_project.ui.theme.SBAggroFontFamily
@@ -274,7 +269,7 @@ fun CreateGuestScheduleSheet(
             Button(
                 onClick = {
                     webLink?.let { link ->
-                        KakaoShareHelper.shareGuestSchedule(
+                        com.example.moa_project.util.GuestLinkShareHelper.share(
                             context = context,
                             scheduleTitle = success.schedule.title,
                             scheduleDescription = success.schedule.description,
@@ -290,49 +285,16 @@ fun CreateGuestScheduleSheet(
                     .fillMaxWidth()
                     .height(52.dp),
                 shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFEE500)),
+                colors = ButtonDefaults.buttonColors(containerColor = MoaBlue),
             ) {
-                Icon(
-                    painter = androidx.compose.ui.res.painterResource(id = com.example.moa_project.R.drawable.ic_kakao),
-                    contentDescription = null,
-                    tint = Color(0xFF3C1E1E),
-                    modifier = Modifier.size(20.dp),
-                )
+                Icon(Icons.Default.Share, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.size(8.dp))
                 Text(
-                    "카카오톡으로 공유",
-                    color = Color(0xFF3C1E1E),
+                    "공유하기",
+                    color = Color.White,
                     fontFamily = SBAggroFontFamily,
                     fontWeight = FontWeight.Bold,
                 )
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(
-                    onClick = {
-                        copyToClipboard(context, shareLink)
-                        Toast.makeText(context, "링크를 복사했어요.", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(50.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MoaBlue)
-                ) {
-                    Text("복사", color = Color.White, fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold)
-                }
-                Button(
-                    onClick = { shareText(context, shareLink) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(50.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4B556B))
-                ) {
-                    Icon(Icons.Default.Share, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.size(6.dp))
-                    Text("공유", color = Color.White, fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold)
-                }
             }
             Spacer(modifier = Modifier.height(10.dp))
             Button(
@@ -416,17 +378,4 @@ private fun GuestTextField(
             unfocusedContainerColor = Color.White
         )
     )
-}
-
-private fun copyToClipboard(context: Context, text: String) {
-    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    clipboard.setPrimaryClip(ClipData.newPlainText("Moa schedule link", text))
-}
-
-private fun shareText(context: Context, text: String) {
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, text)
-    }
-    context.startActivity(Intent.createChooser(intent, "일정 링크 공유"))
 }

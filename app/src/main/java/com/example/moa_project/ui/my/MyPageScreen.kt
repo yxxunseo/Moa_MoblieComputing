@@ -240,13 +240,13 @@ fun MyPageScreen(
                 Spacer(modifier = Modifier.height(10.dp))
                 MenuGroup(
                     items = listOf(
-                        MyMenuItem("내 일정", "예정된 일정 ${upcomingEventCount}개", Icons.Default.DateRange),
+                        MyMenuItem("확정 일정", "캘린더에서 ${upcomingEventCount}개 확인", Icons.Default.DateRange),
                         MyMenuItem("고정 일정", "시간표·알바 등록", Icons.Default.Star),
                         MyMenuItem("관심 모임", "하트한 모임 ${favoriteCount}개", Icons.Default.Favorite),
                     ),
                     onItemClick = { title ->
                         when (title) {
-                            "내 일정" -> onNavigate("calendar")
+                            "확정 일정" -> onNavigate("calendar")
                             "고정 일정" -> showFixedSheet = true
                             "관심 모임" -> onNavigateToFavoriteMeetings()
                         }

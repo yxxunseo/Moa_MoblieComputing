@@ -13,12 +13,11 @@ if (localPropertiesFile.exists()) {
 }
 val kakaoAppKey = localProperties.getProperty("KAKAO_APP_KEY", "")
 val googleClientId = localProperties.getProperty("GOOGLE_CLIENT_ID", "")
-// 에뮬레이터: SERVER_URL=http://10.0.2.2:8080/
-// 실기기 LAN: SERVER_URL=http://172.25.16.121:8080/
+// 에뮬레이터 (기본): SERVER_URL=http://10.0.2.2:8080/
+// 실기기 LAN: SERVER_URL=http://192.168.0.X:8080/
 // 실기기 ngrok: SERVER_URL=https://....ngrok-free.dev/
 // 실기기 ADB: SERVER_URL=http://127.0.0.1:8080/  (+ adb reverse tcp:8080 tcp:8080)
-// val serverUrl = localProperties.getProperty("SERVER_URL", "http://10.0.2.2:8080/")
-val serverUrl = localProperties.getProperty("SERVER_URL", "http://127.0.0.1:8080/")
+val serverUrl = localProperties.getProperty("SERVER_URL", "http://10.0.2.2:8080/")
 val webShareUrl = localProperties.getProperty("WEB_SHARE_URL", "")
 
 android {

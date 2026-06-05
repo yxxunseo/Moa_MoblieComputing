@@ -569,7 +569,6 @@ private fun GroupMembersCard(members: List<GroupMemberResponse>) {
                     imageUrl = member.profileImageUrl,
                     nickname = member.nickname,
                     size = 36.dp,
-                    defaultImageResId = com.example.moa_project.R.drawable.ic_character,
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {

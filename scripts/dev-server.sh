@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# MOA 로컬 개발: 백엔드 기동 + 실기기 adb reverse
+# MOA 로컬 개발: 백엔드 기동 (+ 실기기만 adb reverse)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -32,19 +32,23 @@ setup_adb_reverse() {
   local devices
   devices=$(adb devices | awk 'NR>1 && $2=="device" {print $1}')
   if [ -z "$devices" ]; then
-    echo "[WARN] No authorized adb device. Connect phone and allow USB debugging."
+    echo "[INFO] No adb device. Emulator: start AVD, then run app from Android Studio."
     return
   fi
   while IFS= read -r dev; do
     [ -z "$dev" ] && continue
+    if [[ "$dev" == emulator-* ]]; then
+      echo "[OK] Emulator $dev — SERVER_URL=http://10.0.2.2:8080/ (adb reverse 불필요)"
+      continue
+    fi
     adb -s "$dev" reverse tcp:8080 tcp:8080
-    echo "[OK] adb reverse on $dev"
+    echo "[OK] adb reverse on $dev (실기기)"
   done <<< "$devices"
 }
 
 start_backend
 setup_adb_reverse
 echo ""
-echo "App SERVER_URL (local.properties): http://127.0.0.1:8080/"
-echo "Emulator auto-maps to 10.0.2.2 in the app."
+echo "에뮬레이터: local.properties SERVER_URL=http://10.0.2.2:8080/"
+echo "실기기 ADB: SERVER_URL=http://127.0.0.1:8080/ + adb reverse tcp:8080 tcp:8080"
 echo "Health: $(curl -s http://127.0.0.1:8080/api/health)"

@@ -699,7 +699,6 @@ private fun MemberAvatarStack(
                     .offset(x = (index * 22).dp)
                     .border(2.dp, Color.White, CircleShape),
                 size = avatarSize,
-                defaultImageResId = com.example.moa_project.R.drawable.ic_character,
             )
         }
         if (extraMemberCount > 0) {

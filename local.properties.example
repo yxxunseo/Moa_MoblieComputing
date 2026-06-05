@@ -10,9 +10,12 @@ GOOGLE_CLIENT_ID=your-google-oauth-client-id.apps.googleusercontent.com
 KAKAO_APP_KEY=your_kakao_native_app_key
 
 # Backend server
-# 에뮬레이터: SERVER_URL=http://10.0.2.2:8080/
+# 에뮬레이터 (기본)
+SERVER_URL=http://10.0.2.2:8080/
 # 실기기 (같은 Wi-Fi): Mac IP — ipconfig getifaddr en0
-SERVER_URL=http://172.25.16.121:8080/
+# SERVER_URL=http://192.168.0.X:8080/
+# 실기기 ADB: adb reverse tcp:8080 tcp:8080 후
+# SERVER_URL=http://127.0.0.1:8080/
 
 # 단기 일정 링크 공유용 공개 URL (카카오톡·문자 등 외부 공유 시 필수)
 # 로컬 개발: ngrok http 8080 실행 후 아래에 ngrok URL 입력

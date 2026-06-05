@@ -56,7 +56,7 @@ object ServerConnectionHelper {
         serverUrl.contains("127.0.0.1") || serverUrl.contains("localhost") ->
             "백엔드 실행 후 터미널에서 adb reverse tcp:8080 tcp:8080 실행 (실기기 USB/무선 디버깅)"
         serverUrl.contains("10.0.2.2") ->
-            "백엔드가 Mac에서 ./gradlew :moa-backend:bootRun 으로 실행 중인지 확인 (에뮬레이터)"
+            "Mac에서 ./scripts/dev-server.sh 실행 후 에뮬레이터에서 앱 재설치 (BuildConfig 반영)"
         serverUrl.contains("ngrok") ->
             "ngrok 터널이 살아 있는지 확인. 차단되면 ADB 방식(127.0.0.1 + adb reverse) 사용"
         else ->

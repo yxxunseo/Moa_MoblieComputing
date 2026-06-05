@@ -1,5 +1,6 @@
 package com.example.moa_project.ui.components
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -11,7 +12,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -30,7 +30,7 @@ fun ProfileAvatar(
     nickname: String? = null,
     modifier: Modifier = Modifier,
     size: Dp,
-    defaultImageResId: Int = R.drawable.ic_character,
+    @DrawableRes defaultImageResId: Int = R.drawable.ic_character,
 ) {
     Box(
         modifier = modifier
@@ -67,11 +67,11 @@ fun ProfileAvatar(
 }
 
 @Composable
-private fun DefaultAvatarImage(@androidx.annotation.DrawableRes resId: Int) {
+private fun DefaultAvatarImage(@DrawableRes resId: Int) {
     Image(
         painter = painterResource(resId),
         contentDescription = "기본 프로필",
         modifier = Modifier.fillMaxSize(),
-        contentScale = ContentScale.Crop,
+        contentScale = ContentScale.Fit,
     )
 }
