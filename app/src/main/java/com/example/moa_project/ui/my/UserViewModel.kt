@@ -10,6 +10,7 @@ import com.example.moa_project.network.UpdateProfileRequest
 import com.example.moa_project.network.UserResponse
 import com.example.moa_project.network.TokenManager
 import com.example.moa_project.util.ImageCompressor
+import com.example.moa_project.util.MoaErrorLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -38,8 +39,8 @@ class UserViewModel : ViewModel() {
                 val response = RetrofitClient.instance.getMyProfile()
                 _uiState.value = UserState.Success(response)
             } catch (e: Exception) {
-                Log.e("UserViewModel", "Failed to fetch user profile", e)
-                _uiState.value = UserState.Error("프로필을 불러오지 못했습니다.")
+                MoaErrorLog.log("UserViewModel", "fetchMyProfile", e)
+                _uiState.value = UserState.Error(MoaErrorLog.userMessage(e, "프로필을 불러오지 못했습니다."))
             }
         }
     }
@@ -55,8 +56,8 @@ class UserViewModel : ViewModel() {
                 _uiState.value = UserState.Success(response)
                 onSuccess()
             } catch (e: Exception) {
-                Log.e("UserViewModel", "Failed to update profile", e)
-                _uiState.value = UserState.Error("프로필 수정에 실패했습니다.")
+                MoaErrorLog.log("UserViewModel", "updateProfile", e)
+                _uiState.value = UserState.Error(MoaErrorLog.userMessage(e, "프로필 수정에 실패했습니다."))
             }
         }
     }
@@ -75,7 +76,7 @@ class UserViewModel : ViewModel() {
                 _uiState.value = UserState.Success(response)
                 onSuccess()
             } catch (e: Exception) {
-                Log.e("UserViewModel", "Failed to upload profile image", e)
+                MoaErrorLog.log("UserViewModel", "uploadProfileImage", e)
                 _uiState.value = UserState.Error(uploadErrorMessage(e))
             }
         }

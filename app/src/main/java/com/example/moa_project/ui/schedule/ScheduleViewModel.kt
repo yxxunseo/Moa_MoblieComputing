@@ -14,6 +14,7 @@ import com.example.moa_project.network.TimeSlotDto
 import com.example.moa_project.network.TimeSlotRequest
 import com.example.moa_project.network.UpsertReactionRequest
 import com.example.moa_project.network.TokenManager
+import com.example.moa_project.util.MoaErrorLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -43,8 +44,8 @@ class ScheduleViewModel(private val scheduleId: Long) : ViewModel() {
                     RetrofitClient.instance.getScheduleDetail(scheduleId)
                 )
             } catch (e: Exception) {
-                Log.e("ScheduleVM", "Failed to fetch schedule detail", e)
-                _uiState.value = ScheduleState.Error("일정 정보를 불러오지 못했습니다.")
+                MoaErrorLog.log("ScheduleViewModel", "fetchDetail", e, mapOf("scheduleId" to scheduleId.toString()))
+                _uiState.value = ScheduleState.Error(MoaErrorLog.userMessage(e, "일정 정보를 불러오지 못했습니다."))
             }
         }
     }
@@ -74,8 +75,8 @@ class ScheduleViewModel(private val scheduleId: Long) : ViewModel() {
                 _uiState.value = ScheduleState.SubmitSuccess(response.message)
                 onSuccess()
             } catch (e: Exception) {
-                Log.e("ScheduleVM", "Failed to submit time slots", e)
-                _uiState.value = ScheduleState.Error("가능 시간 등록에 실패했습니다.")
+                MoaErrorLog.log("ScheduleViewModel", "submitTimeSlots", e, mapOf("scheduleId" to scheduleId.toString()))
+                _uiState.value = ScheduleState.Error(MoaErrorLog.userMessage(e, "가능 시간 등록에 실패했습니다."))
             }
         }
     }
@@ -88,8 +89,8 @@ class ScheduleViewModel(private val scheduleId: Long) : ViewModel() {
                     RetrofitClient.instance.getScheduleAnalysis(scheduleId)
                 )
             } catch (e: Exception) {
-                Log.e("ScheduleVM", "Failed to fetch schedule analysis", e)
-                _uiState.value = ScheduleState.Error("분석 결과를 불러오지 못했습니다.")
+                MoaErrorLog.log("ScheduleViewModel", "fetchAnalysis", e, mapOf("scheduleId" to scheduleId.toString()))
+                _uiState.value = ScheduleState.Error(MoaErrorLog.userMessage(e, "분석 결과를 불러오지 못했습니다."))
             }
         }
     }
@@ -115,8 +116,8 @@ class ScheduleViewModel(private val scheduleId: Long) : ViewModel() {
                 _uiState.value = ScheduleState.ConfirmSuccess(response.message)
                 onSuccess()
             } catch (e: Exception) {
-                Log.e("ScheduleVM", "Failed to confirm schedule", e)
-                _uiState.value = ScheduleState.Error("일정 확정에 실패했습니다.")
+                MoaErrorLog.log("ScheduleViewModel", "confirm", e, mapOf("scheduleId" to scheduleId.toString()))
+                _uiState.value = ScheduleState.Error(MoaErrorLog.userMessage(e, "일정 확정에 실패했습니다."))
             }
         }
     }
@@ -143,7 +144,7 @@ class ScheduleViewModel(private val scheduleId: Long) : ViewModel() {
                 }
                 fetchReactions()
             } catch (e: Exception) {
-                Log.e("ScheduleVM", "Failed to update reaction", e)
+                MoaErrorLog.log("ScheduleViewModel", "toggleReaction", e, mapOf("scheduleId" to scheduleId.toString()))
             }
         }
     }

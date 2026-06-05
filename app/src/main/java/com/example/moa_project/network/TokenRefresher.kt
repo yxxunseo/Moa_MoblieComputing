@@ -1,6 +1,7 @@
 package com.example.moa_project.network
 
 import com.example.moa_project.BuildConfig
+import com.example.moa_project.util.MoaErrorLog
 import com.google.gson.Gson
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -9,7 +10,9 @@ import okhttp3.RequestBody.Companion.toRequestBody
 
 object TokenRefresher {
     private val gson = Gson()
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder()
+        .addInterceptor(NgrokInterceptor())
+        .build()
 
     @Synchronized
     fun tryRefresh(): Boolean {
@@ -27,7 +30,8 @@ object TokenRefresher {
                 TokenManager.saveTokens(parsed.token, parsed.refreshToken)
                 true
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            MoaErrorLog.log("TokenRefresher", "tryRefresh", e)
             false
         }
     }

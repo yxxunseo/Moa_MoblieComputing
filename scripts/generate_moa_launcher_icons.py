@@ -98,6 +98,21 @@ def save_png(img: Image.Image, path: Path) -> None:
     img.save(path, format="PNG", optimize=True)
 
 
+def export_in_app_character(fg_raw: Image.Image, path: Path, max_px: int = 512) -> None:
+    """앱 내 MoaMascot / 기본 프로필용 캐릭터 (투명 배경)."""
+    fg = fg_raw.copy()
+    bbox = fg.getbbox()
+    if bbox:
+        fg = fg.crop(bbox)
+    ratio = min(max_px / fg.width, max_px / fg.height, 1.0)
+    if ratio < 1.0:
+        fg = fg.resize(
+            (max(1, int(fg.width * ratio)), max(1, int(fg.height * ratio))),
+            Image.Resampling.LANCZOS,
+        )
+    save_png(fg, path)
+
+
 def main(master_path: Path) -> None:
     if not master_path.is_file():
         print(f"Master not found: {master_path}", file=sys.stderr)
@@ -140,6 +155,8 @@ def main(master_path: Path) -> None:
     src_copy = assets_dir / "ic_launcher_source.png"
     save_png(master.convert("RGB"), src_copy)
     print(f"wrote {src_copy.relative_to(ROOT)}")
+
+    # ic_character.png(앱 내부 마스코트)는 런처 아이콘과 별도 — 이 스크립트에서 덮어쓰지 않음
 
 
 if __name__ == "__main__":

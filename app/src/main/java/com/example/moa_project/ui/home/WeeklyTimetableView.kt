@@ -53,19 +53,6 @@ private val dayHeaders = listOf("월", "화", "수", "목", "금", "토", "일")
 private const val GRID_START_HOUR = 9
 private const val GRID_END_HOUR = 22
 
-/** 시간표 블록 팔레트 — 범례 등에서 사용 */
-private val blockPalette = listOf(
-    Color(0xFF5B8DEF), // blue
-    Color(0xFF7C6FF0), // purple
-    Color(0xFF35A96D), // green
-    Color(0xFFF2994A), // orange
-    Color(0xFFEB5E8C), // pink
-    Color(0xFF22B8C2), // teal
-    Color(0xFFE0A82E), // amber
-    Color(0xFF8E7CC3), // violet
-    Color(0xFFEF5DA8), // magenta
-)
-
 @Composable
 fun WeeklyTimetableDashboardCard(
     data: WeeklyTimetableData?,
@@ -165,26 +152,6 @@ fun WeeklyTimetableDashboardCard(
                     forExport = false,
                     compact = false,
                 )
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    blockPalette.take(5).forEach { c ->
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(RoundedCornerShape(3.dp))
-                                .background(c),
-                        )
-                    }
-                    Text(
-                        text = "일정마다 색이 달라요",
-                        fontFamily = SBAggroFontFamily,
-                        fontSize = 11.sp,
-                        color = MoaTextSecondary,
-                    )
-                }
             }
         }
     }

@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.moa_project.util.GuestLinkHelper
+import com.example.moa_project.util.KakaoShareHelper
 import com.example.moa_project.ui.components.Moa3DIcon
 import com.example.moa_project.ui.components.Moa3DIconType
 import com.example.moa_project.ui.theme.SBAggroFontFamily
@@ -270,6 +271,42 @@ fun CreateGuestScheduleSheet(
             }
 
             Spacer(modifier = Modifier.height(18.dp))
+            Button(
+                onClick = {
+                    webLink?.let { link ->
+                        KakaoShareHelper.shareGuestSchedule(
+                            context = context,
+                            scheduleTitle = success.schedule.title,
+                            scheduleDescription = success.schedule.description,
+                            startDate = success.schedule.startDate,
+                            endDate = success.schedule.endDate,
+                            uniqueLink = success.schedule.uniqueLink,
+                            webLink = link,
+                        )
+                    }
+                },
+                enabled = linkReachable,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFEE500)),
+            ) {
+                Icon(
+                    painter = androidx.compose.ui.res.painterResource(id = com.example.moa_project.R.drawable.ic_kakao),
+                    contentDescription = null,
+                    tint = Color(0xFF3C1E1E),
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(modifier = Modifier.size(8.dp))
+                Text(
+                    "카카오톡으로 공유",
+                    color = Color(0xFF3C1E1E),
+                    fontFamily = SBAggroFontFamily,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
                     onClick = {

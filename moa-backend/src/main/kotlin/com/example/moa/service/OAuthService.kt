@@ -52,12 +52,16 @@ class OAuthService(
     fun loginWithKakao(accessToken: String): AuthResponse {
         val webClient = WebClient.create("https://kapi.kakao.com")
 
-        val kakaoUser = webClient.get()
-            .uri("/v2/user/me")
-            .header("Authorization", "Bearer $accessToken")
-            .retrieve()
-            .bodyToMono(Map::class.java)
-            .block() ?: throw IllegalArgumentException("카카오 사용자 정보를 가져올 수 없습니다.")
+        val kakaoUser = try {
+            webClient.get()
+                .uri("/v2/user/me")
+                .header("Authorization", "Bearer $accessToken")
+                .retrieve()
+                .bodyToMono(Map::class.java)
+                .block()
+        } catch (_: Exception) {
+            throw IllegalArgumentException("카카오 토큰이 유효하지 않습니다.")
+        } ?: throw IllegalArgumentException("카카오 사용자 정보를 가져올 수 없습니다.")
 
         val kakaoId = kakaoUser["id"].toString()
         val kakaoAccount = kakaoUser["kakao_account"] as? Map<*, *>

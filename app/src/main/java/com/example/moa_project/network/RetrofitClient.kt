@@ -2,6 +2,7 @@ package com.example.moa_project.network
 
 import android.util.Log
 import com.example.moa_project.BuildConfig
+import com.example.moa_project.util.ServerUrlResolver
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -50,11 +51,33 @@ class TokenExpiredInterceptor : Interceptor {
     }
 }
 
+/**
+ * ngrok 무료 터널에서 API 요청이 차단되지 않도록 헤더 추가
+ */
+class NgrokInterceptor : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): okhttp3.Response {
+        val request = chain.request()
+        val useNgrokHeader = ServerUrlResolver.resolvedUrl().contains("ngrok", ignoreCase = true) ||
+            request.url.host.contains("ngrok", ignoreCase = true)
+        val newRequest = if (useNgrokHeader) {
+            request.newBuilder()
+                .header("ngrok-skip-browser-warning", "true")
+                .build()
+        } else {
+            request
+        }
+        return chain.proceed(newRequest)
+    }
+}
+
 object RetrofitClient {
-    // local.properties에서 SERVER_URL 읽음
-    // 에뮬레이터: SERVER_URL=http://10.0.2.2:8080/
-    // 실기기:    SERVER_URL=http://192.168.0.X:8080/
-    private val BASE_URL = BuildConfig.SERVER_URL
+    val BASE_URL: String = ServerUrlResolver.resolvedUrl()
+
+    init {
+        if (BuildConfig.DEBUG) {
+            Log.i("RetrofitClient", "configured=${ServerUrlResolver.configuredUrl()} resolved=$BASE_URL")
+        }
+    }
 
     val instance: MoaApi by lazy {
         val logging = HttpLoggingInterceptor().apply {
@@ -62,6 +85,8 @@ object RetrofitClient {
         }
 
         val okHttpClient = OkHttpClient.Builder()
+            .addInterceptor(NgrokInterceptor())
+            .addInterceptor(ApiErrorLoggingInterceptor())
             .addInterceptor(AuthInterceptor())          // JWT 헤더 자동 주입
             .addInterceptor(TokenExpiredInterceptor())   // 401 시 토큰 자동 삭제
             .apply { if (BuildConfig.DEBUG) addInterceptor(logging) }  // 디버그 빌드에서만 로그

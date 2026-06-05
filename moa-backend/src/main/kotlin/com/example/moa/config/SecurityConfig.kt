@@ -27,6 +27,7 @@ class SecurityConfig(
         return WebSecurityCustomizer { web ->
             web.ignoring().requestMatchers(
                 "/guest.html",
+                "/kakao-guest-share.png",
                 "/error",
                 "/favicon.ico"
             )

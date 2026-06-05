@@ -8,6 +8,7 @@ import com.example.moa_project.network.RetrofitClient
 import com.example.moa_project.network.GoogleLoginRequest
 import com.example.moa_project.network.KakaoLoginRequest
 import com.example.moa_project.network.TokenManager
+import com.example.moa_project.util.MoaErrorLog
 import com.kakao.sdk.auth.model.OAuthToken
 import com.kakao.sdk.common.model.ClientError
 import com.kakao.sdk.common.model.ClientErrorCause
@@ -26,54 +27,45 @@ class AuthViewModel : ViewModel() {
 
         val callback: (OAuthToken?, Throwable?) -> Unit = { token, error ->
             if (error != null) {
-                Log.e("AuthViewModel", "카카오계정으로 로그인 실패", error)
+                MoaErrorLog.log("AuthViewModel", "loginWithKakaoAccount", error)
                 _loginState.value = LoginState.Error("카카오 로그인 실패: ${error.message}")
             } else if (token != null) {
-                Log.i("AuthViewModel", "카카오계정으로 로그인 성공 ${token.accessToken}")
-                viewModelScope.launch {
-                    try {
-                        val response = RetrofitClient.instance.loginWithKakao(KakaoLoginRequest(token.accessToken))
-                        // ✅ 토큰 및 유저 정보 저장
-                        TokenManager.saveTokens(response.token, response.refreshToken)
-                        TokenManager.saveUserInfo(response.user.id, response.user.nickname)
-                        _loginState.value = LoginState.Success("kakao", response.token)
-                        onSuccess()
-                    } catch (e: Exception) {
-                        Log.e("AuthViewModel", "서버로 카카오 토큰 전송 실패", e)
-                        _loginState.value = LoginState.Error("서버 인증 실패")
-                    }
-                }
+                Log.i("AuthViewModel", "카카오계정 로그인 SDK 성공")
+                sendKakaoTokenToServer(token.accessToken, onSuccess)
             }
         }
 
         if (UserApiClient.instance.isKakaoTalkLoginAvailable(context)) {
             UserApiClient.instance.loginWithKakaoTalk(context) { token, error ->
                 if (error != null) {
-                    Log.e("AuthViewModel", "카카오톡으로 로그인 실패", error)
+                    MoaErrorLog.log("AuthViewModel", "loginWithKakaoTalk", error)
                     if (error is ClientError && error.reason == ClientErrorCause.Cancelled) {
                         _loginState.value = LoginState.Idle
                         return@loginWithKakaoTalk
                     }
                     UserApiClient.instance.loginWithKakaoAccount(context, callback = callback)
                 } else if (token != null) {
-                    Log.i("AuthViewModel", "카카오톡으로 로그인 성공 ${token.accessToken}")
-                    viewModelScope.launch {
-                        try {
-                            val response = RetrofitClient.instance.loginWithKakao(KakaoLoginRequest(token.accessToken))
-                            // ✅ 토큰 및 유저 정보 저장
-                            TokenManager.saveTokens(response.token, response.refreshToken)
-                            TokenManager.saveUserInfo(response.user.id, response.user.nickname)
-                            _loginState.value = LoginState.Success("kakao", response.token)
-                            onSuccess()
-                        } catch (e: Exception) {
-                            Log.e("AuthViewModel", "서버로 카카오 토큰 전송 실패", e)
-                            _loginState.value = LoginState.Error("서버 인증 실패")
-                        }
-                    }
+                    Log.i("AuthViewModel", "카카오톡 로그인 SDK 성공")
+                    sendKakaoTokenToServer(token.accessToken, onSuccess)
                 }
             }
         } else {
             UserApiClient.instance.loginWithKakaoAccount(context, callback = callback)
+        }
+    }
+
+    private fun sendKakaoTokenToServer(accessToken: String, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            try {
+                val response = RetrofitClient.instance.loginWithKakao(KakaoLoginRequest(accessToken))
+                TokenManager.saveTokens(response.token, response.refreshToken)
+                TokenManager.saveUserInfo(response.user.id, response.user.nickname)
+                _loginState.value = LoginState.Success("kakao", response.token)
+                onSuccess()
+            } catch (e: Exception) {
+                MoaErrorLog.log("AuthViewModel", "loginWithKakao(server)", e)
+                _loginState.value = LoginState.Error(MoaErrorLog.userMessage(e, "서버 인증 실패"))
+            }
         }
     }
 
@@ -84,29 +76,28 @@ class AuthViewModel : ViewModel() {
             val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
             val idToken = account?.idToken
             if (idToken != null) {
-                Log.i("AuthViewModel", "구글 로그인 성공: $idToken")
+                Log.i("AuthViewModel", "구글 로그인 SDK 성공")
                 viewModelScope.launch {
                     try {
                         val response = RetrofitClient.instance.loginWithGoogle(GoogleLoginRequest(idToken))
-                        // ✅ 토큰 및 유저 정보 저장
                         TokenManager.saveTokens(response.token, response.refreshToken)
                         TokenManager.saveUserInfo(response.user.id, response.user.nickname)
                         _loginState.value = LoginState.Success("google", response.token)
                         onSuccess()
                     } catch (e: Exception) {
-                        Log.e("AuthViewModel", "서버로 구글 토큰 전송 실패", e)
-                        _loginState.value = LoginState.Error("서버 인증 실패")
+                        MoaErrorLog.log("AuthViewModel", "loginWithGoogle(server)", e)
+                        _loginState.value = LoginState.Error(MoaErrorLog.userMessage(e, "서버 인증 실패"))
                     }
                 }
             } else {
-                Log.e("AuthViewModel", "구글 로그인 실패: idToken is null")
+                MoaErrorLog.log("AuthViewModel", "handleGoogleSignInResult", "idToken is null")
                 _loginState.value = LoginState.Error("구글 로그인 실패: 토큰이 없습니다.")
             }
         } catch (e: com.google.android.gms.common.api.ApiException) {
-            Log.e("AuthViewModel", "구글 로그인 에러 code: ${e.statusCode}", e)
+            MoaErrorLog.log("AuthViewModel", "handleGoogleSignInResult", e, mapOf("statusCode" to e.statusCode.toString()))
             _loginState.value = LoginState.Error("구글 로그인 실패 (코드: ${e.statusCode})")
         } catch (e: Exception) {
-            Log.e("AuthViewModel", "구글 로그인 에러", e)
+            MoaErrorLog.log("AuthViewModel", "handleGoogleSignInResult", e)
             _loginState.value = LoginState.Error("구글 로그인 실패: ${e.message}")
         }
     }
@@ -123,12 +114,12 @@ class AuthViewModel : ViewModel() {
                 _loginState.value = LoginState.Success("email", response.token)
                 onSuccess()
             } catch (e: retrofit2.HttpException) {
+                MoaErrorLog.log("AuthViewModel", "loginWithEmail", e, mapOf("httpCode" to e.code().toString()))
                 val msg = if (e.code() == 401) "아이디 또는 비밀번호가 올바르지 않습니다." else "로그인 실패 (${e.code()})"
-                Log.e("AuthViewModel", "Email login HTTP ${e.code()}", e)
                 _loginState.value = LoginState.Error(msg)
             } catch (e: Exception) {
-                Log.e("AuthViewModel", "Email login error", e)
-                _loginState.value = LoginState.Error("서버에 연결할 수 없습니다.")
+                MoaErrorLog.log("AuthViewModel", "loginWithEmail", e)
+                _loginState.value = LoginState.Error(MoaErrorLog.userMessage(e, "서버에 연결할 수 없습니다."))
             }
         }
     }
@@ -145,16 +136,16 @@ class AuthViewModel : ViewModel() {
                 _loginState.value = LoginState.Success("email", response.token)
                 onSuccess()
             } catch (e: retrofit2.HttpException) {
+                MoaErrorLog.log("AuthViewModel", "signup", e, mapOf("httpCode" to e.code().toString()))
                 val msg = when (e.code()) {
                     409 -> "이미 사용 중인 아이디 또는 이메일입니다."
                     400 -> "입력 정보를 확인해주세요."
                     else -> "회원가입 실패 (${e.code()})"
                 }
-                Log.e("AuthViewModel", "Signup HTTP ${e.code()}", e)
                 _loginState.value = LoginState.Error(msg)
             } catch (e: Exception) {
-                Log.e("AuthViewModel", "Signup error", e)
-                _loginState.value = LoginState.Error("서버에 연결할 수 없습니다.")
+                MoaErrorLog.log("AuthViewModel", "signup", e)
+                _loginState.value = LoginState.Error(MoaErrorLog.userMessage(e, "서버에 연결할 수 없습니다."))
             }
         }
     }

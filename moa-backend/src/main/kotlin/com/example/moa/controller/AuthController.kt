@@ -99,16 +99,30 @@ class AuthController(
 
     // 구글 로그인
     @PostMapping("/google")
-    fun googleLogin(@RequestBody request: GoogleLoginRequest): ResponseEntity<AuthResponse> {
-        val result = oAuthService.loginWithGoogle(request.idToken)
-        return ResponseEntity.ok(result)
+    fun googleLogin(@RequestBody request: GoogleLoginRequest): ResponseEntity<Any> {
+        return try {
+            ResponseEntity.ok(oAuthService.loginWithGoogle(request.idToken))
+        } catch (e: IllegalArgumentException) {
+            ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(mapOf("message" to (e.message ?: "구글 인증 실패")))
+        } catch (e: Exception) {
+            ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(mapOf("message" to "구글 로그인 처리 중 오류가 발생했습니다."))
+        }
     }
 
     // 카카오 로그인
     @PostMapping("/kakao")
-    fun kakaoLogin(@RequestBody request: KakaoLoginRequest): ResponseEntity<AuthResponse> {
-        val result = oAuthService.loginWithKakao(request.accessToken)
-        return ResponseEntity.ok(result)
+    fun kakaoLogin(@RequestBody request: KakaoLoginRequest): ResponseEntity<Any> {
+        return try {
+            ResponseEntity.ok(oAuthService.loginWithKakao(request.accessToken))
+        } catch (e: IllegalArgumentException) {
+            ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(mapOf("message" to (e.message ?: "카카오 인증 실패")))
+        } catch (e: Exception) {
+            ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(mapOf("message" to "카카오 로그인 처리 중 오류가 발생했습니다."))
+        }
     }
 
     // JWT 갱신

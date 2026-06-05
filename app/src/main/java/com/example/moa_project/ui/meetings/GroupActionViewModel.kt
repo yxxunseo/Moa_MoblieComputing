@@ -7,6 +7,7 @@ import com.example.moa_project.network.CreateGroupRequest
 import com.example.moa_project.network.JoinGroupRequest
 import com.example.moa_project.network.GroupResponse
 import com.example.moa_project.network.RetrofitClient
+import com.example.moa_project.util.MoaErrorLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -36,8 +37,8 @@ class GroupActionViewModel : ViewModel() {
                 )
                 _state.value = GroupActionState.CreateSuccess(response)
             } catch (e: Exception) {
-                Log.e("GroupActionVM", "그룹 생성 실패", e)
-                _state.value = GroupActionState.Error("그룹 생성에 실패했습니다: ${e.message}")
+                MoaErrorLog.log("GroupActionViewModel", "createGroup", e)
+                _state.value = GroupActionState.Error(MoaErrorLog.userMessage(e, "그룹 생성에 실패했습니다."))
             }
         }
     }
@@ -56,8 +57,8 @@ class GroupActionViewModel : ViewModel() {
                 val groupName = response["groupName"] as? String ?: "모임"
                 _state.value = GroupActionState.JoinSuccess(groupName, groupId)
             } catch (e: Exception) {
-                Log.e("GroupActionVM", "그룹 입장 실패", e)
-                _state.value = GroupActionState.Error("그룹 입장에 실패했습니다. 초대 코드를 확인해주세요.")
+                MoaErrorLog.log("GroupActionViewModel", "joinGroup", e)
+                _state.value = GroupActionState.Error(MoaErrorLog.userMessage(e, "그룹 입장에 실패했습니다. 초대 코드를 확인해주세요."))
             }
         }
     }

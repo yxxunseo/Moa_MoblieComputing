@@ -3,16 +3,18 @@ package com.example.moa_project.ui.meetings
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.moa_project.BuildConfig
 import com.example.moa_project.network.GroupResponse
 import com.example.moa_project.network.RetrofitClient
 import com.example.moa_project.network.TokenManager
+import com.example.moa_project.util.MoaErrorLog
+import com.example.moa_project.util.ServerConnectionHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
-import java.net.ConnectException
-import java.net.SocketTimeoutException
-import java.net.UnknownHostException
+
+private const val TAG = "MeetingsViewModel"
 
 sealed class MeetingsState {
     object Loading : MeetingsState()
@@ -34,45 +36,40 @@ class MeetingsViewModel : ViewModel() {
         viewModelScope.launch {
             _uiState.value = MeetingsState.Loading
 
-            // 토큰이 없으면 API 호출 자체를 막음
+            Log.i(TAG, "fetchMyGroups start | SERVER_URL=${BuildConfig.SERVER_URL} | loggedIn=${TokenManager.isLoggedIn()}")
+
             if (!TokenManager.isLoggedIn()) {
-                Log.w("MeetingsViewModel", "No JWT token – redirecting to login")
+                Log.w(TAG, "No JWT token – redirecting to login")
                 _uiState.value = MeetingsState.NeedsReLogin
                 return@launch
             }
 
+            val diagnosis = ServerConnectionHelper.diagnose()
+            if (!diagnosis.healthOk) {
+                val message = ServerConnectionHelper.connectionErrorMessage(diagnosis)
+                MoaErrorLog.log(TAG, "fetchMyGroups", message)
+                _uiState.value = MeetingsState.Error(message)
+                return@launch
+            }
+
             try {
+                Log.d(TAG, "GET api/users/me/groups …")
                 val response = RetrofitClient.instance.getMyGroups()
-                Log.d("MeetingsViewModel", "Groups loaded: ${response.size}")
+                Log.i(TAG, "Groups loaded: count=${response.size} | ids=${response.map { it.id }}")
                 _uiState.value = MeetingsState.Success(response)
             } catch (e: HttpException) {
-                val code = e.code()
-                Log.e("MeetingsViewModel", "HTTP $code – ${e.message()}", e)
-                when (code) {
-                    401 -> {
-                        // TokenExpiredInterceptor가 이미 토큰을 삭제함
-                        _uiState.value = MeetingsState.NeedsReLogin
-                    }
+                MoaErrorLog.log(TAG, "fetchMyGroups", e, mapOf("httpCode" to e.code().toString()))
+                when (e.code()) {
+                    401 -> _uiState.value = MeetingsState.NeedsReLogin
                     403 -> {
-                        // 서버가 아직 401을 안 주는 경우 대비
                         TokenManager.clear()
                         _uiState.value = MeetingsState.NeedsReLogin
                     }
-                    500 -> _uiState.value = MeetingsState.Error("서버 내부 오류가 발생했습니다. (500)")
-                    else -> _uiState.value = MeetingsState.Error("서버 오류: HTTP $code")
+                    else -> _uiState.value = MeetingsState.Error(MoaErrorLog.userMessage(e, "모임 목록을 불러오지 못했습니다."))
                 }
-            } catch (e: ConnectException) {
-                Log.e("MeetingsViewModel", "Connection refused", e)
-                _uiState.value = MeetingsState.Error("서버에 연결할 수 없습니다.\n서버가 실행 중인지 확인해 주세요.")
-            } catch (e: SocketTimeoutException) {
-                Log.e("MeetingsViewModel", "Timeout", e)
-                _uiState.value = MeetingsState.Error("서버 응답 시간이 초과됐습니다.\n네트워크 상태를 확인해 주세요.")
-            } catch (e: UnknownHostException) {
-                Log.e("MeetingsViewModel", "Unknown host", e)
-                _uiState.value = MeetingsState.Error("서버 주소를 찾을 수 없습니다.\n네트워크 연결을 확인해 주세요.")
             } catch (e: Exception) {
-                Log.e("MeetingsViewModel", "Unexpected error: ${e::class.simpleName}", e)
-                _uiState.value = MeetingsState.Error("모임 목록을 불러오지 못했습니다.\n(${e::class.simpleName})")
+                MoaErrorLog.log(TAG, "fetchMyGroups", e)
+                _uiState.value = MeetingsState.Error(MoaErrorLog.userMessage(e, "모임 목록을 불러오지 못했습니다."))
             }
         }
     }

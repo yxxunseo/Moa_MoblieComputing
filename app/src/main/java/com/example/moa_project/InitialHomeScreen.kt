@@ -154,7 +154,6 @@ fun InitialHomeScreen(
             verticalArrangement = Arrangement.Top,
         ) {
             HomeHeaderRow(
-                nickname = userNickname,
                 hasUnread = unreadCount > 0,
                 onNotificationsClick = onNotificationsClick,
             )
@@ -240,7 +239,6 @@ private fun HomeHeroBanner(nickname: String?) {
 
 @Composable
 private fun HomeHeaderRow(
-    nickname: String?,
     hasUnread: Boolean,
     onNotificationsClick: () -> Unit,
 ) {
@@ -250,22 +248,14 @@ private fun HomeHeaderRow(
     ) {
         MoaMascot(size = 40.dp)
         Spacer(modifier = Modifier.width(10.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "MOA",
-                fontFamily = SBAggroFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 24.sp,
-                color = MoaBlue,
-            )
-            MoaBodyText(
-                text = if (!nickname.isNullOrBlank()) "$nickname 님, 오늘도 일정 모아볼까요?" else "함께 일정을 모아봐요",
-                fontSize = 12.sp,
-                color = MoaTextSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+        Text(
+            modifier = Modifier.weight(1f),
+            text = "MOA",
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 24.sp,
+            color = MoaBlue,
+        )
         NotificationBell(hasUnread = hasUnread, onClick = onNotificationsClick)
     }
 }

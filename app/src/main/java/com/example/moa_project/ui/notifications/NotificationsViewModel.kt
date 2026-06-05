@@ -9,6 +9,7 @@ import com.example.moa_project.network.RetrofitClient
 import com.example.moa_project.network.ScheduleDetailResponse
 import com.example.moa_project.ui.home.HomeEventLoader
 import com.example.moa_project.util.MoaInAppNotificationStore
+import com.example.moa_project.util.MoaErrorLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -61,8 +62,8 @@ class NotificationsViewModel : ViewModel() {
                     .sortedByDescending { it.timestamp }
                 _state.value = NotificationsState.Success(merged)
             } catch (e: Exception) {
-                Log.e("NotificationsVM", "Failed to load notifications", e)
-                _state.value = NotificationsState.Error("알림을 불러오지 못했습니다.")
+                MoaErrorLog.log("NotificationsViewModel", "refresh", e)
+                _state.value = NotificationsState.Error(MoaErrorLog.userMessage(e, "알림을 불러오지 못했습니다."))
             }
         }
     }

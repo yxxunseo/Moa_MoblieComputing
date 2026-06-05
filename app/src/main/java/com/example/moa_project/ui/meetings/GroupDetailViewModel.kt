@@ -10,6 +10,7 @@ import com.example.moa_project.network.GroupResponse
 import com.example.moa_project.network.RetrofitClient
 import com.example.moa_project.network.ScheduleDetailResponse
 import com.example.moa_project.util.ImageCompressor
+import com.example.moa_project.util.MoaErrorLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -46,8 +47,8 @@ class GroupDetailViewModel(private val groupId: Long) : ViewModel() {
                 }.getOrDefault(emptyList())
                 _state.value = GroupDetailState.Success(group, schedules, members)
             } catch (e: Exception) {
-                Log.e("GroupDetailVM", "그룹 상세 로드 실패", e)
-                _state.value = GroupDetailState.Error("그룹 정보를 불러오지 못했습니다.")
+                MoaErrorLog.log("GroupDetailViewModel", "loadGroupDetail", e)
+                _state.value = GroupDetailState.Error(MoaErrorLog.userMessage(e, "그룹 정보를 불러오지 못했습니다."))
             }
         }
     }
@@ -72,14 +73,8 @@ class GroupDetailViewModel(private val groupId: Long) : ViewModel() {
                 }
                 onSuccess()
             } catch (e: Exception) {
-                Log.e("GroupDetailVM", "모임 사진 업로드 실패", e)
-                onError(
-                    when (e) {
-                        is retrofit2.HttpException -> "모임 사진 업로드 실패 (서버 ${e.code()})."
-                        is java.io.IOException -> "서버에 연결하지 못했어요. 네트워크를 확인해주세요."
-                        else -> "모임 사진 업로드에 실패했습니다."
-                    }
-                )
+                MoaErrorLog.log("GroupDetailViewModel", "uploadCoverImage", e)
+                onError(MoaErrorLog.userMessage(e, "모임 사진 업로드에 실패했습니다."))
             }
         }
     }
@@ -91,8 +86,8 @@ class GroupDetailViewModel(private val groupId: Long) : ViewModel() {
                 val groupDeleted = result["groupDeleted"] as? Boolean ?: false
                 onSuccess(groupDeleted)
             } catch (e: Exception) {
-                Log.e("GroupDetailVM", "그룹 나가기 실패", e)
-                onError("그룹 나가기에 실패했습니다.")
+                MoaErrorLog.log("GroupDetailViewModel", "leaveGroup", e)
+                onError(MoaErrorLog.userMessage(e, "그룹 나가기에 실패했습니다."))
             }
         }
     }

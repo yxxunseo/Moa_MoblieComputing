@@ -50,6 +50,7 @@ import com.example.moa_project.ui.theme.SBAggroFontFamily
 import com.example.moa_project.ui.components.Moa3DIcon
 import com.example.moa_project.ui.components.Moa3DIconType
 import com.example.moa_project.util.GuestLinkHelper
+import com.example.moa_project.util.KakaoShareHelper
 
 @Composable
 fun MyGuestSchedulesSection(
@@ -151,6 +152,18 @@ fun MyGuestSchedulesSection(
                                     copyLink(context, link)
                                     Toast.makeText(context, "링크를 복사했어요.", Toast.LENGTH_SHORT).show()
                                 },
+                                onKakaoShare = {
+                                    val link = GuestLinkHelper.resolveWebLink(schedule.uniqueLink, schedule.webLink)
+                                    KakaoShareHelper.shareGuestSchedule(
+                                        context = context,
+                                        scheduleTitle = schedule.title,
+                                        scheduleDescription = schedule.description,
+                                        startDate = schedule.startDate,
+                                        endDate = schedule.endDate,
+                                        uniqueLink = schedule.uniqueLink,
+                                        webLink = link,
+                                    )
+                                },
                             )
                         }
                     }
@@ -166,6 +179,7 @@ private fun GuestScheduleListItem(
     onViewResult: () -> Unit,
     onComplete: () -> Unit,
     onCopyLink: () -> Unit,
+    onKakaoShare: () -> Unit,
 ) {
     val statusLabel = when (schedule.status) {
         "CONFIRMED" -> "확정됨"
@@ -254,6 +268,14 @@ private fun GuestScheduleListItem(
                         fontSize = 12.sp,
                     )
                 }
+            }
+            IconButton(onClick = onKakaoShare) {
+                Icon(
+                    painter = androidx.compose.ui.res.painterResource(id = com.example.moa_project.R.drawable.ic_kakao),
+                    contentDescription = "카카오톡 공유",
+                    tint = Color.Unspecified,
+                    modifier = Modifier.size(22.dp),
+                )
             }
             IconButton(onClick = onCopyLink) {
                 Icon(Icons.Default.Share, contentDescription = "링크 복사", tint = MoaTextSecondary, modifier = Modifier.size(20.dp))

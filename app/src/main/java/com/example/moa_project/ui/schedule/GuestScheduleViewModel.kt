@@ -8,6 +8,7 @@ import com.example.moa_project.network.GuestScheduleAnalysisResponse
 import com.example.moa_project.network.GuestScheduleResponse
 import com.example.moa_project.network.RetrofitClient
 import com.example.moa_project.network.TimeSlotDto
+import com.example.moa_project.util.MoaErrorLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -34,8 +35,8 @@ class GuestScheduleViewModel : ViewModel() {
                 val response = RetrofitClient.instance.getGuestScheduleByLink(link)
                 _uiState.value = GuestScheduleState.Success(response)
             } catch (e: Exception) {
-                Log.e("GuestScheduleVM", "Failed to fetch schedule", e)
-                _uiState.value = GuestScheduleState.Error("일정 정보를 불러오지 못했습니다.")
+                MoaErrorLog.log("GuestScheduleViewModel", "fetchSchedule", e, mapOf("link" to link))
+                _uiState.value = GuestScheduleState.Error(MoaErrorLog.userMessage(e, "일정 정보를 불러오지 못했습니다."))
             }
         }
     }
@@ -65,8 +66,8 @@ class GuestScheduleViewModel : ViewModel() {
                 )
                 _uiState.value = GuestScheduleState.SubmitSuccess(response.message)
             } catch (e: Exception) {
-                Log.e("GuestScheduleVM", "Failed to submit time slots", e)
-                _uiState.value = GuestScheduleState.Error("시간 등록에 실패했습니다.")
+                MoaErrorLog.log("GuestScheduleViewModel", "submitTimeSlots", e, mapOf("link" to link))
+                _uiState.value = GuestScheduleState.Error(MoaErrorLog.userMessage(e, "시간 등록에 실패했습니다."))
             }
         }
     }
@@ -78,8 +79,8 @@ class GuestScheduleViewModel : ViewModel() {
                 val response = RetrofitClient.instance.getGuestScheduleAnalysis(link)
                 _uiState.value = GuestScheduleState.AnalysisSuccess(response)
             } catch (e: Exception) {
-                Log.e("GuestScheduleVM", "Failed to fetch analysis", e)
-                _uiState.value = GuestScheduleState.Error("분석 결과를 불러오지 못했습니다.")
+                MoaErrorLog.log("GuestScheduleViewModel", "fetchAnalysis", e, mapOf("link" to link))
+                _uiState.value = GuestScheduleState.Error(MoaErrorLog.userMessage(e, "분석 결과를 불러오지 못했습니다."))
             }
         }
     }
@@ -91,7 +92,7 @@ class GuestScheduleViewModel : ViewModel() {
                 val response = RetrofitClient.instance.getGuestScheduleAnalysis(link)
                 _uiState.value = GuestScheduleState.AnalysisSuccess(response)
             } catch (e: Exception) {
-                Log.e("GuestScheduleVM", "Failed to refresh analysis", e)
+                MoaErrorLog.log("GuestScheduleViewModel", "refreshAnalysis", e, mapOf("link" to link))
             }
         }
     }
@@ -110,8 +111,8 @@ class GuestScheduleViewModel : ViewModel() {
                 _uiState.value = GuestScheduleState.ConfirmSuccess(response.message)
                 onSuccess()
             } catch (e: Exception) {
-                Log.e("GuestScheduleVM", "Failed to confirm guest schedule", e)
-                _uiState.value = GuestScheduleState.Error("일정 확정에 실패했습니다.")
+                MoaErrorLog.log("GuestScheduleViewModel", "confirm", e, mapOf("link" to link))
+                _uiState.value = GuestScheduleState.Error(MoaErrorLog.userMessage(e, "일정 확정에 실패했습니다."))
             }
         }
     }

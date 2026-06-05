@@ -58,9 +58,13 @@ import com.example.moa_project.network.ScheduleAnalysisResponse
 import com.example.moa_project.ui.components.MoaBodyText
 import com.example.moa_project.ui.components.ScheduleHeatmapCard
 import com.example.moa_project.ui.theme.Moa_ProjectTheme
+import com.example.moa_project.util.GuestLinkHelper
+import com.example.moa_project.util.KakaoShareHelper
 import com.example.moa_project.util.MoaNotificationHelper
 import androidx.compose.ui.platform.LocalContext
 import android.content.Context
+import androidx.compose.ui.res.painterResource
+import com.example.moa_project.R
 import com.example.moa_project.network.ReactionDto
 import com.example.moa_project.network.TokenManager
 import com.example.moa_project.ui.theme.SBAggroFontFamily
@@ -142,6 +146,10 @@ fun ScheduleResultScreen(
         )
     } ?: emptyList()
     val isLoading = uiState is GuestScheduleState.Loading
+    val webLink = remember(uniqueLink, analysis?.webLink) {
+        GuestLinkHelper.resolveWebLink(uniqueLink, analysis?.webLink)
+    }
+    val linkReachable = remember(webLink) { GuestLinkHelper.isExternalReachable(webLink) }
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -203,6 +211,26 @@ fun ScheduleResultScreen(
                     color = TextSecondary
                 )
                 Spacer(modifier = Modifier.height(20.dp))
+            }
+
+            if (!isLoading && analysis != null) {
+                item {
+                    GuestKakaoShareButton(
+                        enabled = linkReachable,
+                        onClick = {
+                            KakaoShareHelper.shareGuestSchedule(
+                                context = context,
+                                scheduleTitle = analysis.title,
+                                scheduleDescription = analysis.description?.takeIf { it.isNotBlank() },
+                                startDate = analysis.startDate ?: "-",
+                                endDate = analysis.endDate ?: "-",
+                                uniqueLink = uniqueLink,
+                                webLink = webLink,
+                            )
+                        },
+                    )
+                    Spacer(modifier = Modifier.height(20.dp))
+                }
             }
 
             if (isConfirmed && analysis != null) {
@@ -600,6 +628,36 @@ private fun RecommendationCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun GuestKakaoShareButton(
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFEE500)),
+    ) {
+        Icon(
+            painter = painterResource(id = R.drawable.ic_kakao),
+            contentDescription = null,
+            tint = Color(0xFF3C1E1E),
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(modifier = Modifier.size(8.dp))
+        Text(
+            text = "카카오톡으로 공유",
+            color = Color(0xFF3C1E1E),
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 

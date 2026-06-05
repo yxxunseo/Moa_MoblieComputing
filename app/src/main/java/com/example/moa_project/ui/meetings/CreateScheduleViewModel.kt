@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.moa_project.network.RetrofitClient
 import com.example.moa_project.network.ScheduleDetailResponse
+import com.example.moa_project.util.MoaErrorLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -52,8 +53,8 @@ class CreateScheduleViewModel(private val groupId: Long) : ViewModel() {
                 )
                 _state.value = CreateScheduleState.Success(response)
             } catch (e: Exception) {
-                Log.e("CreateScheduleVM", "일정 생성 실패", e)
-                _state.value = CreateScheduleState.Error("일정 생성에 실패했습니다: ${e.message}")
+                MoaErrorLog.log("CreateScheduleViewModel", "createSchedule", e, mapOf("groupId" to groupId.toString()))
+                _state.value = CreateScheduleState.Error(MoaErrorLog.userMessage(e, "일정 생성에 실패했습니다."))
             }
         }
     }

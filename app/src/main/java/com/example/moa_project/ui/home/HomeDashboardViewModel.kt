@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.moa_project.network.GroupResponse
 import com.example.moa_project.network.RetrofitClient
 import com.example.moa_project.network.ScheduleDetailResponse
+import com.example.moa_project.util.MoaErrorLog
+import com.example.moa_project.util.ServerConnectionHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -49,6 +51,13 @@ class HomeDashboardViewModel : ViewModel() {
     fun refresh() {
         viewModelScope.launch {
             _state.value = HomeDashboardState.Loading
+            val diagnosis = ServerConnectionHelper.diagnose()
+            if (!diagnosis.healthOk) {
+                val message = ServerConnectionHelper.connectionErrorMessage(diagnosis)
+                MoaErrorLog.log("HomeDashboardViewModel", "refresh", message)
+                _state.value = HomeDashboardState.Error(message)
+                return@launch
+            }
             try {
                 val groups = RetrofitClient.instance.getMyGroups()
                 val allUpcoming = HomeEventLoader.loadUpcomingEvents(groups)
@@ -68,8 +77,8 @@ class HomeDashboardViewModel : ViewModel() {
                     weeklyTimetable = weeklyTimetable,
                 )
             } catch (e: Exception) {
-                Log.e("HomeDashboardVM", "Failed to load dashboard", e)
-                _state.value = HomeDashboardState.Error("홈 정보를 불러오지 못했습니다.")
+                MoaErrorLog.log("HomeDashboardViewModel", "refresh", e)
+                _state.value = HomeDashboardState.Error(MoaErrorLog.userMessage(e, "홈 정보를 불러오지 못했습니다."))
             }
         }
     }

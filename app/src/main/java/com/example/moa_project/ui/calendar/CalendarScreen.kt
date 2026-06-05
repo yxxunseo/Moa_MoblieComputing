@@ -6,6 +6,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -82,6 +83,13 @@ import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.PathEffect
+import kotlinx.coroutines.launch
+import java.time.temporal.TemporalAdjusters
 
 private val LineColor = MoaDivider
 private val GreenEvent = CalendarEventColor(Color(0xFFE3FADB), Color(0xFF20B83B))
@@ -89,6 +97,14 @@ private val BlueEvent = CalendarEventColor(Color(0xFFD5F0FF), Color(0xFF007AFF))
 private val YellowEvent = CalendarEventColor(Color(0xFFFFF0A8), Color(0xFF8A6810))
 private val OrangeEvent = CalendarEventColor(Color(0xFFFFD9A7), Color(0xFFFF9500))
 private val PurpleEvent = CalendarEventColor(Color(0xFFE4D8FF), Color(0xFF5E35B1))
+
+private val CalendarTodayRed = Color(0xFFFF3B30)
+private val CalendarSelectedBlack = Color(0xFF1A1A1A)
+private val WeekBlobPast = Color(0xFFE3F0C0)
+private val WeekBlobFuture = Color(0xFFF0F0F0)
+private val TimelinePurple = Color(0xFF9B7EDE)
+private val TimelineDash = Color(0xFFD8DCE6)
+private val CurrentTimeRed = Color(0xFFFF3B30)
 
 private enum class CalendarViewMode {
     Month,
@@ -144,6 +160,7 @@ fun CalendarScreen(
     )
     val uiState by viewModel.uiState.collectAsState()
     val events = remember { mutableStateMapOf<LocalDate, List<CalendarEvent>>() }
+    val scope = rememberCoroutineScope()
 
     // Fetch events when the visible month changes
     val visibleYearMonth = calendarState.firstVisibleMonth.yearMonth
@@ -290,23 +307,38 @@ fun CalendarScreen(
             )
 
             if (viewMode == CalendarViewMode.Month) {
-                MonthCalendarContent(
-                    visibleMonth = calendarState.firstVisibleMonth.yearMonth,
-                    today = today,
-                    selectedDate = selectedDate,
-                    daysOfWeek = daysOfWeek,
-                    events = events,
-                    state = calendarState,
-                    onDateClick = { date ->
-                        selectedDate = date
-                        viewMode = CalendarViewMode.Day
-                    },
-                )
+                Box(modifier = Modifier.weight(1f)) {
+                    MonthCalendarContent(
+                        visibleMonth = calendarState.firstVisibleMonth.yearMonth,
+                        today = today,
+                        selectedDate = selectedDate,
+                        daysOfWeek = daysOfWeek,
+                        events = events,
+                        state = calendarState,
+                        onDateClick = { date ->
+                            selectedDate = date
+                            viewMode = CalendarViewMode.Day
+                        },
+                    )
+                    MonthBottomBar(
+                        onTodayClick = {
+                            selectedDate = today
+                            scope.launch {
+                                calendarState.animateScrollToMonth(YearMonth.from(today))
+                            }
+                        },
+                        onWeekViewClick = {
+                            selectedDate = today
+                            viewMode = CalendarViewMode.Day
+                        },
+                        modifier = Modifier.align(Alignment.BottomCenter),
+                    )
+                }
             } else {
-                DayCalendarContent(
+                WeekCalendarContent(
                     selectedDate = selectedDate,
                     today = today,
-                    events = events[selectedDate].orEmpty(),
+                    events = events,
                     onDateClick = { date ->
                         selectedDate = date
                     },
@@ -322,7 +354,7 @@ fun CalendarScreen(
                         if (event.source == "MANUAL" && event.id != null) {
                             editingEvent = event
                         }
-                    }
+                    },
                 )
             }
         }
@@ -409,18 +441,18 @@ private fun MonthCalendarContent(
         color = MoaTextPrimary,
         fontFamily = SBAggroFontFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 42.sp,
-        modifier = Modifier.padding(start = 20.dp, top = 8.dp, bottom = 12.dp),
+        fontSize = 44.sp,
+        letterSpacing = (-1).sp,
+        modifier = Modifier.padding(start = 20.dp, top = 4.dp, bottom = 16.dp),
     )
     DaysOfWeekHeader(daysOfWeek)
-    HorizontalDivider(color = LineColor, thickness = 0.8.dp)
     HorizontalCalendar(
         state = state,
+        modifier = Modifier.padding(bottom = 72.dp),
         dayContent = { day ->
             MonthDayCell(
                 day = day,
                 today = today,
-                selectedDate = selectedDate,
                 events = events[day.date].orEmpty(),
                 onClick = {
                     if (day.position == DayPosition.MonthDate) {
@@ -437,17 +469,21 @@ private fun DaysOfWeekHeader(daysOfWeek: List<DayOfWeek>) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 8.dp),
+            .padding(horizontal = 4.dp, vertical = 6.dp),
     ) {
         daysOfWeek.forEach { dayOfWeek ->
             Text(
                 text = dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.KOREAN),
                 modifier = Modifier.weight(1f),
                 textAlign = TextAlign.Center,
-                color = if (dayOfWeek == DayOfWeek.SUNDAY || dayOfWeek == DayOfWeek.SATURDAY) MoaTextSecondary else MoaTextPrimary,
+                color = if (dayOfWeek == DayOfWeek.SUNDAY || dayOfWeek == DayOfWeek.SATURDAY) {
+                    MoaTextSecondary
+                } else {
+                    MoaTextPrimary.copy(alpha = 0.55f)
+                },
                 fontFamily = SBAggroFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
             )
         }
     }
@@ -457,13 +493,11 @@ private fun DaysOfWeekHeader(daysOfWeek: List<DayOfWeek>) {
 private fun MonthDayCell(
     day: CalendarDay,
     today: LocalDate,
-    selectedDate: LocalDate,
     events: List<CalendarEvent>,
     onClick: () -> Unit,
 ) {
     val isMonthDate = day.position == DayPosition.MonthDate
     val isToday = day.date == today
-    val isSelected = day.date == selectedDate
     val dateColor = when {
         isToday -> Color.White
         !isMonthDate -> Color(0xFFD0D0D4)
@@ -474,56 +508,45 @@ private fun MonthDayCell(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(112.dp)
+            .height(118.dp)
             .clickable(enabled = isMonthDate, onClick = onClick),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 2.dp, vertical = 7.dp),
+                .padding(horizontal = 3.dp, vertical = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box(
                 modifier = Modifier
-                    .size(34.dp)
+                    .size(36.dp)
                     .clip(CircleShape)
-                    .background(
-                        when {
-                            isToday -> MoaBlue
-                            isSelected -> MoaBlue
-                            else -> Color.Transparent
-                        },
-                    ),
+                    .background(if (isToday) CalendarTodayRed else Color.Transparent),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = day.date.dayOfMonth.toString(),
-                    color = if (isSelected && !isToday) Color.White else dateColor,
+                    color = dateColor,
                     fontFamily = SBAggroFontFamily,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp,
+                    fontSize = 18.sp,
                 )
             }
-            Spacer(modifier = Modifier.height(5.dp))
-            events.take(3).forEach { event ->
+            Spacer(modifier = Modifier.height(6.dp))
+            events.take(2).forEach { event ->
                 EventChip(event = event, compact = true)
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(3.dp))
             }
-            if (events.size > 3) {
+            if (events.size > 2) {
                 Text(
-                    text = "+${events.size - 3}개",
+                    text = "+${events.size - 2}개",
                     color = MoaTextSecondary,
                     fontFamily = SBAggroFontFamily,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.Medium,
                     fontSize = 10.sp,
                 )
             }
         }
-        HorizontalDivider(
-            color = LineColor,
-            thickness = 0.8.dp,
-            modifier = Modifier.align(Alignment.BottomCenter),
-        )
     }
 }
 
@@ -532,16 +555,16 @@ private fun EventChip(event: CalendarEvent, compact: Boolean) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(5.dp))
+            .clip(RoundedCornerShape(if (compact) 8.dp else 14.dp))
             .background(event.color.background)
-            .padding(horizontal = if (compact) 4.dp else 8.dp, vertical = 2.dp),
+            .padding(horizontal = if (compact) 5.dp else 10.dp, vertical = if (compact) 3.dp else 6.dp),
     ) {
         Text(
             text = event.title,
             color = event.color.content,
             fontFamily = SBAggroFontFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = if (compact) 9.sp else 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = if (compact) 9.sp else 13.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -549,155 +572,208 @@ private fun EventChip(event: CalendarEvent, compact: Boolean) {
 }
 
 @Composable
-private fun DayCalendarContent(
+private fun MonthBottomBar(
+    onTodayClick: () -> Unit,
+    onWeekViewClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(24.dp))
+                .background(Color.White)
+                .clickable(onClick = onTodayClick)
+                .padding(horizontal = 22.dp, vertical = 12.dp),
+        ) {
+            Text(
+                text = "오늘",
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                color = MoaTextPrimary,
+            )
+        }
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(24.dp))
+                .background(Color.White)
+                .padding(horizontal = 6.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(CalendarSelectedBlack)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+            ) {
+                Icon(
+                    Icons.Default.DateRange,
+                    contentDescription = "월간",
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            IconButton(onClick = onWeekViewClick, modifier = Modifier.size(40.dp)) {
+                Icon(
+                    Icons.Default.Menu,
+                    contentDescription = "주간",
+                    tint = MoaTextPrimary,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WeekCalendarContent(
     selectedDate: LocalDate,
     today: LocalDate,
-    events: List<CalendarEvent>,
+    events: Map<LocalDate, List<CalendarEvent>>,
     onDateClick: (LocalDate) -> Unit,
     onDeleteEvent: (CalendarEvent) -> Unit = {},
     onEditEvent: (CalendarEvent) -> Unit = {},
 ) {
     val weekDates = remember(selectedDate) {
-        val start = selectedDate.minusDays((selectedDate.dayOfWeek.value % 7).toLong())
+        val start = selectedDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         (0..6).map { start.plusDays(it.toLong()) }
     }
-    DaysOfWeekHeader(daysOfWeek(firstDayOfWeek = DayOfWeek.SUNDAY))
+    val scrollState = rememberScrollState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = 4.dp),
+    ) {
+        Text(
+            text = "Calendar",
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 28.sp,
+            color = MoaTextPrimary,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+        )
+        Text(
+            text = "주간 일정",
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 14.sp,
+            color = MoaTextSecondary,
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
+        )
+        WeekBlobStrip(
+            weekDates = weekDates,
+            selectedDate = selectedDate,
+            today = today,
+            onDateClick = onDateClick,
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(horizontal = 16.dp),
+        ) {
+            WeekDayScheduleSection(
+                sectionTitle = if (selectedDate == today) "오늘의 일정" else null,
+                date = selectedDate,
+                events = events[selectedDate].orEmpty(),
+                showCurrentTime = selectedDate == today,
+                onDeleteEvent = onDeleteEvent,
+                onEditEvent = onEditEvent,
+            )
+            val tomorrow = selectedDate.plusDays(1)
+            if (events[tomorrow]?.isNotEmpty() == true) {
+                Spacer(modifier = Modifier.height(24.dp))
+                WeekDayScheduleSection(
+                    sectionTitle = "내일",
+                    date = tomorrow,
+                    events = events[tomorrow].orEmpty(),
+                    showCurrentTime = false,
+                    onDeleteEvent = onDeleteEvent,
+                    onEditEvent = onEditEvent,
+                )
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun WeekBlobStrip(
+    weekDates: List<LocalDate>,
+    selectedDate: LocalDate,
+    today: LocalDate,
+    onDateClick: (LocalDate) -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 14.dp),
+            .padding(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
         weekDates.forEach { date ->
-            DayStripItem(
+            WeekBlobDayItem(
                 date = date,
-                selectedDate = selectedDate,
+                selected = date == selectedDate,
                 today = today,
                 onClick = { onDateClick(date) },
-                modifier = Modifier.weight(1f),
             )
         }
     }
-    HorizontalDivider(color = LineColor, thickness = 0.8.dp)
-    Text(
-        text = selectedDate.format(DateTimeFormatter.ofPattern("yyyy년 M월 d일 EEEE", Locale.KOREAN)),
-        color = MoaTextPrimary,
-        fontFamily = SBAggroFontFamily,
-        fontWeight = FontWeight.Bold,
-        fontSize = 20.sp,
-        textAlign = TextAlign.Center,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 18.dp),
-    )
-    HorizontalDivider(color = LineColor, thickness = 0.8.dp)
-
-    DayTimeline(
-        events = events,
-        onDeleteEvent = onDeleteEvent,
-        onEditEvent = onEditEvent,
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
-    )
 }
 
 @Composable
-private fun DayStripItem(
+private fun WeekBlobDayItem(
     date: LocalDate,
-    selectedDate: LocalDate,
+    selected: Boolean,
     today: LocalDate,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
-    val selected = date == selectedDate
-    val dateColor = when {
+    val dayLetter = date.dayOfWeek.getDisplayName(TextStyle.NARROW, Locale.ENGLISH).uppercase()
+    val blobColor = when {
+        selected -> CalendarSelectedBlack
+        date.isBefore(today) -> WeekBlobPast
+        date.isAfter(today) -> WeekBlobFuture
+        else -> WeekBlobPast
+    }
+    val textColor = when {
         selected -> Color.White
-        date == today -> MoaBlue
         date.dayOfWeek == DayOfWeek.SUNDAY || date.dayOfWeek == DayOfWeek.SATURDAY -> MoaTextSecondary
         else -> MoaTextPrimary
     }
-    Box(
-        modifier = modifier
-            .height(46.dp)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable(onClick = onClick),
     ) {
+        Text(
+            text = dayLetter,
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Medium,
+            fontSize = 12.sp,
+            color = MoaTextSecondary,
+        )
+        Spacer(modifier = Modifier.height(6.dp))
         Box(
             modifier = Modifier
-                .size(42.dp)
-                .clip(CircleShape)
-                .background(if (selected) MoaBlue else Color.Transparent),
+                .size(width = 44.dp, height = 52.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(blobColor),
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = date.dayOfMonth.toString(),
-                color = dateColor,
+                text = "%02d".format(date.dayOfMonth),
                 fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.Bold,
-                fontSize = 20.sp,
-            )
-        }
-    }
-}
-
-@Composable
-private fun DayTimeline(
-    events: List<CalendarEvent>,
-    onDeleteEvent: (CalendarEvent) -> Unit = {},
-    onEditEvent: (CalendarEvent) -> Unit = {},
-    modifier: Modifier = Modifier,
-) {
-    val hourHeight = 70.dp
-    val startHour = 8
-    val endHour = 24
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(hourHeight * (endHour - startHour + 1)),
-    ) {
-        Column {
-            (startHour..endHour).forEach { hour ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(hourHeight),
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    Text(
-                        text = if (hour == 24) "00:00" else "%02d:00".format(hour),
-                        color = MoaTextSecondary,
-                        fontFamily = SBAggroFontFamily,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp,
-                        modifier = Modifier
-                            .width(68.dp)
-                            .padding(top = 9.dp),
-                        textAlign = TextAlign.Center,
-                    )
-                    HorizontalDivider(
-                        color = LineColor,
-                        thickness = 0.8.dp,
-                        modifier = Modifier.padding(top = 18.dp),
-                    )
-                }
-            }
-        }
-        events.forEachIndexed { index, event ->
-            TimelineEventBlock(
-                event = event,
-                startHour = startHour,
-                hourHeight = hourHeight,
-                lane = index % 2,
-                onClick = {
-                    if (event.source == "MANUAL" && event.id != null) {
-                        onEditEvent(event)
-                    }
-                },
-                onLongClick = {
-                    if (event.source == "MANUAL" && event.id != null) {
-                        onDeleteEvent(event)
-                    }
-                }
+                fontSize = 16.sp,
+                color = textColor,
             )
         }
     }
@@ -705,62 +781,264 @@ private fun DayTimeline(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun TimelineEventBlock(
-    event: CalendarEvent,
-    startHour: Int,
-    hourHeight: Dp,
-    lane: Int,
-    onClick: () -> Unit = {},
-    onLongClick: () -> Unit = {},
+private fun WeekDayScheduleSection(
+    sectionTitle: String?,
+    date: LocalDate,
+    events: List<CalendarEvent>,
+    showCurrentTime: Boolean,
+    onDeleteEvent: (CalendarEvent) -> Unit,
+    onEditEvent: (CalendarEvent) -> Unit,
 ) {
-    val startMinutes = event.startHour * 60 + event.startMinute
-    val endMinutes = event.endHour * 60 + event.endMinute
-    val top = ((startMinutes - startHour * 60) / 60f * hourHeight.value).dp + 18.dp
-    val height = (((endMinutes - startMinutes).coerceAtLeast(30)) / 60f * hourHeight.value).dp
-    val left = if (lane == 0) 76.dp else 238.dp
-    val width = if (lane == 0) 210.dp else 162.dp
-
-    Box(
-        modifier = Modifier
-            .offset(x = left, y = top)
-            .width(width)
-            .height(height)
-            .clip(RoundedCornerShape(8.dp))
-            .background(event.color.background)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.width(48.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(TimelinePurple),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "%02d".format(date.dayOfMonth),
+                    color = Color.White,
+                    fontFamily = SBAggroFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                )
+            }
+            Text(
+                text = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase(),
+                color = MoaTextSecondary,
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = 10.sp,
+                modifier = Modifier.padding(top = 4.dp),
             )
-            .padding(8.dp),
+            Canvas(
+                modifier = Modifier
+                    .width(2.dp)
+                    .height(120.dp)
+                    .padding(top = 8.dp),
+            ) {
+                drawLine(
+                    color = TimelineDash,
+                    start = Offset(size.width / 2f, 0f),
+                    end = Offset(size.width / 2f, size.height),
+                    strokeWidth = 2f,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 12f)),
+                )
+            }
+        }
+
+        Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
+            if (sectionTitle != null) {
+                Text(
+                    text = sectionTitle,
+                    fontFamily = SBAggroFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = MoaTextPrimary,
+                    modifier = Modifier.padding(bottom = 12.dp),
+                )
+            }
+
+            if (events.isEmpty()) {
+                Text(
+                    text = "일정이 없어요",
+                    fontFamily = SBAggroFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 14.sp,
+                    color = MoaTextSecondary,
+                    modifier = Modifier.padding(vertical = 16.dp),
+                )
+            } else {
+                events.forEachIndexed { index, event ->
+                    WeekTaskListItem(index = index + 1, event = event)
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalTimeRuler(
+                    startHour = 9,
+                    endHour = 20,
+                    showCurrentTime = showCurrentTime,
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                events.forEach { event ->
+                    HorizontalPillEvent(
+                        event = event,
+                        startHour = 9,
+                        endHour = 20,
+                        onClick = {
+                            if (event.source == "MANUAL" && event.id != null) onEditEvent(event)
+                        },
+                        onLongClick = {
+                            if (event.source == "MANUAL" && event.id != null) onDeleteEvent(event)
+                        },
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WeekTaskListItem(index: Int, event: CalendarEvent) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Box(
             modifier = Modifier
-                .align(Alignment.CenterStart)
-                .width(4.dp)
-                .fillMaxHeight()
-                .clip(RoundedCornerShape(3.dp))
-                .background(event.color.content),
-        )
-        Column(modifier = Modifier.padding(start = 10.dp)) {
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(event.color.background),
+            contentAlignment = Alignment.Center,
+        ) {
             Text(
-                text = event.title,
-                color = event.color.content,
-                fontFamily = SBAggroFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(modifier = Modifier.height(5.dp))
-            Text(
-                text = "${formatTime(event.startHour, event.startMinute)} ~ ${formatTime(event.endHour, event.endMinute)}",
-                color = event.color.content,
+                text = index.toString(),
                 fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.Bold,
                 fontSize = 12.sp,
+                color = event.color.content,
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = event.title,
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 15.sp,
+            color = MoaTextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun HorizontalTimeRuler(
+    startHour: Int,
+    endHour: Int,
+    showCurrentTime: Boolean,
+) {
+    val now = remember { java.time.LocalTime.now() }
+    val totalHours = (endHour - startHour).coerceAtLeast(1)
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            (startHour..endHour).forEach { hour ->
+                Text(
+                    text = hour.toString(),
+                    fontFamily = SBAggroFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 11.sp,
+                    color = MoaTextSecondary,
+                )
+            }
+        }
+        if (showCurrentTime && now.hour in startHour..endHour) {
+            val fraction = (now.hour + now.minute / 60f - startHour) / totalHours
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(fraction.coerceIn(0f, 1f))
+                    .height(48.dp),
+            ) {
+                Column(
+                    modifier = Modifier.align(Alignment.TopEnd),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(CurrentTimeRed)
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                    ) {
+                        Text(
+                            text = now.format(DateTimeFormatter.ofPattern("h:mma", Locale.ENGLISH)),
+                            color = Color.White,
+                            fontFamily = SBAggroFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp,
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .width(2.dp)
+                            .height(36.dp)
+                            .background(CurrentTimeRed),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun HorizontalPillEvent(
+    event: CalendarEvent,
+    startHour: Int,
+    endHour: Int,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    val totalMinutes = (endHour - startHour) * 60
+    val startMinutes = (event.startHour * 60 + event.startMinute) - startHour * 60
+    val endMinutes = (event.endHour * 60 + event.endMinute) - startHour * 60
+    val startFraction = (startMinutes.toFloat() / totalMinutes).coerceIn(0f, 1f)
+    val widthFraction = ((endMinutes - startMinutes).coerceAtLeast(30).toFloat() / totalMinutes).coerceIn(0.08f, 1f - startFraction)
+
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val barWidth = maxWidth * widthFraction
+        val offsetX = maxWidth * startFraction
+        Row(
+            modifier = Modifier
+                .padding(start = offsetX)
+                .width(barWidth)
+                .clip(RoundedCornerShape(50))
+                .background(event.color.background)
+                .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = event.title,
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                color = event.color.content,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "${formatTimeAmPm(event.startHour, event.startMinute)} - ${formatTimeAmPm(event.endHour, event.endMinute)}",
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 11.sp,
+                color = event.color.content.copy(alpha = 0.85f),
             )
         }
     }
+}
+
+private fun formatTimeAmPm(hour: Int, minute: Int): String {
+    val h = if (hour == 0 || hour == 24) 12 else if (hour > 12) hour - 12 else hour
+    val amPm = if (hour < 12) "AM" else "PM"
+    return if (minute == 0) "$h$amPm" else "$h:${"%02d".format(minute)}$amPm"
 }
 
 @Composable

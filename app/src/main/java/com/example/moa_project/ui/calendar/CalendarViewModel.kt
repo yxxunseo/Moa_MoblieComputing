@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.moa_project.network.AddEventRequest
 import com.example.moa_project.network.RetrofitClient
 import com.example.moa_project.network.UpdateEventRequest
+import com.example.moa_project.util.MoaErrorLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -36,8 +37,8 @@ class CalendarViewModel : ViewModel() {
                 }
                 _uiState.value = CalendarState.Success(response)
             } catch (e: Exception) {
-                Log.e("CalendarViewModel", "Failed to fetch events", e)
-                _uiState.value = CalendarState.Error("일정을 불러오지 못했습니다.")
+                MoaErrorLog.log("CalendarViewModel", "fetchMonthlyEvents", e, mapOf("month" to month))
+                _uiState.value = CalendarState.Error(MoaErrorLog.userMessage(e, "일정을 불러오지 못했습니다."))
             }
         }
     }
@@ -48,7 +49,7 @@ class CalendarViewModel : ViewModel() {
                 RetrofitClient.instance.addManualEvent(AddEventRequest(title, start, end, color))
                 onComplete()
             } catch (e: Exception) {
-                Log.e("CalendarViewModel", "Failed to add event", e)
+                MoaErrorLog.log("CalendarViewModel", "addEvent", e)
             }
         }
     }
@@ -59,7 +60,7 @@ class CalendarViewModel : ViewModel() {
                 RetrofitClient.instance.deleteEvent(eventId)
                 onComplete()
             } catch (e: Exception) {
-                Log.e("CalendarViewModel", "Failed to delete event", e)
+                MoaErrorLog.log("CalendarViewModel", "deleteEvent", e, mapOf("eventId" to eventId.toString()))
             }
         }
     }
@@ -73,7 +74,7 @@ class CalendarViewModel : ViewModel() {
                 )
                 onComplete()
             } catch (e: Exception) {
-                Log.e("CalendarViewModel", "Failed to update event", e)
+                MoaErrorLog.log("CalendarViewModel", "updateEvent", e, mapOf("eventId" to eventId.toString()))
             }
         }
     }
