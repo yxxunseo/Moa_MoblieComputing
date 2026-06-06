@@ -31,9 +31,9 @@ fun ProfileAvatar(
     nickname: String? = null,
     modifier: Modifier = Modifier,
     size: Dp,
-    @DrawableRes defaultImageResId: Int = R.drawable.ic_default_avatar,
+    @DrawableRes defaultImageResId: Int = R.drawable.ic_character,
 ) {
-    val fallbackResId = if (defaultImageResId != 0) defaultImageResId else R.drawable.ic_default_avatar
+    val fallbackResId = if (defaultImageResId != 0) defaultImageResId else R.drawable.ic_character
 
     Box(
         modifier = modifier

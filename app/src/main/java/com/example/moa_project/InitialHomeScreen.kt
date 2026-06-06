@@ -60,6 +60,7 @@ import androidx.core.graphics.toColorInt
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.moa_project.ui.components.MoaBottomNavigationBar
 import com.example.moa_project.ui.components.MoaMascot
+import com.example.moa_project.ui.components.MoaMascotVariant
 import com.example.moa_project.ui.components.ProfileAvatar
 import com.example.moa_project.ui.home.HomeActivityItem
 import com.example.moa_project.ui.home.HomeDashboardState
@@ -392,6 +393,7 @@ private fun HomeHeroCard(
                 .align(Alignment.BottomEnd)
                 .offset(x = 6.dp, y = 10.dp),
             size = 118.dp,
+            variant = MoaMascotVariant.Sparkle,
         )
     }
 }

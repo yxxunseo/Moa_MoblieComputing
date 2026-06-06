@@ -1,5 +1,6 @@
 package com.example.moa_project.ui.components
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -10,14 +11,28 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.moa_project.R
 
+enum class MoaMascotVariant {
+    Default,
+    Sparkle,
+    Heart,
+}
+
+@DrawableRes
+private fun MoaMascotVariant.drawableRes(): Int = when (this) {
+    MoaMascotVariant.Default -> R.drawable.ic_character
+    MoaMascotVariant.Sparkle -> R.drawable.ic_character_sparkle
+    MoaMascotVariant.Heart -> R.drawable.ic_character_heart
+}
+
 @Composable
 fun MoaMascot(
     modifier: Modifier = Modifier,
     size: Dp = 72.dp,
+    variant: MoaMascotVariant = MoaMascotVariant.Default,
     contentDescription: String = "모아 캐릭터",
 ) {
     Image(
-        painter = painterResource(id = R.drawable.ic_character),
+        painter = painterResource(id = variant.drawableRes()),
         contentDescription = contentDescription,
         modifier = modifier.size(size),
         contentScale = ContentScale.Fit,

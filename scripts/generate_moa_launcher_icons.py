@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate Moa launcher icons from a high-res master PNG."""
+"""Generate Moa launcher icons and in-app mascot assets from source PNGs."""
 from __future__ import annotations
 
 import sys
@@ -9,7 +9,11 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 RES = ROOT / "app" / "src" / "main" / "res"
-DEFAULT_MASTER = ROOT / "scripts" / "assets" / "ic_launcher_master.png"
+ASSETS = ROOT / "scripts" / "assets"
+
+BASIC = ASSETS / "ic_mascot_basic.png"
+SPARKLE = ASSETS / "ic_mascot_sparkle.png"
+HEART = ASSETS / "ic_mascot_heart.png"
 
 # Adaptive icon layer size (108dp)
 ADAPTIVE_SIZES = {
@@ -20,10 +24,8 @@ ADAPTIVE_SIZES = {
     "xxxhdpi": 432,
 }
 
-# 캐릭터가 프레임에 꽉 차지 않도록 (Android adaptive safe zone ~66%)
 CHARACTER_SCALE = 0.72
 
-# Legacy launcher icon (48dp)
 LAUNCHER_SIZES = {
     "mdpi": 48,
     "hdpi": 72,
@@ -32,9 +34,12 @@ LAUNCHER_SIZES = {
     "xxxhdpi": 192,
 }
 
+# MoaAccentBlueBg
+LAUNCHER_BG = (234, 241, 255, 255)
 
-def remove_light_background(img: Image.Image, threshold: int = 238) -> Image.Image:
-    """흰색·밝은 회색 그라데이션 배경 제거."""
+
+def remove_solid_background(img: Image.Image, threshold: int = 40) -> Image.Image:
+    """흰색·검정 등 단색 배경 제거."""
     img = img.convert("RGBA")
     pixels = img.load()
     w, h = img.size
@@ -47,21 +52,40 @@ def remove_light_background(img: Image.Image, threshold: int = 238) -> Image.Ima
     bg_r = sum(c[0] for c in corners) // 4
     bg_g = sum(c[1] for c in corners) // 4
     bg_b = sum(c[2] for c in corners) // 4
+    is_dark_bg = max(bg_r, bg_g, bg_b) < 48
 
     for y in range(h):
         for x in range(w):
             r, g, b, a = pixels[x, y]
-            if r >= threshold and g >= threshold and b >= threshold:
-                pixels[x, y] = (r, g, b, 0)
-                continue
+            if is_dark_bg:
+                if max(r, g, b) <= threshold:
+                    pixels[x, y] = (r, g, b, 0)
+                    continue
+            else:
+                if r >= 238 and g >= 238 and b >= 238:
+                    pixels[x, y] = (r, g, b, 0)
+                    continue
             dist = abs(r - bg_r) + abs(g - bg_g) + abs(b - bg_b)
-            if dist < 42 and max(r, g, b) > 160:
-                pixels[x, y] = (r, g, b, 0)
+            if dist < 42:
+                if is_dark_bg and max(r, g, b) <= threshold + 20:
+                    pixels[x, y] = (r, g, b, 0)
+                elif not is_dark_bg and max(r, g, b) > 160:
+                    pixels[x, y] = (r, g, b, 0)
     return img
 
 
+def square_crop(img: Image.Image) -> Image.Image:
+    w, h = img.size
+    side = min(w, h)
+    left = (w - side) // 2
+    top = (h - side) // 2
+    cropped = img.crop((left, top, left + side, top + side))
+    if side < 1024:
+        cropped = cropped.resize((1024, 1024), Image.Resampling.LANCZOS)
+    return cropped
+
+
 def fit_character_on_canvas(fg: Image.Image, canvas_size: int, scale: float = CHARACTER_SCALE) -> Image.Image:
-    """캐릭터를 중앙에 작게 배치해 여백 확보."""
     fg = fg.copy()
     bbox = fg.getbbox()
     if bbox:
@@ -78,19 +102,16 @@ def fit_character_on_canvas(fg: Image.Image, canvas_size: int, scale: float = CH
     return canvas
 
 
-def composite_on_white(fg: Image.Image, size: int) -> Image.Image:
+def composite_on_background(fg: Image.Image, size: int, bg_color: tuple[int, int, int, int]) -> Image.Image:
     padded = fit_character_on_canvas(fg, size, CHARACTER_SCALE)
-    canvas = Image.new("RGBA", (size, size), (255, 255, 255, 255))
+    canvas = Image.new("RGBA", (size, size), bg_color)
     canvas.alpha_composite(padded)
     return canvas.convert("RGB")
 
 
 def save_webp(img: Image.Image, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    if img.mode != "RGBA":
-        img.save(path, format="WEBP", quality=92, method=6)
-    else:
-        img.save(path, format="WEBP", quality=92, method=6, lossless=False)
+    img.save(path, format="WEBP", quality=92, method=6, lossless=False)
 
 
 def save_png(img: Image.Image, path: Path) -> None:
@@ -99,7 +120,6 @@ def save_png(img: Image.Image, path: Path) -> None:
 
 
 def export_in_app_character(fg_raw: Image.Image, path: Path, max_px: int = 512) -> None:
-    """앱 내 MoaMascot / 기본 프로필용 캐릭터 (투명 배경)."""
     fg = fg_raw.copy()
     bbox = fg.getbbox()
     if bbox:
@@ -113,52 +133,60 @@ def export_in_app_character(fg_raw: Image.Image, path: Path, max_px: int = 512) 
     save_png(fg, path)
 
 
-def main(master_path: Path) -> None:
-    if not master_path.is_file():
-        print(f"Master not found: {master_path}", file=sys.stderr)
-        sys.exit(1)
+def load_foreground(source: Path) -> Image.Image:
+    master = square_crop(Image.open(source).convert("RGBA"))
+    return remove_solid_background(master)
 
-    master = Image.open(master_path).convert("RGBA")
-    w, h = master.size
-    side = min(w, h)
-    left = (w - side) // 2
-    top = (h - side) // 2
-    master = master.crop((left, top, left + side, top + side))
-    if side < 1024:
-        master = master.resize((1024, 1024), Image.Resampling.LANCZOS)
-    fg_raw = remove_light_background(master)
+
+def generate_launcher_icons(fg_raw: Image.Image) -> None:
     fg_master = fit_character_on_canvas(fg_raw, 1024, CHARACTER_SCALE)
 
-    # Adaptive foreground (transparent, 여백 포함)
     for density, px in ADAPTIVE_SIZES.items():
         fg = fit_character_on_canvas(fg_raw, px, CHARACTER_SCALE)
         out = RES / f"drawable-{density}" / "ic_launcher_foreground.png"
         save_png(fg, out)
         print(f"wrote {out.relative_to(ROOT)}")
 
-    # Legacy + round mipmaps (white background composite)
     for density, px in LAUNCHER_SIZES.items():
-        icon = composite_on_white(fg_master, px)
+        icon = composite_on_background(fg_master, px, LAUNCHER_BG)
         for name in ("ic_launcher", "ic_launcher_round"):
             out = RES / f"mipmap-{density}" / f"{name}.webp"
             save_webp(icon, out)
             print(f"wrote {out.relative_to(ROOT)}")
 
-    # Play Store / high-res marketing
-    play = composite_on_white(fg_master, 512)
+    play = composite_on_background(fg_master, 512, LAUNCHER_BG)
     play_path = ROOT / "app" / "src" / "main" / "ic_launcher-playstore.png"
     save_png(play, play_path)
     print(f"wrote {play_path.relative_to(ROOT)}")
 
-    assets_dir = ROOT / "scripts" / "assets"
-    assets_dir.mkdir(parents=True, exist_ok=True)
-    src_copy = assets_dir / "ic_launcher_source.png"
-    save_png(master.convert("RGB"), src_copy)
-    print(f"wrote {src_copy.relative_to(ROOT)}")
 
-    # ic_character.png(앱 내부 마스코트)는 런처 아이콘과 별도 — 이 스크립트에서 덮어쓰지 않음
+def main() -> None:
+    for path in (BASIC, SPARKLE, HEART):
+        if not path.is_file():
+            print(f"Missing asset: {path}", file=sys.stderr)
+            sys.exit(1)
+
+    fg_basic = load_foreground(BASIC)
+    fg_sparkle = load_foreground(SPARKLE)
+    fg_heart = load_foreground(HEART)
+
+    print("== launcher (sparkle) ==")
+    generate_launcher_icons(fg_sparkle)
+
+    print("== in-app mascots ==")
+    export_in_app_character(fg_basic, RES / "drawable" / "ic_character.png")
+    print(f"wrote {RES / 'drawable' / 'ic_character.png'}")
+
+    export_in_app_character(fg_sparkle, RES / "drawable" / "ic_character_sparkle.png")
+    print(f"wrote {RES / 'drawable' / 'ic_character_sparkle.png'}")
+
+    export_in_app_character(fg_heart, RES / "drawable" / "ic_character_heart.png")
+    print(f"wrote {RES / 'drawable' / 'ic_character_heart.png'}")
+
+    ASSETS.mkdir(parents=True, exist_ok=True)
+    save_png(square_crop(Image.open(SPARKLE).convert("RGBA")), ASSETS / "ic_launcher_master.png")
+    print(f"wrote {ASSETS / 'ic_launcher_master.png'}")
 
 
 if __name__ == "__main__":
-    master = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_MASTER
-    main(master)
+    main()

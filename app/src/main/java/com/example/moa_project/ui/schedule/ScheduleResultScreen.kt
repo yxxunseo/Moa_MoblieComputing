@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Schedule
 import com.example.moa_project.ui.components.MoaCaptionText
 import com.example.moa_project.ui.components.MoaMascot
+import com.example.moa_project.ui.components.MoaMascotVariant
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -738,7 +739,7 @@ private fun EmptyGuestResultCard(message: String) {
             .padding(20.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            MoaMascot(size = 52.dp)
+            MoaMascot(size = 52.dp, variant = MoaMascotVariant.Sparkle)
             Spacer(modifier = Modifier.width(14.dp))
             Text(
                 text = message,
