@@ -8,22 +8,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
 import com.example.moa_project.util.ImageUrlHelper
 import com.example.moa_project.R
-import com.example.moa_project.ui.theme.MoaBlue
 import com.example.moa_project.ui.theme.MoaBlueSoft
-import com.example.moa_project.ui.theme.SBAggroFontFamily
 
 @Composable
 fun ProfileAvatar(
@@ -42,29 +37,17 @@ fun ProfileAvatar(
             .background(MoaBlueSoft),
         contentAlignment = Alignment.Center,
     ) {
-        when {
-            !imageUrl.isNullOrBlank() -> {
-                SubcomposeAsyncImage(
-                    model = ImageUrlHelper.resolve(imageUrl),
-                    contentDescription = "프로필",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                    loading = { DefaultAvatarImage(fallbackResId, size) },
-                    error = { DefaultAvatarImage(fallbackResId, size) },
-                )
-            }
-            !nickname.isNullOrBlank() -> {
-                Text(
-                    text = nickname.take(1),
-                    fontFamily = SBAggroFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = (size.value * 0.4f).sp,
-                    color = MoaBlue,
-                )
-            }
-            else -> {
-                DefaultAvatarImage(fallbackResId, size)
-            }
+        if (!imageUrl.isNullOrBlank()) {
+            SubcomposeAsyncImage(
+                model = ImageUrlHelper.resolve(imageUrl),
+                contentDescription = "프로필",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+                loading = { DefaultAvatarImage(fallbackResId, size) },
+                error = { DefaultAvatarImage(fallbackResId, size) },
+            )
+        } else {
+            DefaultAvatarImage(fallbackResId, size)
         }
     }
 }
@@ -76,7 +59,7 @@ private fun DefaultAvatarImage(@DrawableRes resId: Int, size: Dp) {
         contentDescription = "기본 프로필",
         modifier = Modifier
             .fillMaxSize()
-            .padding(size * 0.22f),
+            .padding(size * 0.14f),
         contentScale = ContentScale.Fit,
     )
 }

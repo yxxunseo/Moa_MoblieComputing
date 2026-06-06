@@ -317,7 +317,7 @@ private fun HeaderIconButton(
     }
 }
 
-/** 히어로 배너: 좌 텍스트·CTA / 우 마스코트(겹침) */
+/** 히어로 배너: 좌 텍스트·CTA / 우 마스코트 또는 이번 주 일정 수 */
 @Composable
 private fun HomeHeroCard(
     nickname: String?,
@@ -327,6 +327,8 @@ private fun HomeHeroCard(
     isLoading: Boolean,
     onPrimaryClick: () -> Unit,
 ) {
+    val showWeekCount = hasGroups && !isLoading && confirmedCount > 0
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -334,7 +336,11 @@ private fun HomeHeroCard(
             .clip(RoundedCornerShape(28.dp))
             .background(
                 Brush.linearGradient(
-                    listOf(Color(0xFFDCE8FF), Color(0xFFE8E0FF), Color(0xFFDDEFE6)),
+                    colors = listOf(
+                        Color(0xFFDCE8FF),
+                        Color(0xFFE8E0FF),
+                        Color(0xFFDDEFE6),
+                    ),
                 ),
             ),
     ) {
@@ -361,7 +367,8 @@ private fun HomeHeroCard(
                 text = when {
                     isLoading -> "불러오는 중..."
                     hasGroups && pendingCount > 0 -> "조율 ${pendingCount}건 · 확정 ${confirmedCount}건"
-                    hasGroups -> "확정 ${confirmedCount}건"
+                    hasGroups && confirmedCount > 0 -> "이번 주 확정 일정"
+                    hasGroups -> "이번 주 일정이 아직 없어요"
                     else -> "모임·단기 일정을 한곳에서"
                 },
                 fontFamily = SBAggroFontFamily,
@@ -388,12 +395,60 @@ private fun HomeHeroCard(
                 )
             }
         }
-        MoaMascot(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .offset(x = 6.dp, y = 10.dp),
-            size = 118.dp,
-            variant = MoaMascotVariant.Sparkle,
+        if (showWeekCount) {
+            HomeHeroWeekCountBadge(
+                count = confirmedCount,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 22.dp, bottom = 20.dp),
+            )
+        } else {
+            MoaMascot(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = 4.dp, y = 12.dp),
+                size = 118.dp,
+                variant = MoaMascotVariant.Default,
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomeHeroWeekCountBadge(
+    count: Int,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.End,
+    ) {
+        Row(
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            Text(
+                text = "$count",
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Black,
+                fontSize = 52.sp,
+                color = MoaBlue,
+                letterSpacing = (-1).sp,
+            )
+            Text(
+                modifier = Modifier.padding(start = 2.dp, bottom = 8.dp),
+                text = "건",
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = MoaBlue.copy(alpha = 0.75f),
+            )
+        }
+        Text(
+            text = "이번 주",
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Medium,
+            fontSize = 12.sp,
+            color = MoaTextSecondary,
         )
     }
 }

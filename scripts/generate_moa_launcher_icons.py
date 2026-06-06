@@ -24,7 +24,9 @@ ADAPTIVE_SIZES = {
     "xxxhdpi": 432,
 }
 
-CHARACTER_SCALE = 0.72
+CHARACTER_SCALE = 0.78
+IN_APP_MAX_PX = 1024
+IN_APP_PADDING_RATIO = 0.12
 
 LAUNCHER_SIZES = {
     "mdpi": 48,
@@ -74,14 +76,14 @@ def remove_solid_background(img: Image.Image, threshold: int = 40) -> Image.Imag
     return img
 
 
-def square_crop(img: Image.Image) -> Image.Image:
+def square_crop(img: Image.Image, target: int = 1024) -> Image.Image:
     w, h = img.size
     side = min(w, h)
     left = (w - side) // 2
     top = (h - side) // 2
     cropped = img.crop((left, top, left + side, top + side))
-    if side < 1024:
-        cropped = cropped.resize((1024, 1024), Image.Resampling.LANCZOS)
+    if side != target:
+        cropped = cropped.resize((target, target), Image.Resampling.LANCZOS)
     return cropped
 
 
@@ -119,17 +121,27 @@ def save_png(img: Image.Image, path: Path) -> None:
     img.save(path, format="PNG", optimize=True)
 
 
-def export_in_app_character(fg_raw: Image.Image, path: Path, max_px: int = 512) -> None:
+def export_in_app_character(
+    fg_raw: Image.Image,
+    path: Path,
+    max_px: int = IN_APP_MAX_PX,
+    padding_ratio: float = IN_APP_PADDING_RATIO,
+) -> None:
     fg = fg_raw.copy()
     bbox = fg.getbbox()
     if bbox:
         fg = fg.crop(bbox)
-    ratio = min(max_px / fg.width, max_px / fg.height, 1.0)
-    if ratio < 1.0:
-        fg = fg.resize(
-            (max(1, int(fg.width * ratio)), max(1, int(fg.height * ratio))),
-            Image.Resampling.LANCZOS,
-        )
+
+    pad = max(12, int(max(fg.width, fg.height) * padding_ratio))
+    canvas = Image.new("RGBA", (fg.width + pad * 2, fg.height + pad * 2), (0, 0, 0, 0))
+    canvas.alpha_composite(fg, (pad, pad))
+    fg = canvas
+
+    scale = min(max_px / fg.width, max_px / fg.height)
+    new_w = max(1, int(fg.width * scale))
+    new_h = max(1, int(fg.height * scale))
+    if (new_w, new_h) != fg.size:
+        fg = fg.resize((new_w, new_h), Image.Resampling.LANCZOS)
     save_png(fg, path)
 
 
