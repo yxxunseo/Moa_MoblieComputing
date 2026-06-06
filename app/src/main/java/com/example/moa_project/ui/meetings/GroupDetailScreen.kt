@@ -5,6 +5,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -25,6 +28,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ContentCopy
@@ -40,9 +44,12 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import com.example.moa_project.ui.components.MoaDateRangePicker
 import com.example.moa_project.ui.components.MoaDialogButtonText
 import com.example.moa_project.ui.components.MoaOutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -70,14 +77,18 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.moa_project.network.GroupResponse
 import com.example.moa_project.network.GroupMemberResponse
 import com.example.moa_project.network.ScheduleDetailResponse
+import com.example.moa_project.ui.theme.MoaAccentOrange
+import com.example.moa_project.ui.theme.MoaBlue
 import com.example.moa_project.ui.theme.MoaBlueSoft
+import com.example.moa_project.ui.theme.MoaError
+import com.example.moa_project.ui.theme.MoaRadius
+import com.example.moa_project.ui.theme.MoaScreenBackground
+import com.example.moa_project.ui.theme.MoaStatusConfirmed
+import com.example.moa_project.ui.theme.MoaTextPrimary
+import com.example.moa_project.ui.theme.MoaTextSecondary
 import com.example.moa_project.ui.theme.SBAggroFontFamily
+import com.example.moa_project.ui.theme.moaCardSurface
 import java.time.LocalDate
-
-private val MoaBlue = Color(0xFF2179FE)
-private val ScreenBackground = Color(0xFFF7F8FC)
-private val TextPrimary = Color(0xFF101B33)
-private val TextSecondary = Color(0xFF737C99)
 
 /**
  * 그룹 상세 화면 - 해당 그룹의 일정 목록과 그룹 정보 표시
@@ -104,6 +115,7 @@ fun GroupDetailScreen(
     val createState by createScheduleViewModel.state.collectAsState()
     var showCreateScheduleDialog by remember { mutableStateOf(false) }
     var showLeaveDialog by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(createState) {
         val success = createState as? CreateScheduleState.Success
@@ -149,7 +161,7 @@ fun GroupDetailScreen(
                         onError = { msg -> Toast.makeText(context, msg, Toast.LENGTH_SHORT).show() }
                     )
                 }) {
-                    Text("나가기", color = Color(0xFFFF6262), fontFamily = SBAggroFontFamily)
+                    Text("나가기", color = MoaError, fontFamily = SBAggroFontFamily)
                 }
             },
             dismissButton = {
@@ -186,7 +198,7 @@ fun GroupDetailScreen(
                         fontFamily = SBAggroFontFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp,
-                        color = TextPrimary,
+                        color = MoaTextPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -196,15 +208,46 @@ fun GroupDetailScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "뒤로가기",
-                            tint = TextPrimary
+                            tint = MoaTextPrimary
                         )
+                    }
+                },
+                actions = {
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "더보기",
+                                tint = MoaTextSecondary,
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = "모임 나가기",
+                                        color = MoaError,
+                                        fontFamily = SBAggroFontFamily,
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 14.sp,
+                                    )
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    showLeaveDialog = true
+                                },
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White),
                 modifier = Modifier.shadow(elevation = 2.dp)
             )
         },
-        containerColor = ScreenBackground
+        containerColor = MoaScreenBackground
     ) { innerPadding ->
         when (val s = state) {
             is GroupDetailState.Loading -> {
@@ -228,7 +271,7 @@ fun GroupDetailScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = s.message,
-                            color = TextSecondary,
+                            color = MoaTextSecondary,
                             fontFamily = SBAggroFontFamily,
                             fontSize = 15.sp
                         )
@@ -250,11 +293,10 @@ fun GroupDetailScreen(
                         .fillMaxSize()
                         .padding(innerPadding),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        horizontal = 20.dp, vertical = 24.dp
+                        horizontal = 20.dp, vertical = 16.dp
                     ),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // 그룹 정보 카드
                     item {
                         GroupInfoCard(
                             group = s.group,
@@ -280,54 +322,50 @@ fun GroupDetailScreen(
                         }
                     }
 
-                    // 일정 조율 시작 버튼
-                    item {
-                        Button(
-                            onClick = { showCreateScheduleDialog = true },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(54.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = MoaBlue)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "새 일정 조율 시작",
-                                color = Color.White,
-                                fontFamily = SBAggroFontFamily,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
-                            )
-                        }
-                    }
-
-                    // 일정 목록 헤더
                     item {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
                                 text = "일정 목록",
-                                color = TextPrimary,
+                                color = MoaTextPrimary,
                                 fontFamily = SBAggroFontFamily,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp
+                                fontSize = 16.sp,
                             )
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "${s.schedules.size}개",
-                                color = MoaBlue,
+                                color = MoaTextSecondary,
                                 fontFamily = SBAggroFontFamily,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 13.sp,
                             )
+                            Spacer(modifier = Modifier.weight(1f))
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(MoaBlue.copy(alpha = 0.1f))
+                                    .clickable { showCreateScheduleDialog = true }
+                                    .padding(horizontal = 12.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    tint = MoaBlue,
+                                    modifier = Modifier.size(15.dp),
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "새 조율",
+                                    color = MoaBlue,
+                                    fontFamily = SBAggroFontFamily,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                )
+                            }
                         }
                     }
 
@@ -337,21 +375,41 @@ fun GroupDetailScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(120.dp)
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(Color.White),
-                                contentAlignment = Alignment.Center
+                                    .moaCardSurface(cornerRadius = MoaRadius.card)
+                                    .padding(vertical = 28.dp),
+                                contentAlignment = Alignment.Center,
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    com.example.moa_project.ui.components.MoaMascot(size = 56.dp)
-                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .background(MoaBlue.copy(alpha = 0.1f)),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.DateRange,
+                                            contentDescription = null,
+                                            tint = MoaBlue,
+                                            modifier = Modifier.size(24.dp),
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(10.dp))
                                     Text(
-                                        text = "아직 일정이 없어요\n새 일정 조율을 시작해보세요!",
-                                        color = TextSecondary,
+                                        text = "아직 일정이 없어요",
+                                        color = MoaTextPrimary,
                                         fontFamily = SBAggroFontFamily,
-                                        fontSize = 13.sp,
-                                        lineHeight = 20.sp,
-                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "일정 목록 옆 + 새 조율로 만들어보세요",
+                                        color = MoaTextSecondary,
+                                        fontFamily = SBAggroFontFamily,
+                                        fontSize = 12.sp,
+                                        lineHeight = 18.sp,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                     )
                                 }
                             }
@@ -370,21 +428,6 @@ fun GroupDetailScreen(
                                 }
                             }
                         )
-                    }
-
-                    item {
-                        TextButton(
-                            onClick = { showLeaveDialog = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = "모임 나가기",
-                                color = Color(0xFFFF6262),
-                                fontFamily = SBAggroFontFamily,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                        }
                     }
                 }
             }
@@ -406,136 +449,143 @@ private fun GroupInfoCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(2.dp, RoundedCornerShape(16.dp), spotColor = Color(0xFFDDE4F2))
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White)
-            .padding(20.dp)
+            .moaCardSurface()
+            .padding(16.dp),
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(140.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(MoaBlueSoft)
-                .then(
-                    if (isAdmin) Modifier.clickable { coverPicker.launch("image/*") }
-                    else Modifier
-                ),
-            contentAlignment = Alignment.Center,
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (!group.coverImageUrl.isNullOrBlank()) {
-                SubcomposeAsyncImage(
-                    model = ImageUrlHelper.resolve(group.coverImageUrl),
-                    contentDescription = "모임 사진",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                )
-            } else {
-                Text(
-                    text = group.name.take(1),
-                    color = MoaBlue,
-                    fontFamily = SBAggroFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 36.sp,
-                )
-            }
-            if (isAdmin) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(10.dp)
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(MoaBlue)
-                        .clickable { coverPicker.launch("image/*") },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = "사진 등록", tint = Color.White, modifier = Modifier.size(18.dp))
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MoaBlueSoft)
+                    .then(
+                        if (isAdmin) Modifier.clickable { coverPicker.launch("image/*") }
+                        else Modifier,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (!group.coverImageUrl.isNullOrBlank()) {
+                    SubcomposeAsyncImage(
+                        model = ImageUrlHelper.resolve(group.coverImageUrl),
+                        contentDescription = "모임 사진",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                    )
+                } else {
+                    Text(
+                        text = group.name.take(1),
+                        color = MoaBlue,
+                        fontFamily = SBAggroFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 24.sp,
+                    )
+                }
+                if (isAdmin) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .offset(x = 4.dp, y = 4.dp)
+                            .size(22.dp)
+                            .clip(CircleShape)
+                            .background(MoaBlue)
+                            .clickable { coverPicker.launch("image/*") },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Default.CameraAlt,
+                            contentDescription = "사진 등록",
+                            tint = Color.White,
+                            modifier = Modifier.size(12.dp),
+                        )
+                    }
                 }
             }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.width(14.dp))
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = group.name,
-                    color = TextPrimary,
+                    color = MoaTextPrimary,
                     fontFamily = SBAggroFontFamily,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp,
+                    fontSize = 18.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (!group.description.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
                     Text(
                         text = group.description,
-                        color = TextSecondary,
+                        color = MoaTextSecondary,
                         fontFamily = SBAggroFontFamily,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = MoaBlue,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "${group.memberCount}명 참여 중",
+                        color = MoaBlue,
+                        fontFamily = SBAggroFontFamily,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 12.sp,
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFFF0F5FF))
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .clip(RoundedCornerShape(10.dp))
+                .clickable {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    val clip = ClipData.newPlainText("Moa Invite Code", group.inviteCode)
+                    clipboard.setPrimaryClip(clip)
+                    Toast.makeText(context, "초대 코드가 복사되었습니다!", Toast.LENGTH_SHORT).show()
+                }
+                .background(Color(0xFFF5F7FC))
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = null,
-                tint = MoaBlue,
-                modifier = Modifier.size(18.dp)
+            Text(
+                text = "초대 코드",
+                color = MoaTextSecondary,
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "${group.memberCount}명 참여 중",
-                color = MoaBlue,
+                text = group.inviteCode,
+                color = MoaTextPrimary,
                 fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.Bold,
-                fontSize = 13.sp
+                fontSize = 13.sp,
+                modifier = Modifier.weight(1f),
             )
-            Spacer(modifier = Modifier.weight(1f))
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable {
-                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        val clip = ClipData.newPlainText("Moa Invite Code", group.inviteCode)
-                        clipboard.setPrimaryClip(clip)
-                        Toast.makeText(context, "초대 코드가 복사되었습니다!", Toast.LENGTH_SHORT).show()
-                    }
-                    .background(Color(0xFFE2ECFF))
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "초대 코드: ${group.inviteCode}",
-                    color = MoaBlue,
-                    fontFamily = SBAggroFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Icon(
-                    imageVector = Icons.Default.ContentCopy,
-                    contentDescription = "복사",
-                    tint = MoaBlue,
-                    modifier = Modifier.size(12.dp)
-                )
-            }
+            Icon(
+                imageVector = Icons.Default.ContentCopy,
+                contentDescription = "복사",
+                tint = MoaBlue,
+                modifier = Modifier.size(14.dp),
+            )
         }
     }
 }
@@ -545,24 +595,22 @@ private fun GroupMembersCard(members: List<GroupMemberResponse>) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(16.dp), spotColor = Color(0xFFDDE4F2))
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White)
-            .padding(16.dp)
+            .moaCardSurface()
+            .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
         Text(
             text = "멤버 ${members.size}명",
-            color = TextPrimary,
+            color = MoaTextPrimary,
             fontFamily = SBAggroFontFamily,
             fontWeight = FontWeight.Bold,
-            fontSize = 15.sp
+            fontSize = 14.sp,
         )
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         members.forEach { member ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 6.dp),
+                    .padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 com.example.moa_project.ui.components.ProfileAvatar(
@@ -574,7 +622,7 @@ private fun GroupMembersCard(members: List<GroupMemberResponse>) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = member.nickname,
-                        color = TextPrimary,
+                        color = MoaTextPrimary,
                         fontFamily = SBAggroFontFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
@@ -583,7 +631,7 @@ private fun GroupMembersCard(members: List<GroupMemberResponse>) {
                     )
                     Text(
                         text = if (member.role == "ADMIN") "관리자" else "멤버",
-                        color = TextSecondary,
+                        color = MoaTextSecondary,
                         fontFamily = SBAggroFontFamily,
                         fontWeight = FontWeight.Medium,
                         fontSize = 11.sp
@@ -600,11 +648,11 @@ private fun ScheduleCard(
     onClick: () -> Unit
 ) {
     val statusColor = when (schedule.status) {
-        "CONFIRMED" -> Color(0xFF35A96D)
+        "CONFIRMED" -> MoaStatusConfirmed
         "WAITING" -> MoaBlue
-        "ADJUSTING" -> Color(0xFFFF9C1A)
-        "DONE" -> TextSecondary
-        else -> TextSecondary
+        "ADJUSTING" -> MoaAccentOrange
+        "DONE" -> MoaTextSecondary
+        else -> MoaTextSecondary
     }
     val statusLabel = when (schedule.status) {
         "WAITING" -> "응답 대기"
@@ -617,11 +665,9 @@ private fun ScheduleCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(16.dp), spotColor = Color(0xFFDDE4F2))
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White)
+            .moaCardSurface()
             .clickable(onClick = onClick)
-            .padding(16.dp),
+            .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -644,7 +690,7 @@ private fun ScheduleCard(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = schedule.title,
-                color = TextPrimary,
+                color = MoaTextPrimary,
                 fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp,
@@ -654,7 +700,7 @@ private fun ScheduleCard(
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "${schedule.startDate} ~ ${schedule.endDate}",
-                color = TextSecondary,
+                color = MoaTextSecondary,
                 fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.Medium,
                 fontSize = 12.sp,
@@ -679,7 +725,7 @@ private fun ScheduleCard(
         Icon(
             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = "상세 보기",
-            tint = TextSecondary,
+            tint = MoaTextSecondary,
             modifier = Modifier.size(22.dp)
         )
     }
@@ -693,8 +739,8 @@ private fun CreateScheduleDialog(
 ) {
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
-    var startDateText by remember { mutableStateOf(LocalDate.now().toString()) }
-    var endDateText by remember { mutableStateOf(LocalDate.now().plusDays(5).toString()) }
+    var startDate by remember { mutableStateOf(LocalDate.now()) }
+    var endDate by remember { mutableStateOf(LocalDate.now().plusDays(5)) }
     var localError by remember { mutableStateOf<String?>(null) }
     val isLoading = state is CreateScheduleState.Loading
     val serverError = (state as? CreateScheduleState.Error)?.message
@@ -708,11 +754,14 @@ private fun CreateScheduleDialog(
                 text = "새 일정 조율",
                 fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.Bold,
-                color = TextPrimary
+                color = MoaTextPrimary
             )
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 MoaOutlinedTextField(
                     value = title,
                     onValueChange = { if (it.length <= 30) title = it },
@@ -725,25 +774,17 @@ private fun CreateScheduleDialog(
                     label = "설명 (선택, 최대 80자)",
                     modifier = Modifier.fillMaxWidth(),
                 )
-                MoaOutlinedTextField(
-                    value = startDateText,
-                    onValueChange = { startDateText = it },
-                    label = "시작일",
-                    placeholder = "YYYY-MM-DD",
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                MoaOutlinedTextField(
-                    value = endDateText,
-                    onValueChange = { endDateText = it },
-                    label = "종료일",
-                    placeholder = "YYYY-MM-DD",
-                    modifier = Modifier.fillMaxWidth(),
+                MoaDateRangePicker(
+                    startDate = startDate,
+                    endDate = endDate,
+                    onStartDateChange = { startDate = it },
+                    onEndDateChange = { endDate = it },
                 )
                 val message = localError ?: serverError
                 if (message != null) {
                     Text(
                         text = message,
-                        color = Color(0xFFFF6262),
+                        color = MoaError,
                         fontFamily = SBAggroFontFamily,
                         fontSize = 12.sp
                     )
@@ -755,13 +796,11 @@ private fun CreateScheduleDialog(
                 enabled = !isLoading,
                 colors = ButtonDefaults.buttonColors(containerColor = MoaBlue),
                 onClick = {
-                    localError = try {
-                        val startDate = LocalDate.parse(startDateText)
-                        val endDate = LocalDate.parse(endDateText)
+                    localError = if (endDate.isBefore(startDate)) {
+                        "종료일은 시작일 이후여야 합니다."
+                    } else {
                         onCreate(title, description, startDate, endDate)
                         null
-                    } catch (e: Exception) {
-                        "날짜는 YYYY-MM-DD 형식으로 입력해주세요."
                     }
                 }
             ) {
@@ -778,7 +817,7 @@ private fun CreateScheduleDialog(
                 enabled = !isLoading,
                 onClick = onDismiss
             ) {
-                MoaDialogButtonText("취소", TextSecondary)
+                MoaDialogButtonText("취소", MoaTextSecondary)
             }
         },
         containerColor = Color.White,

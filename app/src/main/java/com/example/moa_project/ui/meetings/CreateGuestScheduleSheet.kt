@@ -25,8 +25,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -47,13 +45,20 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.moa_project.util.GuestLinkHelper
 import com.example.moa_project.ui.components.Moa3DIcon
 import com.example.moa_project.ui.components.Moa3DIconType
+import com.example.moa_project.ui.components.MoaDateRangePicker
+import com.example.moa_project.ui.components.MoaOutlinedTextField
+import com.example.moa_project.ui.components.MoaPrimaryButton
+import com.example.moa_project.ui.theme.MoaAccentBlueBg
+import com.example.moa_project.ui.theme.MoaAccentGreen
+import com.example.moa_project.ui.theme.MoaBlue
+import com.example.moa_project.ui.theme.MoaError
+import com.example.moa_project.ui.theme.MoaRadius
+import com.example.moa_project.ui.theme.MoaScreenBackground
+import com.example.moa_project.ui.theme.MoaInputBorder
+import com.example.moa_project.ui.theme.MoaTextPrimary
+import com.example.moa_project.ui.theme.MoaTextSecondary
 import com.example.moa_project.ui.theme.SBAggroFontFamily
 import java.time.LocalDate
-
-private val MoaBlue = Color(0xFF2179FE)
-private val TextPrimary = Color(0xFF101B33)
-private val TextSecondary = Color(0xFF737C99)
-private val BorderColor = Color(0xFFE8EBF2)
 
 @Composable
 fun CreateGuestScheduleSheet(
@@ -65,15 +70,21 @@ fun CreateGuestScheduleSheet(
     val context = LocalContext.current
     var title by rememberSaveable { mutableStateOf("") }
     var description by rememberSaveable { mutableStateOf("") }
-    var startDateText by rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
-    var endDateText by rememberSaveable { mutableStateOf(LocalDate.now().plusDays(5).toString()) }
+    var startDate by rememberSaveable {
+        mutableStateOf(LocalDate.now().toString())
+    }
+    var endDate by rememberSaveable {
+        mutableStateOf(LocalDate.now().plusDays(5).toString())
+    }
+    val startLocalDate = remember(startDate) { LocalDate.parse(startDate) }
+    val endLocalDate = remember(endDate) { LocalDate.parse(endDate) }
     var localError by remember { mutableStateOf<String?>(null) }
 
     fun resetForm() {
         title = ""
         description = ""
-        startDateText = LocalDate.now().toString()
-        endDateText = LocalDate.now().plusDays(5).toString()
+        startDate = LocalDate.now().toString()
+        endDate = LocalDate.now().plusDays(5).toString()
         localError = null
         viewModel.reset()
     }
@@ -98,7 +109,7 @@ fun CreateGuestScheduleSheet(
             modifier = Modifier
                 .size(width = 40.dp, height = 4.dp)
                 .clip(CircleShape)
-                .background(Color(0xFFE0E4F0))
+                .background(MoaInputBorder)
                 .align(Alignment.CenterHorizontally)
         )
         Spacer(modifier = Modifier.height(20.dp))
@@ -114,7 +125,7 @@ fun CreateGuestScheduleSheet(
                 Column {
                     Text(
                         text = "단기 일정 링크",
-                        color = TextPrimary,
+                        color = MoaTextPrimary,
                         fontFamily = SBAggroFontFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 22.sp,
@@ -122,7 +133,7 @@ fun CreateGuestScheduleSheet(
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = "앱 설치 없이 참여할 수 있는 링크를 만들어요",
-                        color = TextSecondary,
+                        color = MoaTextSecondary,
                         fontFamily = SBAggroFontFamily,
                         fontWeight = FontWeight.Medium,
                         fontSize = 12.sp,
@@ -130,76 +141,68 @@ fun CreateGuestScheduleSheet(
                 }
             }
             IconButton(onClick = onDismiss) {
-                Icon(Icons.Default.Close, contentDescription = "닫기", tint = TextSecondary)
+                Icon(Icons.Default.Close, contentDescription = "닫기", tint = MoaTextSecondary)
             }
         }
 
         Spacer(modifier = Modifier.height(22.dp))
 
         if (success == null) {
-            GuestTextField(title, { if (it.length <= 30) title = it }, "일정 제목 (최대 30자)", "예: 팀플 최종 회의")
+            MoaOutlinedTextField(
+                value = title,
+                onValueChange = { title = it },
+                label = "일정 제목 (최대 30자)",
+                placeholder = "예: 팀플 최종 회의",
+                maxLength = 30,
+            )
             Spacer(modifier = Modifier.height(14.dp))
-            GuestTextField(description, { if (it.length <= 80) description = it }, "설명 (선택, 최대 80자)", "장소나 안건을 적어주세요", singleLine = false)
+            MoaOutlinedTextField(
+                value = description,
+                onValueChange = { description = it },
+                label = "설명 (선택, 최대 80자)",
+                placeholder = "장소나 안건을 적어주세요",
+                maxLength = 80,
+                singleLine = false,
+            )
             Spacer(modifier = Modifier.height(14.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                GuestTextField(
-                    value = startDateText,
-                    onValueChange = { startDateText = it },
-                    label = "시작일",
-                    placeholder = "YYYY-MM-DD",
-                    modifier = Modifier.weight(1f)
-                )
-                GuestTextField(
-                    value = endDateText,
-                    onValueChange = { endDateText = it },
-                    label = "종료일",
-                    placeholder = "YYYY-MM-DD",
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            MoaDateRangePicker(
+                startDate = startLocalDate,
+                endDate = endLocalDate,
+                onStartDateChange = { startDate = it.toString() },
+                onEndDateChange = { endDate = it.toString() },
+            )
 
             val message = localError ?: (state as? GuestScheduleActionState.Error)?.message
             if (message != null) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
                     text = message,
-                    color = Color(0xFFFF6262),
+                    color = MoaError,
                     fontFamily = SBAggroFontFamily,
                     fontSize = 12.sp
                 )
             }
 
             Spacer(modifier = Modifier.height(22.dp))
-            Button(
-                enabled = !isLoading,
+            MoaPrimaryButton(
+                text = "링크 만들기",
                 onClick = {
-                    localError = try {
-                        val startDate = LocalDate.parse(startDateText)
-                        val endDate = LocalDate.parse(endDateText)
-                        viewModel.createGuestSchedule(title, description, startDate, endDate)
+                    localError = if (endLocalDate.isBefore(startLocalDate)) {
+                        "종료일은 시작일 이후여야 합니다."
+                    } else {
+                        viewModel.createGuestSchedule(title, description, startLocalDate, endLocalDate)
                         null
-                    } catch (e: Exception) {
-                        "날짜는 YYYY-MM-DD 형식으로 입력해주세요."
                     }
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(54.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MoaBlue)
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
-                } else {
-                    Text("링크 만들기", color = Color.White, fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold)
-                }
-            }
+                enabled = !isLoading,
+                loading = isLoading,
+            )
         } else {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFFEAF1FF))
+                    .background(MoaAccentBlueBg)
                     .border(1.dp, MoaBlue.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
                     .padding(16.dp)
             ) {
@@ -209,7 +212,7 @@ fun CreateGuestScheduleSheet(
                         Spacer(modifier = Modifier.size(8.dp))
                         Text(
                             text = "링크가 생성되었어요",
-                            color = TextPrimary,
+                            color = MoaTextPrimary,
                             fontFamily = SBAggroFontFamily,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
@@ -227,7 +230,7 @@ fun CreateGuestScheduleSheet(
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = "앱 딥링크: $appLink",
-                            color = TextSecondary,
+                            color = MoaTextSecondary,
                             fontFamily = SBAggroFontFamily,
                             fontWeight = FontWeight.Medium,
                             fontSize = 11.sp
@@ -237,7 +240,7 @@ fun CreateGuestScheduleSheet(
                     if (linkReachable) {
                         Text(
                             text = "카카오톡·문자 등으로 링크를 보내면 앱 없이 가능한 시간을 입력할 수 있어요.",
-                            color = TextSecondary,
+                            color = MoaTextSecondary,
                             fontFamily = SBAggroFontFamily,
                             fontWeight = FontWeight.Medium,
                             fontSize = 11.sp,
@@ -248,13 +251,13 @@ fun CreateGuestScheduleSheet(
                             Icon(
                                 imageVector = Icons.Default.Warning,
                                 contentDescription = null,
-                                tint = Color(0xFFFF6262),
+                                tint = MoaError,
                                 modifier = Modifier.size(16.dp),
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "지금 링크는 이 기기/같은 Wi-Fi에서만 열려요. 다른 사람에게 보내려면 local.properties의 WEB_SHARE_URL(ngrok 등 공개 URL)을 설정하거나 서버를 배포해주세요.",
-                                color = Color(0xFFFF6262),
+                                color = MoaError,
                                 fontFamily = SBAggroFontFamily,
                                 fontWeight = FontWeight.Medium,
                                 fontSize = 11.sp,
@@ -305,7 +308,7 @@ fun CreateGuestScheduleSheet(
                     .fillMaxWidth()
                     .height(50.dp),
                 shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF35A96D))
+                colors = ButtonDefaults.buttonColors(containerColor = MoaAccentGreen)
             ) {
                 Text("조율 결과 보기", color = Color.White, fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold)
             }
@@ -320,7 +323,7 @@ fun CreateGuestScheduleSheet(
                         .weight(1f)
                         .height(46.dp),
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEAF1FF))
+                    colors = ButtonDefaults.buttonColors(containerColor = MoaAccentBlueBg)
                 ) {
                     Text(
                         "새 일정 만들기",
@@ -339,11 +342,11 @@ fun CreateGuestScheduleSheet(
                         .weight(1f)
                         .height(46.dp),
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF0F2F8))
+                    colors = ButtonDefaults.buttonColors(containerColor = MoaScreenBackground)
                 ) {
                     Text(
                         "완료",
-                        color = TextSecondary,
+                        color = MoaTextSecondary,
                         fontFamily = SBAggroFontFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp
@@ -354,28 +357,3 @@ fun CreateGuestScheduleSheet(
     }
 }
 
-@Composable
-private fun GuestTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    placeholder: String,
-    modifier: Modifier = Modifier,
-    singleLine: Boolean = true
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label, fontFamily = SBAggroFontFamily, fontSize = 12.sp) },
-        placeholder = { Text(placeholder, fontFamily = SBAggroFontFamily, fontSize = 12.sp) },
-        singleLine = singleLine,
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = MoaBlue,
-            unfocusedBorderColor = BorderColor,
-            focusedContainerColor = Color.White,
-            unfocusedContainerColor = Color.White
-        )
-    )
-}

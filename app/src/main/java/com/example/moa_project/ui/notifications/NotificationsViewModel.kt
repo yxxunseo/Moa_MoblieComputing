@@ -37,30 +37,18 @@ class NotificationsViewModel : ViewModel() {
     private var appContext: Context? = null
 
     fun attachContext(context: Context) {
-        if (appContext == null) appContext = context.applicationContext
+        appContext = context.applicationContext
     }
 
-    init {
-        refresh()
-    }
-
-    fun refresh() {
+    fun refresh(markReadAfterLoad: Boolean = false) {
         viewModelScope.launch {
             _state.value = NotificationsState.Loading
             try {
-                val ctx = appContext
-                val local = ctx?.let { MoaInAppNotificationStore.loadAll(it) }.orEmpty()
-                val groups = runCatching { RetrofitClient.instance.getMyGroups() }
-                    .getOrDefault(emptyList())
-                val remote = buildList {
-                    addAll(groupNotifications(groups))
-                    addAll(guestNotifications())
-                }
-                val merged = (local + remote)
-                    .filter { it.type == MoaNotificationType.CONFIRMED }
-                    .distinctBy { it.id }
-                    .sortedByDescending { it.timestamp }
+                val merged = loadNotifications()
                 _state.value = NotificationsState.Success(merged)
+                if (markReadAfterLoad) {
+                    appContext?.let { MoaInAppNotificationStore.markAllRead(it) }
+                }
             } catch (e: Exception) {
                 MoaErrorLog.log("NotificationsViewModel", "refresh", e)
                 _state.value = NotificationsState.Error(MoaErrorLog.userMessage(e, "알림을 불러오지 못했습니다."))
@@ -68,8 +56,20 @@ class NotificationsViewModel : ViewModel() {
         }
     }
 
-    fun markAllRead() {
-        appContext?.let { MoaInAppNotificationStore.markAllRead(it) }
+    private suspend fun loadNotifications(): List<MoaNotification> {
+        val ctx = appContext
+            ?: throw IllegalStateException("알림 화면 컨텍스트가 준비되지 않았습니다.")
+        val local = MoaInAppNotificationStore.loadAll(ctx)
+        val groups = runCatching { RetrofitClient.instance.getMyGroups() }
+            .getOrDefault(emptyList())
+        val remote = buildList {
+            addAll(groupNotifications(groups))
+            addAll(guestNotifications())
+        }
+        return (local + remote)
+            .filter { it.type == MoaNotificationType.CONFIRMED }
+            .distinctBy { it.id }
+            .sortedByDescending { it.timestamp }
     }
 
     private suspend fun groupNotifications(groups: List<GroupResponse>): List<MoaNotification> {
@@ -106,12 +106,14 @@ class NotificationsViewModel : ViewModel() {
         schedule: ScheduleDetailResponse,
         groupName: String,
     ): MoaNotification? {
-        if (schedule.status != "CONFIRMED") return null
+        if (schedule.status != "CONFIRMED" && schedule.status != "DONE") return null
         val ctx = appContext ?: return null
         val key = "sch-${schedule.id}"
         val fmt = DateTimeFormatter.ofPattern("M월 d일 HH:mm")
         val start = schedule.confirmedStart?.let(HomeEventLoader::parseDateTime)
-        val receivedAt = MoaInAppNotificationStore.getOrRecordReceivedAt(ctx, key)
+        val receivedAt = MoaInAppNotificationStore.getReceivedAt(ctx, key)
+            ?: start
+            ?: LocalDateTime.now()
         return MoaNotification(
             id = key,
             type = MoaNotificationType.CONFIRMED,

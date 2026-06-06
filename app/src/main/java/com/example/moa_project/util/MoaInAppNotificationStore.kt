@@ -53,20 +53,28 @@ object MoaInAppNotificationStore {
         title: String,
         body: String,
         receivedAt: LocalDateTime = LocalDateTime.now(),
+        id: String? = null,
     ) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val arr = JSONArray(prefs.getString(KEY_ITEMS, "[]"))
+        val resolvedId = id ?: "local-${System.currentTimeMillis()}"
         val item = JSONObject().apply {
-            put("id", "local-${System.currentTimeMillis()}")
+            put("id", resolvedId)
             put("type", type.name)
             put("title", title)
             put("body", body)
             put("timestamp", receivedAt.format(fmt))
             put("read", false)
         }
-        val next = JSONArray().put(item)
-        for (i in 0 until minOf(arr.length(), MAX_ITEMS - 1)) {
-            next.put(arr.getJSONObject(i))
+        val next = JSONArray()
+        for (i in 0 until arr.length()) {
+            val existing = arr.getJSONObject(i)
+            if (existing.getString("id") == resolvedId) continue
+            next.put(existing)
+        }
+        next.put(0, item)
+        while (next.length() > MAX_ITEMS) {
+            next.remove(next.length() - 1)
         }
         prefs.edit().putString(KEY_ITEMS, next.toString()).apply()
     }

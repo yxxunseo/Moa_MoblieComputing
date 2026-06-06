@@ -41,6 +41,7 @@ import com.example.moa_project.ui.schedule.ScheduleState
 import com.example.moa_project.ui.schedule.ScheduleViewModel
 import com.example.moa_project.ui.schedule.TimeSlot
 import com.example.moa_project.ui.meetings.GroupDetailScreen
+import com.example.moa_project.ui.theme.MoaBlue
 import com.example.moa_project.ui.theme.Moa_ProjectTheme
 import java.time.LocalDate
 import androidx.compose.ui.unit.dp
@@ -471,7 +472,7 @@ private fun GuestScheduleEntryRoute(
         is com.example.moa_project.ui.schedule.GuestScheduleState.Loading,
         is com.example.moa_project.ui.schedule.GuestScheduleState.Idle -> {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Color(0xFF2179FE))
+                CircularProgressIndicator(color = MoaBlue)
             }
         }
         is com.example.moa_project.ui.schedule.GuestScheduleState.Error -> {
@@ -481,7 +482,7 @@ private fun GuestScheduleEntryRoute(
                     Spacer(modifier = Modifier.height(8.dp))
                     Button(
                         onClick = { viewModel.fetchSchedule(link) },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2179FE)),
+                        colors = ButtonDefaults.buttonColors(containerColor = MoaBlue),
                     ) {
                         Text("다시 시도")
                     }
@@ -530,7 +531,7 @@ private fun GuestScheduleCoordinationRoute(
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator(
-                    color = Color(0xFF2179FE)
+                    color = MoaBlue
                 )
             }
         }
@@ -545,7 +546,7 @@ private fun GuestScheduleCoordinationRoute(
                     Button(
                         onClick = { viewModel.fetchSchedule(link) },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF2179FE)
+                            containerColor = MoaBlue
                         )
                     ) {
                         Text(text = "재시도")
@@ -588,7 +589,7 @@ private fun GuestScheduleCoordinationRoute(
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator(
-                    color = Color(0xFF2179FE)
+                    color = MoaBlue
                 )
             }
         }

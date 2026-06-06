@@ -20,19 +20,33 @@ object MoaSpacing {
 
 object MoaRadius {
     val card = 16.dp
+    val homeCard = 20.dp
     val button = 12.dp
     val chip = 10.dp
+    val sheet = 28.dp
+}
+
+object MoaButtonSpec {
+    val height = 48.dp
+    val heightLarge = 52.dp
 }
 
 fun Modifier.moaScreenBackground(): Modifier = background(MoaScreenBackground)
 
+fun Modifier.moaCardSurface(
+    elevation: Dp = 2.dp,
+    cornerRadius: Dp = MoaRadius.card,
+): Modifier = this
+    .shadow(elevation, RoundedCornerShape(cornerRadius), spotColor = MoaCardShadow.copy(alpha = 0.35f))
+    .clip(RoundedCornerShape(cornerRadius))
+    .background(Color.White)
+
 fun Modifier.moaCard(
     elevation: Dp = 2.dp,
     padding: Dp = 16.dp,
+    cornerRadius: Dp = MoaRadius.card,
 ): Modifier = this
-    .shadow(elevation, RoundedCornerShape(MoaRadius.card), spotColor = MoaCardShadow.copy(alpha = 0.35f))
-    .clip(RoundedCornerShape(MoaRadius.card))
-    .background(Color.White)
+    .moaCardSurface(elevation = elevation, cornerRadius = cornerRadius)
     .padding(padding)
 
 val MoaScreenPadding = PaddingValues(

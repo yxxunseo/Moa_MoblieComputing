@@ -27,9 +27,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -50,11 +47,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.moa_project.ui.components.MoaOutlinedTextField
+import com.example.moa_project.ui.theme.MoaAccentBlueBg
+import com.example.moa_project.ui.theme.MoaBlue
+import com.example.moa_project.ui.theme.MoaError
+import com.example.moa_project.ui.theme.MoaTextPrimary
+import com.example.moa_project.ui.theme.MoaTextSecondary
 import com.example.moa_project.ui.theme.SBAggroFontFamily
-
-private val MoaBlue = Color(0xFF2179FE)
-private val TextPrimary = Color(0xFF101B33)
-private val TextSecondary = Color(0xFF737C99)
 
 // 그룹 색상 팔레트 (hex 문자열 → Compose Color 쌍)
 private val groupColorOptions = listOf(
@@ -123,7 +122,7 @@ fun CreateOrJoinMeetingSheet(
         ) {
             Text(
                 text = "모임 시작하기",
-                color = TextPrimary,
+                color = MoaTextPrimary,
                 fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.Bold,
                 fontSize = 22.sp
@@ -132,7 +131,7 @@ fun CreateOrJoinMeetingSheet(
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = "닫기",
-                    tint = TextSecondary
+                    tint = MoaTextSecondary
                 )
             }
         }
@@ -162,7 +161,7 @@ fun CreateOrJoinMeetingSheet(
                 ) {
                     Text(
                         text = label,
-                        color = if (isSelected) MoaBlue else TextSecondary,
+                        color = if (isSelected) MoaBlue else MoaTextSecondary,
                         fontFamily = SBAggroFontFamily,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                         fontSize = 14.sp
@@ -176,23 +175,23 @@ fun CreateOrJoinMeetingSheet(
         // ── 탭 내용 ──
         if (selectedTab == 0) {
             // 모임 만들기 탭
-            MoaTextField(
+            MoaOutlinedTextField(
                 value = groupName,
                 onValueChange = { groupName = it },
                 label = "모임 이름 *",
                 placeholder = "예: 멋쟁이사자처럼 12기",
-                maxLength = 30
+                maxLength = 30,
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            MoaTextField(
+            MoaOutlinedTextField(
                 value = groupDescription,
                 onValueChange = { groupDescription = it },
                 label = "모임 설명 (선택)",
                 placeholder = "모임에 대해 간단히 소개해주세요",
                 maxLength = 80,
-                singleLine = false
+                singleLine = false,
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -200,7 +199,7 @@ fun CreateOrJoinMeetingSheet(
             // 색상 선택
             Text(
                 text = "모임 색상",
-                color = TextSecondary,
+                color = MoaTextSecondary,
                 fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.Medium,
                 fontSize = 13.sp
@@ -222,7 +221,7 @@ fun CreateOrJoinMeetingSheet(
             if (state is GroupActionState.Error) {
                 Text(
                     text = (state as GroupActionState.Error).message,
-                    color = Color(0xFFFF6262),
+                    color = MoaError,
                     fontFamily = SBAggroFontFamily,
                     fontSize = 13.sp,
                     modifier = Modifier.fillMaxWidth(),
@@ -271,7 +270,7 @@ fun CreateOrJoinMeetingSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xFFEAF2FF))
+                    .background(MoaAccentBlueBg)
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -292,7 +291,7 @@ fun CreateOrJoinMeetingSheet(
                     )
                     Text(
                         text = "모임장에게 받은 코드를 입력하세요",
-                        color = TextSecondary,
+                        color = MoaTextSecondary,
                         fontFamily = SBAggroFontFamily,
                         fontWeight = FontWeight.Medium,
                         fontSize = 12.sp
@@ -302,7 +301,7 @@ fun CreateOrJoinMeetingSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            MoaTextField(
+            MoaOutlinedTextField(
                 value = inviteCode,
                 onValueChange = { inviteCode = it.uppercase() },
                 label = "초대 코드 *",
@@ -310,8 +309,8 @@ fun CreateOrJoinMeetingSheet(
                 maxLength = 12,
                 keyboardOptions = KeyboardOptions(
                     capitalization = KeyboardCapitalization.Characters,
-                    imeAction = ImeAction.Done
-                )
+                    imeAction = ImeAction.Done,
+                ),
             )
 
             Spacer(modifier = Modifier.height(28.dp))
@@ -320,7 +319,7 @@ fun CreateOrJoinMeetingSheet(
             if (state is GroupActionState.Error) {
                 Text(
                     text = (state as GroupActionState.Error).message,
-                    color = Color(0xFFFF6262),
+                    color = MoaError,
                     fontFamily = SBAggroFontFamily,
                     fontSize = 13.sp,
                     modifier = Modifier.fillMaxWidth(),
@@ -365,67 +364,6 @@ fun CreateOrJoinMeetingSheet(
         }
 
         Spacer(modifier = Modifier.height(40.dp))
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun MoaTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    placeholder: String,
-    maxLength: Int,
-    singleLine: Boolean = true,
-    keyboardOptions: KeyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
-) {
-    Column {
-        Text(
-            text = label,
-            color = TextSecondary,
-            fontFamily = SBAggroFontFamily,
-            fontWeight = FontWeight.Medium,
-            fontSize = 13.sp
-        )
-        Spacer(modifier = Modifier.height(6.dp))
-        OutlinedTextField(
-            value = value,
-            onValueChange = { if (it.length <= maxLength) onValueChange(it) },
-            placeholder = {
-                Text(
-                    text = placeholder,
-                    color = Color(0xFFB8BFCF),
-                    fontFamily = SBAggroFontFamily,
-                    fontSize = 14.sp
-                )
-            },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = singleLine,
-            keyboardOptions = keyboardOptions,
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MoaBlue,
-                unfocusedBorderColor = Color(0xFFE0E4F0),
-                focusedTextColor = TextPrimary,
-                unfocusedTextColor = TextPrimary,
-                cursorColor = MoaBlue,
-                focusedContainerColor = Color(0xFFF7F8FC),
-                unfocusedContainerColor = Color(0xFFF7F8FC),
-                disabledContainerColor = Color(0xFFF7F8FC)
-            ),
-            textStyle = LocalTextStyle.current.copy(
-                fontSize = 14.sp
-            ),
-            trailingIcon = {
-                Text(
-                    text = "${value.length}/$maxLength",
-                    color = Color(0xFFB8BFCF),
-                    fontFamily = SBAggroFontFamily,
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-            }
-        )
     }
 }
 

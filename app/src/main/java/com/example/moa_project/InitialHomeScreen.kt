@@ -68,11 +68,17 @@ import com.example.moa_project.ui.meetings.CreateOrJoinMeetingSheet
 import com.example.moa_project.ui.meetings.MeetingsViewModel
 import com.example.moa_project.ui.my.UserState
 import com.example.moa_project.ui.my.UserViewModel
+import com.example.moa_project.ui.theme.MoaAccentBlueBg
+import com.example.moa_project.ui.theme.MoaAccentOrange
 import com.example.moa_project.ui.theme.MoaBlue
+import com.example.moa_project.ui.theme.MoaDivider
+import com.example.moa_project.ui.theme.MoaTextTertiary
+import com.example.moa_project.ui.theme.MoaRadius
 import com.example.moa_project.ui.theme.MoaScreenBackground
 import com.example.moa_project.ui.theme.MoaTextPrimary
 import com.example.moa_project.ui.theme.MoaTextSecondary
 import com.example.moa_project.ui.theme.SBAggroFontFamily
+import com.example.moa_project.ui.theme.moaCardSurface
 import com.example.moa_project.util.MoaInAppNotificationStore
 import kotlinx.coroutines.launch
 import java.time.format.DateTimeFormatter
@@ -489,8 +495,7 @@ private fun HomeQuickAccessCard(
     Column(
         modifier = modifier
             .heightIn(min = 132.dp)
-            .clip(RoundedCornerShape(22.dp))
-            .background(Color.White)
+            .moaCardSurface(cornerRadius = MoaRadius.homeCard)
             .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 16.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.SpaceBetween,
@@ -570,7 +575,7 @@ private fun HomeTaskSection(
                 progress = 0f,
                 progressLabel = "다시 시도",
                 dueLabel = "—",
-                accent = Color(0xFFFF9500),
+                accent = MoaAccentOrange,
                 onClick = onCoordinationListClick,
             )
         }
@@ -592,7 +597,6 @@ private fun HomeTaskSection(
                         progress = item.progress,
                         progressLabel = item.progressLabel,
                         dueLabel = item.dueLabel,
-                        accent = item.accent,
                         onClick = { onCoordinationScheduleClick(item.scheduleId) },
                     )
                     if (index < activities.take(2).lastIndex) {
@@ -681,7 +685,6 @@ private data class HomeProgressItem(
     val progress: Float,
     val progressLabel: String,
     val dueLabel: String,
-    val accent: Color,
 )
 
 private fun buildCoordinationItems(state: HomeDashboardState.Success): List<HomeProgressItem> {
@@ -694,7 +697,6 @@ private fun buildCoordinationItems(state: HomeDashboardState.Success): List<Home
             progress = progress,
             progressLabel = label,
             dueLabel = activity.statusLabel,
-            accent = parseColor(activity.groupColor),
         )
     }
 }
@@ -718,6 +720,13 @@ private fun progressForResponse(respondedCount: Int, totalMembers: Int): Pair<Fl
     return progress to "${respondedCount}/${totalMembers}명 응답"
 }
 
+private fun coordinationProgressColors(progress: Float): Pair<Color, Color> {
+    return when {
+        progress <= 0f -> MoaTextTertiary to MoaDivider
+        else -> MoaBlue to MoaAccentBlueBg
+    }
+}
+
 @Composable
 private fun HomeProgressCard(
     title: String,
@@ -725,14 +734,17 @@ private fun HomeProgressCard(
     progress: Float,
     progressLabel: String,
     dueLabel: String,
-    accent: Color,
     onClick: () -> Unit,
+    accent: Color? = null,
 ) {
+    val autoColors = coordinationProgressColors(progress)
+    val barColor = accent ?: autoColors.first
+    val trackColor = accent?.copy(alpha = 0.15f) ?: autoColors.second
+    val labelColor = accent ?: MoaTextSecondary
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color.White)
+            .moaCardSurface(cornerRadius = MoaRadius.homeCard)
             .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 16.dp),
     ) {
@@ -752,8 +764,8 @@ private fun HomeProgressCard(
                 .fillMaxWidth()
                 .height(8.dp)
                 .clip(RoundedCornerShape(4.dp)),
-            color = accent,
-            trackColor = accent.copy(alpha = 0.15f),
+            color = barColor,
+            trackColor = trackColor,
             strokeCap = StrokeCap.Round,
         )
         Spacer(modifier = Modifier.height(10.dp))
@@ -764,9 +776,9 @@ private fun HomeProgressCard(
             Text(
                 text = progressLabel,
                 fontFamily = SBAggroFontFamily,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.Medium,
                 fontSize = 12.sp,
-                color = accent,
+                color = labelColor,
             )
             Text(
                 text = dueLabel,
@@ -870,14 +882,13 @@ private fun CoordinationListItem(
     item: HomeActivityItem,
     onClick: () -> Unit,
 ) {
-    val accent = parseColor(item.groupColor)
     val (progress, responseLabel) = progressForResponse(item.respondedCount, item.totalMembers)
+    val (barColor, trackColor) = coordinationProgressColors(progress)
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White)
+            .moaCardSurface()
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
@@ -922,8 +933,8 @@ private fun CoordinationListItem(
                 .fillMaxWidth()
                 .height(6.dp)
                 .clip(RoundedCornerShape(3.dp)),
-            color = accent,
-            trackColor = accent.copy(alpha = 0.15f),
+            color = barColor,
+            trackColor = trackColor,
             strokeCap = StrokeCap.Round,
         )
         Spacer(modifier = Modifier.height(6.dp))
@@ -932,7 +943,7 @@ private fun CoordinationListItem(
             fontFamily = SBAggroFontFamily,
             fontWeight = FontWeight.Medium,
             fontSize = 11.sp,
-            color = accent,
+            color = MoaTextSecondary,
         )
     }
 }
@@ -949,8 +960,7 @@ private fun HomeScheduleCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
-            .background(Color.White)
+            .moaCardSurface(cornerRadius = MoaRadius.homeCard)
             .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,

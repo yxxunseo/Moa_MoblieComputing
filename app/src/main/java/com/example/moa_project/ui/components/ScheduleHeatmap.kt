@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import com.example.moa_project.network.GuestParticipantDto
 import com.example.moa_project.util.HeatmapMembersResolver
 import com.example.moa_project.ui.theme.MoaBlue
+import com.example.moa_project.ui.theme.moaCardSurface
 import com.example.moa_project.ui.theme.MoaTextPrimary
 import com.example.moa_project.ui.theme.MoaTextSecondary
 import com.example.moa_project.ui.theme.SBAggroFontFamily
@@ -96,9 +97,7 @@ fun ScheduleHeatmapCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .shadow(8.dp, RoundedCornerShape(20.dp), spotColor = Color(0xFFDDE4F2))
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color.White)
+            .moaCardSurface(elevation = 2.dp, cornerRadius = 20.dp)
             .padding(20.dp),
     ) {
         Text(

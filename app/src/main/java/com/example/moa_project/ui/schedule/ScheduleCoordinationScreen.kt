@@ -15,7 +15,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -47,18 +48,22 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.moa_project.ui.components.MoaOutlinedTextField
+import com.example.moa_project.ui.theme.MoaBlue
+import com.example.moa_project.ui.theme.MoaButtonSpec
+import com.example.moa_project.ui.theme.MoaDivider
+import com.example.moa_project.ui.theme.MoaRadius
+import com.example.moa_project.ui.theme.MoaScreenBackground
+import com.example.moa_project.ui.theme.MoaTextPrimary
+import com.example.moa_project.ui.theme.MoaTextSecondary
 import com.example.moa_project.ui.theme.Moa_ProjectTheme
 import com.example.moa_project.ui.theme.SBAggroFontFamily
+import com.example.moa_project.ui.theme.moaCardSurface
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private val MoaBlue = Color(0xFF2179FE)
-private val ScreenBackground = Color(0xFFF7F8FC)
-private val TextPrimary = Color(0xFF101B33)
-private val TextSecondary = Color(0xFF737C99)
-private val BorderColor = Color(0xFFE8EBF2)
-private val BlockedColor = Color(0xFFE8EBF2)
+private val BlockedColor = MoaDivider
 
 data class TimeSlot(val date: LocalDate, val hour: Int)
 
@@ -101,7 +106,7 @@ fun ScheduleCoordinationScreen(
                         fontFamily = SBAggroFontFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp,
-                        color = TextPrimary
+                        color = MoaTextPrimary
                     )
                 },
                 navigationIcon = {
@@ -109,7 +114,7 @@ fun ScheduleCoordinationScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "뒤로가기",
-                            tint = TextPrimary
+                            tint = MoaTextPrimary
                         )
                     }
                 },
@@ -124,7 +129,7 @@ fun ScheduleCoordinationScreen(
                 onSubmit = { onSubmitClick(guestName, selectedTimeSlots) }
             )
         },
-        containerColor = ScreenBackground
+        containerColor = MoaScreenBackground
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -141,7 +146,7 @@ fun ScheduleCoordinationScreen(
                     fontFamily = SBAggroFontFamily,
                     fontWeight = FontWeight.Bold,
                     fontSize = 22.sp,
-                    color = TextPrimary
+                    color = MoaTextPrimary
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
@@ -153,7 +158,7 @@ fun ScheduleCoordinationScreen(
                     fontFamily = SBAggroFontFamily,
                     fontWeight = FontWeight.Medium,
                     fontSize = 13.sp,
-                    color = TextSecondary
+                    color = MoaTextSecondary
                 )
             }
 
@@ -161,44 +166,14 @@ fun ScheduleCoordinationScreen(
 
             if (isGuest) {
                 CoordinationCard(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    Text(
-                        text = "이름",
-                        fontFamily = SBAggroFontFamily,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 12.sp,
-                        color = TextSecondary
+                    MoaOutlinedTextField(
+                        value = guestName,
+                        onValueChange = { guestName = it },
+                        label = "이름",
+                        placeholder = "예: 홍길동",
+                        maxLength = 20,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color.White)
-                            .border(1.dp, BorderColor, RoundedCornerShape(12.dp))
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        if (guestName.isEmpty()) {
-                            Text(
-                                text = "예: 홍길동",
-                                fontFamily = SBAggroFontFamily,
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 15.sp,
-                                color = Color(0xFFBACDFF)
-                            )
-                        }
-                        BasicTextField(
-                            value = guestName,
-                            onValueChange = { guestName = it },
-                            textStyle = androidx.compose.ui.text.TextStyle(
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 15.sp,
-                                color = TextPrimary
-                            ),
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-                    }
                 }
             }
 
@@ -240,9 +215,7 @@ private fun CoordinationCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(16.dp), spotColor = Color(0x0D101B33))
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White)
+            .moaCardSurface()
             .padding(18.dp)
     ) {
         content()
@@ -267,12 +240,12 @@ private fun DateNavRow(
             enabled = canGoPrev,
             modifier = Modifier
                 .clip(RoundedCornerShape(10.dp))
-                .background(ScreenBackground)
+                .background(MoaScreenBackground)
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                 contentDescription = "이전 날",
-                tint = if (canGoPrev) TextPrimary else TextSecondary.copy(alpha = 0.4f)
+                tint = if (canGoPrev) MoaTextPrimary else MoaTextSecondary.copy(alpha = 0.4f)
             )
         }
         Text(
@@ -280,7 +253,7 @@ private fun DateNavRow(
             fontFamily = SBAggroFontFamily,
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
-            color = TextPrimary,
+            color = MoaTextPrimary,
             textAlign = TextAlign.Center,
             modifier = Modifier.weight(1f)
         )
@@ -289,12 +262,12 @@ private fun DateNavRow(
             enabled = canGoNext,
             modifier = Modifier
                 .clip(RoundedCornerShape(10.dp))
-                .background(ScreenBackground)
+                .background(MoaScreenBackground)
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = "다음 날",
-                tint = if (canGoNext) TextPrimary else TextSecondary.copy(alpha = 0.4f)
+                tint = if (canGoNext) MoaTextPrimary else MoaTextSecondary.copy(alpha = 0.4f)
             )
         }
     }
@@ -362,7 +335,7 @@ private fun HourChip(
                 color = when {
                     isBlocked -> BlockedColor
                     isSelected -> MoaBlue
-                    else -> BorderColor
+                    else -> MoaDivider
                 },
                 shape = RoundedCornerShape(10.dp)
             )
@@ -377,9 +350,9 @@ private fun HourChip(
             fontWeight = FontWeight.Medium,
             fontSize = 13.sp,
             color = when {
-                isBlocked -> TextSecondary
+                isBlocked -> MoaTextSecondary
                 isSelected -> Color.White
-                else -> TextPrimary
+                else -> MoaTextPrimary
             }
         )
     }
@@ -409,7 +382,7 @@ private fun BottomSubmitBar(
                     fontFamily = SBAggroFontFamily,
                     fontWeight = FontWeight.Medium,
                     fontSize = 13.sp,
-                    color = TextSecondary
+                    color = MoaTextSecondary
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(

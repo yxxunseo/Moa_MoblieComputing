@@ -81,14 +81,16 @@ import com.example.moa_project.network.GroupMemberPreviewDto
 import com.example.moa_project.util.GroupFavoriteManager
 import com.example.moa_project.ui.my.UserState
 import com.example.moa_project.ui.my.UserViewModel
+import com.example.moa_project.ui.theme.MoaBlue
 import com.example.moa_project.ui.theme.MoaBlueSoft
+import com.example.moa_project.ui.theme.MoaCardShadow
+import com.example.moa_project.ui.theme.MoaRadius
+import com.example.moa_project.ui.theme.MoaScreenBackground
+import com.example.moa_project.ui.theme.MoaTextPrimary
+import com.example.moa_project.ui.theme.MoaTextSecondary
 import com.example.moa_project.ui.theme.Moa_ProjectTheme
 import com.example.moa_project.ui.theme.SBAggroFontFamily
-
-private val MoaBlue = Color(0xFF2179FE)
-private val ScreenBackground = Color(0xFFF7F8FC)
-private val TextPrimary = Color(0xFF101B33)
-private val TextSecondary = Color(0xFF737C99)
+import com.example.moa_project.ui.theme.moaCardSurface
 
 @Immutable
 private data class MeetingItem(
@@ -245,7 +247,7 @@ fun MeetingsScreen(
                 onNavigate = onNavigate,
             )
         },
-        containerColor = ScreenBackground,
+        containerColor = MoaScreenBackground,
     ) { innerPadding ->
         when (uiState) {
             is MeetingsState.Loading -> {
@@ -272,7 +274,7 @@ fun MeetingsScreen(
                     ) {
                         Text(
                             text = (uiState as MeetingsState.Error).message,
-                            color = TextSecondary,
+                            color = MoaTextSecondary,
                             fontFamily = SBAggroFontFamily,
                             fontSize = 14.sp,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -317,7 +319,7 @@ fun MeetingsScreen(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(ScreenBackground)
+                        .background(MoaScreenBackground)
                         .padding(innerPadding),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
                         start = 20.dp,
@@ -382,14 +384,14 @@ fun MeetingsScreen(
                                     MoaMascot(size = 56.dp)
                                     Text(
                                         text = if (filterFavoritesOnly) "관심 모임이 없어요" else "아직 참여 중인 모임이 없어요",
-                                        color = TextPrimary,
+                                        color = MoaTextPrimary,
                                         fontFamily = SBAggroFontFamily,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp
                                     )
                                     Text(
                                         text = "위 + 버튼으로 모임을 만들어보세요!",
-                                        color = TextSecondary,
+                                        color = MoaTextSecondary,
                                         fontFamily = SBAggroFontFamily,
                                         fontWeight = FontWeight.Medium,
                                         fontSize = 12.sp
@@ -429,7 +431,7 @@ fun MeetingsScreen(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(ScreenBackground)
+                        .background(MoaScreenBackground)
                         .padding(innerPadding),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
                         start = 20.dp, end = 20.dp, top = 36.dp, bottom = 18.dp
@@ -470,7 +472,7 @@ private fun MeetingsHeader(
         ) {
             Text(
                 text = "모임",
-                color = TextPrimary,
+                color = MoaTextPrimary,
                 fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.Bold,
                 fontSize = 26.sp,
@@ -547,7 +549,7 @@ private fun MeetingsTabChip(
             fontFamily = SBAggroFontFamily,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             fontSize = 14.sp,
-            color = if (selected) MoaBlue else TextSecondary,
+            color = if (selected) MoaBlue else MoaTextSecondary,
         )
     }
 }
@@ -561,9 +563,7 @@ private fun MeetingListCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(2.dp, RoundedCornerShape(16.dp), spotColor = Color(0x14000000))
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White)
+            .moaCardSurface()
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -601,7 +601,7 @@ private fun MeetingListCard(
                 MoaBodyText(
                     text = participantSummary(meeting.memberCount),
                     fontSize = 11.sp,
-                    color = TextSecondary,
+                    color = MoaTextSecondary,
                 )
             }
         }
@@ -618,14 +618,14 @@ private fun MeetingListCard(
                 Icon(
                     imageVector = if (meeting.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                     contentDescription = "관심 모임",
-                    tint = if (meeting.isFavorite) MoaBlue else TextSecondary,
+                    tint = if (meeting.isFavorite) MoaBlue else MoaTextSecondary,
                     modifier = Modifier.size(24.dp),
                 )
             }
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = "상세 보기",
-                tint = TextSecondary,
+                tint = MoaTextSecondary,
                 modifier = Modifier.size(30.dp),
             )
         }
@@ -714,7 +714,7 @@ private fun MemberAvatarStack(
                     text = "+$extraMemberCount",
                     fontWeight = FontWeight.Bold,
                     fontSize = 11.sp,
-                    color = TextSecondary,
+                    color = MoaTextSecondary,
                 )
             }
         }
@@ -741,7 +741,7 @@ private fun CreateMeetingBanner(onClick: () -> Unit) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = "새로운 모임을 만들어보세요!",
-                color = TextPrimary,
+                color = MoaTextPrimary,
                 fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
@@ -749,7 +749,7 @@ private fun CreateMeetingBanner(onClick: () -> Unit) {
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = "사람들과 시간을 모아 더 좋은 순간을 만들어요.",
-                color = TextSecondary,
+                color = MoaTextSecondary,
                 fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.Medium,
                 fontSize = 10.sp,

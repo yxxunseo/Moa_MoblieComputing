@@ -38,7 +38,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.moa_project.ui.theme.MoaBlue
 import com.example.moa_project.ui.theme.MoaScreenBackground
+import com.example.moa_project.ui.theme.moaCardSurface
 import com.example.moa_project.ui.theme.MoaTextPrimary
 import com.example.moa_project.ui.theme.MoaTextSecondary
 import com.example.moa_project.ui.theme.SBAggroFontFamily
@@ -55,8 +57,7 @@ fun NotificationScreen(
 
     LaunchedEffect(Unit) {
         viewModel.attachContext(context)
-        viewModel.refresh()
-        viewModel.markAllRead()
+        viewModel.refresh(markReadAfterLoad = true)
     }
 
     Scaffold(
@@ -77,7 +78,7 @@ fun NotificationScreen(
                             .fillMaxWidth(),
                         contentAlignment = Alignment.Center,
                     ) {
-                        CircularProgressIndicator(color = MoaTextSecondary, strokeWidth = 2.dp)
+                        CircularProgressIndicator(color = MoaBlue, strokeWidth = 2.dp)
                     }
                 }
                 is NotificationsState.Error -> {
@@ -167,8 +168,7 @@ private fun NotificationCard(item: MoaNotification) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color.White)
+            .moaCardSurface(cornerRadius = 18.dp)
             .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
         Row(
@@ -229,8 +229,7 @@ private fun NotificationEmpty(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color.White)
+                .moaCardSurface(cornerRadius = 20.dp)
                 .padding(horizontal = 24.dp, vertical = 36.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {

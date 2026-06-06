@@ -39,7 +39,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
@@ -67,12 +69,16 @@ import androidx.compose.ui.res.painterResource
 import com.example.moa_project.R
 import com.example.moa_project.network.ReactionDto
 import com.example.moa_project.network.TokenManager
+import com.example.moa_project.ui.theme.MoaAccentGreen
+import com.example.moa_project.ui.theme.MoaAccentOrange
+import com.example.moa_project.ui.theme.MoaBlue
+import com.example.moa_project.ui.theme.MoaRadius
+import com.example.moa_project.ui.theme.MoaScreenBackground
+import com.example.moa_project.ui.theme.MoaStatusConfirmed
+import com.example.moa_project.ui.theme.MoaTextPrimary
+import com.example.moa_project.ui.theme.MoaTextSecondary
 import com.example.moa_project.ui.theme.SBAggroFontFamily
-
-private val MoaBlue = Color(0xFF2179FE)
-private val ScreenBackground = Color(0xFFF7F8FC)
-private val TextPrimary = Color(0xFF101B33)
-private val TextSecondary = Color(0xFF737C99)
+import com.example.moa_project.ui.theme.moaCardSurface
 
 data class RecommendedTime(
     val rank: Int,
@@ -159,7 +165,7 @@ fun ScheduleResultScreen(
                         fontFamily = SBAggroFontFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp,
-                        color = TextPrimary
+                        color = MoaTextPrimary
                     )
                 },
                 navigationIcon = {
@@ -167,7 +173,7 @@ fun ScheduleResultScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "뒤로가기",
-                            tint = TextPrimary
+                            tint = MoaTextPrimary
                         )
                     }
                 },
@@ -177,7 +183,7 @@ fun ScheduleResultScreen(
                 modifier = Modifier.shadow(elevation = 2.dp, spotColor = Color(0x1A000000))
             )
         },
-        containerColor = ScreenBackground
+        containerColor = MoaScreenBackground
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
@@ -197,7 +203,7 @@ fun ScheduleResultScreen(
                     fontFamily = SBAggroFontFamily,
                     fontWeight = FontWeight.Bold,
                     fontSize = 24.sp,
-                    color = TextPrimary
+                    color = MoaTextPrimary
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 MoaBodyText(
@@ -208,7 +214,7 @@ fun ScheduleResultScreen(
                         else -> "참여자 ${totalCount}명 · 날짜·시간별 가능 인원과 추천 시간을 확인하세요."
                     },
                     fontSize = 14.sp,
-                    color = TextSecondary
+                    color = MoaTextSecondary
                 )
                 Spacer(modifier = Modifier.height(20.dp))
             }
@@ -269,11 +275,11 @@ fun ScheduleResultScreen(
                         fontFamily = SBAggroFontFamily,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 18.sp,
-                        color = TextPrimary,
+                        color = MoaTextPrimary,
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     MoaCaptionText(
-                        text = "가능 인원이 같으면 더 이른 시간을 1순위로 표시해요.",
+                        text = "추천 시간을 고른 뒤, 확정할 시간(1시간 이상)을 선택할 수 있어요.",
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                 }
@@ -283,7 +289,7 @@ fun ScheduleResultScreen(
                 item {
                     Text(
                         text = "분석 결과를 불러오는 중...",
-                        color = TextSecondary,
+                        color = MoaTextSecondary,
                         fontFamily = SBAggroFontFamily,
                         fontSize = 14.sp
                     )
@@ -302,17 +308,20 @@ fun ScheduleResultScreen(
                 }
             } else {
                 items(recommendations.size) { index ->
+                    val raw = analysis?.recommendations?.getOrNull(index)
                     RecommendationCard(
                         recommendation = recommendations[index],
+                        startIso = raw?.start.orEmpty(),
+                        heatmap = analysis?.heatmap,
                         isTopRank = index == 0,
                         showHostConfirm = canHostConfirm,
-                        onConfirmClick = {
-                            val raw = analysis?.recommendations?.getOrNull(index)
+                        onConfirmClick = { start, end ->
                             if (raw != null && canHostConfirm) {
-                                viewModel.confirm(uniqueLink, raw.start, raw.end) {
-                                    val timeText = raw.start.split("T").let {
-                                        "${it.firstOrNull()?.substringAfterLast("-") ?: ""} ${it.lastOrNull()?.substringBeforeLast(":") ?: ""}"
-                                    }
+                                viewModel.confirm(uniqueLink, start, end) {
+                                    val timeText = ScheduleConfirmHelper.formatTimeRange(
+                                        start,
+                                        ScheduleConfirmHelper.durationHoursBetween(start, end),
+                                    )
                                     val notificationKey = "guest-${analysis?.scheduleId ?: uniqueLink}"
                                     MoaNotificationHelper.notifyScheduleConfirmed(
                                         context,
@@ -324,7 +333,7 @@ fun ScheduleResultScreen(
                                     onConfirmClick()
                                 }
                             }
-                        }
+                        },
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                 }
@@ -370,7 +379,7 @@ fun GroupScheduleResultScreen(
                         fontFamily = SBAggroFontFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp,
-                        color = TextPrimary
+                        color = MoaTextPrimary
                     )
                 },
                 navigationIcon = {
@@ -378,7 +387,7 @@ fun GroupScheduleResultScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "뒤로가기",
-                            tint = TextPrimary
+                            tint = MoaTextPrimary
                         )
                     }
                 },
@@ -386,7 +395,7 @@ fun GroupScheduleResultScreen(
                 modifier = Modifier.shadow(elevation = 2.dp, spotColor = Color(0x1A000000))
             )
         },
-        containerColor = ScreenBackground
+        containerColor = MoaScreenBackground
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
@@ -406,7 +415,7 @@ fun GroupScheduleResultScreen(
                     fontFamily = SBAggroFontFamily,
                     fontWeight = FontWeight.Bold,
                     fontSize = 24.sp,
-                    color = TextPrimary
+                    color = MoaTextPrimary
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
@@ -414,7 +423,7 @@ fun GroupScheduleResultScreen(
                     fontFamily = SBAggroFontFamily,
                     fontWeight = FontWeight.Medium,
                     fontSize = 14.sp,
-                    color = TextSecondary
+                    color = MoaTextSecondary
                 )
                 Spacer(modifier = Modifier.height(20.dp))
             }
@@ -434,11 +443,11 @@ fun GroupScheduleResultScreen(
                     fontFamily = SBAggroFontFamily,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 18.sp,
-                    color = TextPrimary,
+                    color = MoaTextPrimary,
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 MoaCaptionText(
-                    text = "가능 인원이 같으면 더 이른 시간을 1순위로 표시해요.",
+                    text = "추천 시간을 고른 뒤, 확정할 시간(1시간 이상)을 선택할 수 있어요.",
                 )
                 Spacer(modifier = Modifier.height(12.dp))
             }
@@ -447,7 +456,7 @@ fun GroupScheduleResultScreen(
                 item {
                     Text(
                         text = "분석 결과를 불러오는 중...",
-                        color = TextSecondary,
+                        color = MoaTextSecondary,
                         fontFamily = SBAggroFontFamily,
                         fontSize = 14.sp
                     )
@@ -456,7 +465,7 @@ fun GroupScheduleResultScreen(
                 item {
                     Text(
                         text = "아직 멤버 응답이 없거나 추천 시간을 계산할 수 없습니다.",
-                        color = TextSecondary,
+                        color = MoaTextSecondary,
                         fontFamily = SBAggroFontFamily,
                         fontSize = 14.sp
                     )
@@ -464,24 +473,27 @@ fun GroupScheduleResultScreen(
             } else {
                 items(recommendations.size) { index ->
                     val recommendation = recommendations[index]
+                    val raw = analysis?.recommendations?.getOrNull(index)
                     RecommendationCard(
                         recommendation = recommendation,
+                        startIso = raw?.start.orEmpty(),
+                        heatmap = analysis?.heatmap,
                         isTopRank = index == 0,
                         reactions = reactions,
                         myUserId = TokenManager.getUserId(),
                         onReactionClick = { viewModel.toggleReaction(it) },
-                        onConfirmClick = {
-                            val raw = analysis?.recommendations?.getOrNull(index)
+                        onConfirmClick = { start, end ->
                             if (raw != null) {
                                 viewModel.confirm(
-                                    start = raw.start,
-                                    end = raw.end,
+                                    start = start,
+                                    end = end,
                                     title = analysis?.title ?: "일정",
-                                    syncGoogle = syncGoogle
+                                    syncGoogle = syncGoogle,
                                 ) {
-                                    val timeText = raw.start.split("T").let {
-                                        "${it.firstOrNull()?.substringAfterLast("-") ?: ""} ${it.lastOrNull()?.substringBeforeLast(":") ?: ""}"
-                                    }
+                                    val timeText = ScheduleConfirmHelper.formatTimeRange(
+                                        start,
+                                        ScheduleConfirmHelper.durationHoursBetween(start, end),
+                                    )
                                     val notificationKey = "sch-$scheduleId"
                                     MoaNotificationHelper.notifyScheduleConfirmed(
                                         context,
@@ -492,7 +504,7 @@ fun GroupScheduleResultScreen(
                                     onConfirmComplete()
                                 }
                             }
-                        }
+                        },
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                 }
@@ -504,13 +516,30 @@ fun GroupScheduleResultScreen(
 @Composable
 private fun RecommendationCard(
     recommendation: RecommendedTime,
+    startIso: String,
+    heatmap: Map<String, Map<String, Int>>? = null,
     isTopRank: Boolean,
     showHostConfirm: Boolean = true,
     reactions: List<ReactionDto> = emptyList(),
     myUserId: Long = -1L,
     onReactionClick: (String) -> Unit = {},
-    onConfirmClick: () -> Unit,
+    onConfirmClick: (start: String, end: String) -> Unit,
 ) {
+    var durationHours by remember(startIso) { mutableIntStateOf(1) }
+    val maxHours = remember(startIso, heatmap, recommendation.availableCount) {
+        ScheduleConfirmHelper.maxConsecutiveHours(
+            startIso = startIso,
+            heatmap = heatmap,
+            minAvailableCount = recommendation.availableCount,
+        )
+    }
+    LaunchedEffect(maxHours) {
+        if (durationHours > maxHours) durationHours = maxHours
+    }
+    val timeRangeLabel = remember(startIso, durationHours) {
+        if (startIso.isBlank()) recommendation.timeString
+        else ScheduleConfirmHelper.formatTimeRange(startIso, durationHours)
+    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -546,7 +575,7 @@ private fun RecommendationCard(
                         fontFamily = SBAggroFontFamily,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 12.sp,
-                        color = if (isTopRank) Color.White else TextSecondary
+                        color = if (isTopRank) Color.White else MoaTextSecondary
                     )
                 }
                 
@@ -558,7 +587,7 @@ private fun RecommendationCard(
                     fontFamily = SBAggroFontFamily,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
-                    color = if (recommendation.availableCount == recommendation.totalCount) Color(0xFF35A96D) else TextPrimary
+                    color = if (recommendation.availableCount == recommendation.totalCount) MoaStatusConfirmed else MoaTextPrimary
                 )
             }
             
@@ -569,16 +598,52 @@ private fun RecommendationCard(
                 fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.Medium,
                 fontSize = 14.sp,
-                color = TextSecondary
+                color = MoaTextSecondary
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = recommendation.timeString,
+                text = timeRangeLabel,
                 fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.Bold,
                 fontSize = 22.sp,
-                color = TextPrimary
+                color = MoaTextPrimary,
             )
+
+            if (showHostConfirm && maxHours > 1) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "확정 시간",
+                    fontFamily = SBAggroFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 12.sp,
+                    color = MoaTextSecondary,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    (1..maxHours).forEach { hours ->
+                        val selected = durationHours == hours
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (selected) MoaBlue else Color(0xFFF0F2F8))
+                                .clickable { durationHours = hours }
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = "${hours}시간",
+                                fontFamily = SBAggroFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = if (selected) Color.White else MoaTextPrimary,
+                            )
+                        }
+                    }
+                }
+            }
             
             Spacer(modifier = Modifier.height(12.dp))
             
@@ -594,7 +659,7 @@ private fun RecommendationCard(
                     fontFamily = SBAggroFontFamily,
                     fontWeight = FontWeight.Medium,
                     fontSize = 12.sp,
-                    color = TextSecondary
+                    color = MoaTextSecondary
                 )
             }
 
@@ -603,7 +668,15 @@ private fun RecommendationCard(
             if (showHostConfirm) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
-                    onClick = onConfirmClick,
+                    onClick = {
+                        if (startIso.isNotBlank()) {
+                            onConfirmClick(
+                                startIso,
+                                ScheduleConfirmHelper.buildEndTime(startIso, durationHours),
+                            )
+                        }
+                    },
+                    enabled = startIso.isNotBlank(),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (isTopRank) MoaBlue else Color(0xFF4B556B),
                     ),
@@ -669,7 +742,7 @@ private fun EmptyGuestResultCard(message: String) {
             Spacer(modifier = Modifier.width(14.dp))
             Text(
                 text = message,
-                color = TextSecondary,
+                color = MoaTextSecondary,
                 fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.Medium,
                 fontSize = 14.sp,
@@ -758,14 +831,14 @@ private fun GuestParticipantsCard(participants: List<GuestParticipantDto>) {
                 fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp,
-                color = TextPrimary,
+                color = MoaTextPrimary,
             )
         }
         Spacer(modifier = Modifier.height(4.dp))
         MoaBodyText(
             text = "누가 몇 시에 가능한지 확인하세요",
             fontSize = 12.sp,
-            color = TextSecondary
+            color = MoaTextSecondary
         )
         Spacer(modifier = Modifier.height(12.dp))
         participants.forEach { p ->
@@ -782,14 +855,14 @@ private fun GuestParticipantsCard(participants: List<GuestParticipantDto>) {
                     text = "${p.name} · ${p.slotCount}개 시간 선택",
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp,
-                    color = TextPrimary
+                    color = MoaTextPrimary
                 )
                 if (times.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(4.dp))
                     MoaBodyText(
                         text = times.joinToString("  "),
                         fontSize = 12.sp,
-                        color = TextSecondary,
+                        color = MoaTextSecondary,
                         maxLines = 2,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )

@@ -45,6 +45,7 @@ object MoaNotificationHelper {
             "일정이 확정됐어요",
             "$title · $timeText",
             receivedAt = receivedAt,
+            id = notificationKey,
         )
         if (!isEnabled(context, "schedule_confirmed_push")) return
         show(

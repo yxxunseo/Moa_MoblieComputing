@@ -5,6 +5,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
@@ -30,8 +31,10 @@ fun ProfileAvatar(
     nickname: String? = null,
     modifier: Modifier = Modifier,
     size: Dp,
-    @DrawableRes defaultImageResId: Int = R.drawable.ic_character,
+    @DrawableRes defaultImageResId: Int = R.drawable.ic_default_avatar,
 ) {
+    val fallbackResId = if (defaultImageResId != 0) defaultImageResId else R.drawable.ic_default_avatar
+
     Box(
         modifier = modifier
             .size(size)
@@ -46,32 +49,34 @@ fun ProfileAvatar(
                     contentDescription = "프로필",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
-                    loading = { DefaultAvatarImage(defaultImageResId) },
-                    error = { DefaultAvatarImage(defaultImageResId) },
+                    loading = { DefaultAvatarImage(fallbackResId, size) },
+                    error = { DefaultAvatarImage(fallbackResId, size) },
                 )
-            }
-            defaultImageResId != 0 -> {
-                DefaultAvatarImage(defaultImageResId)
             }
             !nickname.isNullOrBlank() -> {
                 Text(
                     text = nickname.take(1),
                     fontFamily = SBAggroFontFamily,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = (size.value * 0.38f).sp,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = (size.value * 0.4f).sp,
                     color = MoaBlue,
                 )
+            }
+            else -> {
+                DefaultAvatarImage(fallbackResId, size)
             }
         }
     }
 }
 
 @Composable
-private fun DefaultAvatarImage(@DrawableRes resId: Int) {
+private fun DefaultAvatarImage(@DrawableRes resId: Int, size: Dp) {
     Image(
         painter = painterResource(resId),
         contentDescription = "기본 프로필",
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(size * 0.22f),
         contentScale = ContentScale.Fit,
     )
 }

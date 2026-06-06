@@ -22,8 +22,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.moa_project.R
 import com.example.moa_project.ui.theme.MoaBlue
+import com.example.moa_project.ui.theme.MoaCardShadow
 import com.example.moa_project.ui.theme.MoaTextSecondary
 import com.example.moa_project.ui.theme.SBAggroFontFamily
 
@@ -40,7 +40,7 @@ fun MoaBottomNavigationBar(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .shadow(elevation = 8.dp, spotColor = Color(0xFFDDE4F2)),
+            .shadow(elevation = 8.dp, spotColor = MoaCardShadow),
         containerColor = Color.White,
         tonalElevation = 0.dp,
     ) {
@@ -70,7 +70,6 @@ fun MoaBottomNavigationBar(
                 ProfileAvatar(
                     imageUrl = profileImageUrl,
                     size = ProfileIconSize,
-                    defaultImageResId = R.drawable.ic_character,
                 )
             },
             label = {
