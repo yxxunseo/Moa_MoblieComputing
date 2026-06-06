@@ -33,6 +33,8 @@ class CalendarViewModel : ViewModel() {
                         val googleEvents = googleResponse["events"] as? List<*> ?: emptyList<Any>()
                         val moaEvents = (response["events"] as? List<*>) ?: emptyList<Any>()
                         response["events"] = moaEvents + googleEvents
+                    }.onFailure { e ->
+                        MoaErrorLog.log("CalendarViewModel", "fetchGoogleEvents", e, mapOf("month" to month))
                     }
                 }
                 _uiState.value = CalendarState.Success(response)

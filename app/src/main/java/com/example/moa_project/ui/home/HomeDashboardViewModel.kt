@@ -21,10 +21,14 @@ data class HomeEventItem(
 )
 
 data class HomeActivityItem(
+    val scheduleId: Long,
+    val groupId: Long,
     val groupName: String,
     val scheduleTitle: String,
     val statusLabel: String,
-    val groupColor: String
+    val groupColor: String,
+    val respondedCount: Int,
+    val totalMembers: Int,
 )
 
 sealed class HomeDashboardState {
@@ -34,7 +38,7 @@ sealed class HomeDashboardState {
         val upcomingEvents: List<HomeEventItem>,
         val pendingCoordinationCount: Int,
         val confirmedThisWeekCount: Int,
-        val recentActivities: List<HomeActivityItem>,
+        val pendingCoordinationItems: List<HomeActivityItem>,
         val weeklyTimetable: WeeklyTimetableData,
     ) : HomeDashboardState()
     data class Error(val message: String) : HomeDashboardState()
@@ -62,18 +66,15 @@ class HomeDashboardViewModel : ViewModel() {
                 val groups = RetrofitClient.instance.getMyGroups()
                 val allUpcoming = HomeEventLoader.loadUpcomingEvents(groups)
                 val upcomingEvents = allUpcoming.take(5)
-                val activities = loadRecentActivities(groups)
+                val pendingCoordinationItems = loadPendingCoordinationItems(groups)
                 val weeklyTimetable = WeeklyTimetableLoader.loadCurrentWeek()
-                val pendingCoordinationCount = activities.count {
-                    it.statusLabel == "조율 중" || it.statusLabel == "응답 대기"
-                }
 
                 _state.value = HomeDashboardState.Success(
                     groups = groups,
                     upcomingEvents = upcomingEvents,
-                    pendingCoordinationCount = pendingCoordinationCount,
+                    pendingCoordinationCount = pendingCoordinationItems.size,
                     confirmedThisWeekCount = HomeEventLoader.countEventsThisWeek(allUpcoming),
-                    recentActivities = activities,
+                    pendingCoordinationItems = pendingCoordinationItems,
                     weeklyTimetable = weeklyTimetable,
                 )
             } catch (e: Exception) {
@@ -83,26 +84,31 @@ class HomeDashboardViewModel : ViewModel() {
         }
     }
 
-    private suspend fun loadRecentActivities(groups: List<GroupResponse>): List<HomeActivityItem> {
+    private suspend fun loadPendingCoordinationItems(groups: List<GroupResponse>): List<HomeActivityItem> {
         val items = mutableListOf<HomeActivityItem>()
         groups.forEach { group ->
             runCatching {
                 RetrofitClient.instance.getGroupSchedules(group.id)
             }.getOrDefault(emptyList()).forEach { schedule ->
-                items.add(schedule.toActivityItem(group))
+                val label = statusToLabel(schedule.status)
+                if (label == "응답 대기" || label == "조율 중") {
+                    items.add(schedule.toActivityItem(group))
+                }
             }
         }
-        return items
-            .sortedByDescending { statusPriority(it.statusLabel) }
-            .take(5)
+        return items.sortedByDescending { statusPriority(it.statusLabel) }
     }
 
     private fun ScheduleDetailResponse.toActivityItem(group: GroupResponse): HomeActivityItem {
         return HomeActivityItem(
+            scheduleId = id,
+            groupId = group.id,
             groupName = group.name,
             scheduleTitle = title,
             statusLabel = statusToLabel(status),
-            groupColor = group.color
+            groupColor = group.color,
+            respondedCount = respondedCount,
+            totalMembers = totalMembers,
         )
     }
 

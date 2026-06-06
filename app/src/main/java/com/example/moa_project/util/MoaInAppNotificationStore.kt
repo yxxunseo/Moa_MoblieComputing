@@ -12,14 +12,47 @@ import java.time.format.DateTimeFormatter
 object MoaInAppNotificationStore {
     private const val PREFS = "moa_in_app_notifications"
     private const val KEY_ITEMS = "items"
+    private const val KEY_RECEIVED_AT = "received_at"
     private const val MAX_ITEMS = 50
     private val fmt = DateTimeFormatter.ISO_LOCAL_DATE_TIME
+
+    fun recordReceivedAt(
+        context: Context,
+        key: String,
+        at: LocalDateTime = LocalDateTime.now(),
+    ) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val map = JSONObject(prefs.getString(KEY_RECEIVED_AT, "{}") ?: "{}")
+        if (!map.has(key)) {
+            map.put(key, at.format(fmt))
+            prefs.edit().putString(KEY_RECEIVED_AT, map.toString()).apply()
+        }
+    }
+
+    fun getReceivedAt(context: Context, key: String): LocalDateTime? {
+        val map = JSONObject(
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getString(KEY_RECEIVED_AT, "{}") ?: "{}",
+        )
+        if (!map.has(key)) return null
+        val stored = map.getString(key)
+        return runCatching { LocalDateTime.parse(stored, fmt) }.getOrNull()
+    }
+
+    fun getOrRecordReceivedAt(context: Context, key: String): LocalDateTime {
+        return getReceivedAt(context, key) ?: run {
+            val now = LocalDateTime.now()
+            recordReceivedAt(context, key, now)
+            now
+        }
+    }
 
     fun add(
         context: Context,
         type: MoaNotificationType,
         title: String,
         body: String,
+        receivedAt: LocalDateTime = LocalDateTime.now(),
     ) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val arr = JSONArray(prefs.getString(KEY_ITEMS, "[]"))
@@ -28,7 +61,7 @@ object MoaInAppNotificationStore {
             put("type", type.name)
             put("title", title)
             put("body", body)
-            put("timestamp", LocalDateTime.now().format(fmt))
+            put("timestamp", receivedAt.format(fmt))
             put("read", false)
         }
         val next = JSONArray().put(item)
@@ -70,7 +103,12 @@ object MoaInAppNotificationStore {
         )
         var count = 0
         for (i in 0 until arr.length()) {
-            if (!arr.getJSONObject(i).optBoolean("read", false)) count++
+            val o = arr.getJSONObject(i)
+            val type = runCatching {
+                MoaNotificationType.valueOf(o.getString("type"))
+            }.getOrDefault(MoaNotificationType.INFO)
+            if (type != MoaNotificationType.CONFIRMED) continue
+            if (!o.optBoolean("read", false)) count++
         }
         return count
     }

@@ -196,6 +196,9 @@ fun MainScreen(initialGuestRoute: String? = null) {
                 currentRoute = currentRoute,
                 onNavigate = navigateBottomBar,
                 onNotificationsClick = { navController.navigate("notifications") },
+                onCoordinationScheduleClick = { scheduleId ->
+                    navController.navigate("schedule_coordination_group/$scheduleId")
+                },
             )
         }
 
@@ -204,7 +207,7 @@ fun MainScreen(initialGuestRoute: String? = null) {
                 onBackClick = { navController.popBackStack() },
             )
         }
-        
+
         // 캘린더 화면 (구현됨)
         composable("calendar") {
             CalendarScreen(currentRoute = currentRoute, onNavigate = navigateBottomBar)

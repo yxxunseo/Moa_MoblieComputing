@@ -1,6 +1,7 @@
 package com.example.moa_project.ui.notifications
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,57 +15,36 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.Event
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.moa_project.ui.components.MoaBodyText
-import com.example.moa_project.ui.components.MoaMascot
-import com.example.moa_project.ui.components.MoaTitleText
-import com.example.moa_project.ui.theme.MoaAccentBlue
-import com.example.moa_project.ui.theme.MoaAccentBlueBg
-import com.example.moa_project.ui.theme.MoaAccentGreen
-import com.example.moa_project.ui.theme.MoaAccentGreenBg
-import com.example.moa_project.ui.theme.MoaAccentOrange
-import com.example.moa_project.ui.theme.MoaAccentOrangeBg
-import com.example.moa_project.ui.theme.MoaAccentPurple
-import com.example.moa_project.ui.theme.MoaAccentPurpleBg
 import com.example.moa_project.ui.theme.MoaScreenBackground
 import com.example.moa_project.ui.theme.MoaTextPrimary
 import com.example.moa_project.ui.theme.MoaTextSecondary
 import com.example.moa_project.ui.theme.SBAggroFontFamily
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
+import java.time.LocalDateTime
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationScreen(
     onBackClick: () -> Unit = {},
@@ -80,61 +60,67 @@ fun NotificationScreen(
     }
 
     Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        text = "알림",
-                        fontFamily = SBAggroFontFamily,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        color = MoaTextPrimary,
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "뒤로가기",
-                            tint = MoaTextPrimary,
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.White),
-                modifier = Modifier.shadow(elevation = 2.dp, spotColor = Color(0x1A000000)),
-            )
-        },
         containerColor = MoaScreenBackground,
     ) { innerPadding ->
-        when (val s = state) {
-            is NotificationsState.Loading -> {
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(innerPadding),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator(color = MoaAccentBlue)
-                }
-            }
-            is NotificationsState.Error -> {
-                NotificationEmpty(
-                    modifier = Modifier.fillMaxSize().padding(innerPadding),
-                    message = s.message,
-                )
-            }
-            is NotificationsState.Success -> {
-                if (s.items.isEmpty()) {
-                    NotificationEmpty(
-                        modifier = Modifier.fillMaxSize().padding(innerPadding),
-                        message = "아직 새로운 알림이 없어요.\n일정이 확정되면 여기로 알려드릴게요!",
-                    )
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize().padding(innerPadding),
-                        contentPadding = PaddingValues(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+        ) {
+            NotificationTopBar(onBackClick = onBackClick)
+
+            when (val s = state) {
+                is NotificationsState.Loading -> {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        items(s.items.size) { idx ->
-                            NotificationCard(s.items[idx])
+                        CircularProgressIndicator(color = MoaTextSecondary, strokeWidth = 2.dp)
+                    }
+                }
+                is NotificationsState.Error -> {
+                    NotificationEmpty(
+                        message = s.message,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                    )
+                }
+                is NotificationsState.Success -> {
+                    if (s.items.isEmpty()) {
+                        NotificationEmpty(
+                            message = "새 알림이 없어요",
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                        )
+                    } else {
+                        val sections = remember(s.items) { groupByDate(s.items) }
+                        LazyColumn(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            sections.forEach { section ->
+                                item(key = "header-${section.label}") {
+                                    Text(
+                                        text = section.label,
+                                        fontFamily = SBAggroFontFamily,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 12.sp,
+                                        color = MoaTextSecondary,
+                                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                                    )
+                                }
+                                items(section.items, key = { it.id }) { item ->
+                                    NotificationCard(item)
+                                }
+                            }
+                            item { Spacer(modifier = Modifier.height(16.dp)) }
                         }
                     }
                 }
@@ -144,81 +130,169 @@ fun NotificationScreen(
 }
 
 @Composable
-private fun NotificationCard(item: MoaNotification) {
-    val (fg, bg, icon) = notificationStyle(item.type)
+private fun NotificationTopBar(onBackClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(3.dp, RoundedCornerShape(18.dp), spotColor = Color(0x14101B33))
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color.White)
-            .padding(16.dp),
-        verticalAlignment = Alignment.Top,
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .size(42.dp)
-                .clip(CircleShape)
-                .background(bg),
-            contentAlignment = Alignment.Center,
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color.White)
+                .clickable(onClick = onBackClick)
+                .padding(10.dp),
         ) {
-            Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(22.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "뒤로가기",
+                tint = MoaTextPrimary,
+                modifier = Modifier.size(22.dp),
+            )
         }
-        Spacer(modifier = Modifier.width(14.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            MoaTitleText(text = item.title, fontSize = 15.sp, maxLines = 2)
-            Spacer(modifier = Modifier.height(4.dp))
-            MoaBodyText(
-                text = item.body,
-                fontSize = 13.sp,
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = "알림",
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 20.sp,
+            color = MoaTextPrimary,
+        )
+    }
+}
+
+@Composable
+private fun NotificationCard(item: MoaNotification) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "확정",
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 11.sp,
                 color = MoaTextSecondary,
             )
-            Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = relativeLabel(item.timestamp.toLocalDate()),
+                text = formatTime(item.timestamp),
                 fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.Medium,
                 fontSize = 11.sp,
-                color = fg,
+                color = MoaTextSecondary,
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = item.title,
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 15.sp,
+            color = MoaTextPrimary,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (item.body.isNotBlank()) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = item.body,
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                color = MoaTextSecondary,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
 }
 
 @Composable
-private fun NotificationEmpty(modifier: Modifier, message: String) {
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+private fun NotificationEmpty(
+    message: String,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier.padding(20.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        MoaMascot(size = 88.dp)
-        Spacer(modifier = Modifier.height(16.dp))
-        MoaBodyText(
-            text = message,
-            fontSize = 14.sp,
-            color = MoaTextSecondary,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.White)
+                .padding(horizontal = 24.dp, vertical = 36.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = message,
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                color = MoaTextPrimary,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "일정이 확정되면\n여기에 표시돼요",
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = 13.sp,
+                lineHeight = 20.sp,
+                color = MoaTextSecondary,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+        }
     }
 }
 
-private data class NotificationStyle(val fg: Color, val bg: Color, val icon: ImageVector)
+private data class NotificationSection(
+    val label: String,
+    val items: List<MoaNotification>,
+)
 
-private fun notificationStyle(type: MoaNotificationType): NotificationStyle = when (type) {
-    MoaNotificationType.CONFIRMED -> NotificationStyle(MoaAccentGreen, MoaAccentGreenBg, Icons.Default.CheckCircle)
-    MoaNotificationType.WAITING -> NotificationStyle(MoaAccentOrange, MoaAccentOrangeBg, Icons.Default.Schedule)
-    MoaNotificationType.ADJUSTING -> NotificationStyle(MoaAccentPurple, MoaAccentPurpleBg, Icons.Default.Tune)
-    MoaNotificationType.UPCOMING -> NotificationStyle(MoaAccentBlue, MoaAccentBlueBg, Icons.Default.Event)
-    MoaNotificationType.INFO -> NotificationStyle(MoaAccentBlue, MoaAccentBlueBg, Icons.Default.Info)
-}
-
-private fun relativeLabel(date: LocalDate): String {
+private fun groupByDate(items: List<MoaNotification>): List<NotificationSection> {
     val today = LocalDate.now()
-    return when {
-        date.isEqual(today) -> "오늘"
-        date.isEqual(today.minusDays(1)) -> "어제"
-        date.isAfter(today) -> date.format(DateTimeFormatter.ofPattern("M월 d일"))
-        else -> date.format(DateTimeFormatter.ofPattern("M월 d일"))
+    val order = listOf("오늘", "어제", "이번 주", "이전")
+    val grouped = items.groupBy { dateSectionLabel(it.timestamp.toLocalDate(), today) }
+    return order.mapNotNull { label ->
+        grouped[label]?.takeIf { it.isNotEmpty() }?.let { NotificationSection(label, it) }
     }
+}
+
+private fun dateSectionLabel(date: LocalDate, today: LocalDate): String = when {
+    date.isEqual(today) -> "오늘"
+    date.isEqual(today.minusDays(1)) -> "어제"
+    date.isAfter(today.minusDays(7)) -> "이번 주"
+    else -> "이전"
+}
+
+private fun formatTime(timestamp: LocalDateTime): String {
+    val today = LocalDate.now()
+    val date = timestamp.toLocalDate()
+    val time = formatKoreanTime(timestamp.hour, timestamp.minute)
+    return when {
+        date.isEqual(today) -> time
+        date.isEqual(today.minusDays(1)) -> "어제 $time"
+        else -> "${date.monthValue}.${date.dayOfMonth} $time"
+    }
+}
+
+private fun formatKoreanTime(hour: Int, minute: Int): String {
+    val period = if (hour < 12) "오전" else "오후"
+    val h = when {
+        hour == 0 || hour == 24 -> 12
+        hour > 12 -> hour - 12
+        else -> hour
+    }
+    return if (minute == 0) "$period ${h}시" else "$period ${h}:${"%02d".format(minute)}"
 }

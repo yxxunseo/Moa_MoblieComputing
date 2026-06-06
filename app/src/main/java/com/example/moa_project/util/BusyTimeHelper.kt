@@ -2,9 +2,9 @@ package com.example.moa_project.util
 
 import android.content.Context
 import com.example.moa_project.network.RetrofitClient
+import com.example.moa_project.ui.home.HomeEventLoader
 import com.example.moa_project.ui.schedule.TimeSlot
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 
@@ -55,8 +55,8 @@ object BusyTimeHelper {
             val item = raw as? Map<*, *> ?: return@forEach
             val startText = item["start"] as? String ?: return@forEach
             val endText = item["end"] as? String ?: return@forEach
-            val start = runCatching { LocalDateTime.parse(startText) }.getOrNull() ?: return@forEach
-            val end = runCatching { LocalDateTime.parse(endText) }.getOrNull() ?: return@forEach
+            val start = HomeEventLoader.parseDateTime(startText) ?: return@forEach
+            val end = HomeEventLoader.parseDateTime(endText) ?: return@forEach
 
             var slotStart = start.withMinute(0).withSecond(0).withNano(0)
             if (slotStart.isBefore(start)) slotStart = slotStart.plusHours(1)

@@ -115,18 +115,6 @@ fun CreateOrJoinMeetingSheet(
     ) {
         Spacer(modifier = Modifier.height(8.dp))
 
-        // 드래그 핸들 (ModalBottomSheet 자체가 핸들을 그려주지만 디자인 통일용)
-        Box(
-            modifier = Modifier
-                .width(40.dp)
-                .height(4.dp)
-                .clip(CircleShape)
-                .background(Color(0xFFE0E4F0))
-                .align(Alignment.CenterHorizontally)
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
         // ── 헤더 ──
         Row(
             modifier = Modifier.fillMaxWidth(),

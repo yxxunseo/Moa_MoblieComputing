@@ -4,35 +4,100 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>모아 · 일정 참여</title>
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="모아 · 일정 참여" />
+  <meta property="og:description" content="가능한 시간을 선택해 일정에 참여해 주세요." />
+  <meta property="og:image" content="/kakao-guest-share.png" id="og-image" />
+  <meta property="og:url" content="" id="og-url" />
   <style>
     :root {
-      --bg: #F7F8FC;
+      --bg: #F4F6FB;
       --main: #2179FE;
+      --main-soft: #EAF1FF;
       --green: #35A96D;
       --text: #101B33;
-      --sub: #737C99;
-      --border: #E8EBF2;
+      --sub: #6B7289;
+      --border: #E3E8F2;
       --white: #fff;
+      --radius-lg: 20px;
+      --radius-md: 14px;
+      --shadow: 0 8px 28px rgba(16, 27, 51, 0.07);
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Segoe UI", sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
     }
-    .wrap { max-width: 480px; margin: 0 auto; padding: 24px 20px 40px; }
-    h1 { font-size: 22px; margin: 0 0 6px; }
-    .sub { color: var(--sub); font-size: 13px; margin-bottom: 24px; }
+    .wrap { max-width: 480px; margin: 0 auto; padding: 20px 16px 48px; }
+    .page-header {
+      margin-bottom: 20px;
+      padding: 4px 2px 0;
+    }
+    h1 {
+      font-size: 24px;
+      font-weight: 800;
+      margin: 0 0 8px;
+      letter-spacing: -0.4px;
+      line-height: 1.3;
+    }
+    .sub {
+      color: var(--sub);
+      font-size: 14px;
+      margin: 0;
+      line-height: 1.55;
+    }
+    .sub-desc { display: block; margin-bottom: 6px; }
+    .date-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
     .card {
       background: var(--white);
-      border-radius: 16px;
-      padding: 18px;
-      box-shadow: 0 4px 20px rgba(16, 27, 51, 0.06);
-      margin-bottom: 16px;
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      box-shadow: var(--shadow);
+      margin-bottom: 14px;
+      border: 1px solid rgba(227, 232, 242, 0.9);
     }
-    label { display: block; font-size: 12px; color: var(--sub); margin-bottom: 6px; }
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin: 0 0 14px;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -0.2px;
+    }
+    .section-count {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--main);
+      background: var(--main-soft);
+      padding: 4px 10px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .section-hint {
+      font-size: 12px;
+      color: var(--sub);
+      margin: 12px 0 0;
+      line-height: 1.5;
+    }
+    label { display: block; font-size: 13px; font-weight: 600; color: var(--sub); margin-bottom: 8px; }
     input[type="text"] {
       width: 100%;
       padding: 12px 14px;
@@ -66,9 +131,10 @@
     .hour-btn {
       border: 1px solid var(--border);
       background: var(--white);
-      border-radius: 10px;
-      padding: 10px 0;
-      font-size: 13px;
+      border-radius: 12px;
+      padding: 12px 0;
+      font-size: 14px;
+      font-weight: 600;
       cursor: pointer;
       transition: all 0.15s;
     }
@@ -91,14 +157,34 @@
     }
     .primary:disabled { opacity: 0.5; cursor: not-allowed; }
     .success-msg {
-      background: #EAF1FF;
-      border: 1px solid rgba(33, 121, 254, 0.25);
-      border-radius: 14px;
-      padding: 16px;
-      color: var(--main);
+      background: linear-gradient(135deg, #EAF1FF 0%, #F0F7FF 100%);
+      border: 1px solid rgba(33, 121, 254, 0.18);
+      border-radius: var(--radius-lg);
+      padding: 18px 18px 18px 52px;
+      color: var(--text);
       font-size: 14px;
-      line-height: 1.5;
+      line-height: 1.6;
+      margin-bottom: 14px;
+      position: relative;
+      box-shadow: var(--shadow);
     }
+    .success-msg::before {
+      content: "✓";
+      position: absolute;
+      left: 18px;
+      top: 18px;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--main);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .success-msg strong { color: var(--main); font-weight: 800; }
     .error { color: #FF6262; font-size: 13px; margin-top: 8px; }
     .loading { text-align: center; color: var(--sub); padding: 40px 0; }
 
@@ -173,48 +259,194 @@
       color: #8A6800;
       margin-bottom: 16px;
     }
-    .status-card { margin-top: 8px; }
-    .status-card h3 { margin: 0 0 10px; font-size: 15px; }
-    .participant-row {
-      padding: 10px 0;
-      border-bottom: 1px solid var(--border);
-      font-size: 13px;
-      line-height: 1.45;
-    }
-    .participant-row:last-child { border-bottom: none; }
-    .participant-name { font-weight: 700; color: var(--text); }
-    .participant-times { color: var(--sub); font-size: 12px; margin-top: 4px; }
-    .heatmap-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-    .heatmap-table th, .heatmap-table td {
-      border: 1px solid var(--border);
-      padding: 4px 2px;
+    .status-card { margin-top: 0; }
+    .empty-state {
+      color: var(--sub);
+      font-size: 14px;
       text-align: center;
+      padding: 12px 0 4px;
     }
-    .heatmap-table th { background: var(--bg); color: var(--sub); font-weight: 600; }
-    .heat-cell { border-radius: 6px; min-width: 28px; }
-    .heat-0 { background: #F0F2F8; color: var(--sub); }
-    .heat-1 { background: #D6E6FF; color: var(--main); }
-    .heat-2 { background: #8FB8FF; color: #fff; }
-    .heat-3 { background: var(--main); color: #fff; font-weight: 700; }
-    .rec-row { padding: 8px 0; border-bottom: 1px dashed var(--border); font-size: 13px; }
+    .participant-card {
+      background: #FAFBFE;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      margin-bottom: 10px;
+    }
+    .participant-card:last-child { margin-bottom: 0; }
+    .participant-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .participant-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--main) 0%, #5B9DFF 100%);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .participant-meta { min-width: 0; }
+    .participant-name {
+      font-weight: 800;
+      font-size: 15px;
+      color: var(--text);
+      margin: 0;
+    }
+    .participant-count {
+      font-size: 12px;
+      color: var(--sub);
+      margin-top: 2px;
+    }
+    .slot-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .slot-chip {
+      display: inline-flex;
+      align-items: center;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 7px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    .slot-chip .chip-date { color: var(--sub); font-weight: 500; margin-right: 4px; }
+    .rec-list { display: flex; flex-direction: column; gap: 10px; }
+    .rec-card {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 4px 12px;
+      align-items: start;
+      background: #FAFBFE;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px;
+    }
+    .rec-card.rank-1 { border-color: rgba(33, 121, 254, 0.35); background: #F5F9FF; }
+    .rank-badge {
+      grid-row: span 2;
+      align-self: center;
+      min-width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: var(--main-soft);
+      color: var(--main);
+      font-size: 13px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .rec-card.rank-1 .rank-badge {
+      background: var(--main);
+      color: #fff;
+    }
+    .rec-date { font-size: 14px; font-weight: 800; color: var(--text); }
+    .rec-range { font-size: 15px; font-weight: 700; color: var(--main); }
+    .rec-people {
+      grid-column: 2;
+      font-size: 12px;
+      color: var(--sub);
+      margin-top: 2px;
+    }
+    .day-heatmap { margin-bottom: 16px; }
+    .day-heatmap:last-child { margin-bottom: 0; }
+    .day-heatmap-label {
+      font-size: 14px;
+      font-weight: 800;
+      margin-bottom: 10px;
+      color: var(--text);
+    }
+    .hour-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    .hour-cell {
+      border-radius: 12px;
+      padding: 10px 6px;
+      text-align: center;
+      border: 1px solid var(--border);
+      min-height: 58px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+    .hour-cell .hour-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--sub);
+    }
+    .hour-cell .hour-count {
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .heat-0 { background: #F3F5FA; }
+    .heat-0 .hour-count { color: #C5CAD8; font-size: 13px; font-weight: 600; }
+    .heat-1 { background: #D6E6FF; border-color: #B8D4FF; }
+    .heat-1 .hour-count { color: var(--main); }
+    .heat-2 { background: #8FB8FF; border-color: #6FA3FF; }
+    .heat-2 .hour-label, .heat-2 .hour-count { color: #fff; }
+    .heat-3 { background: var(--main); border-color: var(--main); }
+    .heat-3 .hour-label, .heat-3 .hour-count { color: #fff; }
+    .heat-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+    }
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--sub);
+    }
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
     .secondary-btn {
       width: 100%;
       border: 1px solid var(--border);
       background: var(--white);
       color: var(--text);
-      border-radius: 12px;
-      padding: 12px;
-      font-size: 14px;
-      font-weight: 600;
+      border-radius: var(--radius-md);
+      padding: 14px;
+      font-size: 15px;
+      font-weight: 700;
       cursor: pointer;
-      margin-top: 10px;
+      margin-top: 12px;
+      box-shadow: var(--shadow);
     }
+    .secondary-btn:active { opacity: 0.85; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1 id="title">일정 불러오는 중...</h1>
-    <p class="sub" id="desc"></p>
+    <div class="page-header">
+      <h1 id="title">일정 불러오는 중...</h1>
+      <div class="sub" id="desc"></div>
+    </div>
     <div id="content"><div class="loading">잠시만 기다려주세요</div></div>
   </div>
   <script>
@@ -411,10 +643,19 @@
         schedule = await res.json();
 
         document.getElementById("title").textContent = schedule.title;
-        document.getElementById("desc").textContent =
-          (schedule.description || "") +
-          (schedule.description ? " · " : "") +
-          `${schedule.startDate} ~ ${schedule.endDate}`;
+        document.title = `모아 · ${schedule.title}`;
+        const ogUrl = document.getElementById("og-url");
+        const ogImage = document.getElementById("og-image");
+        if (ogUrl) ogUrl.setAttribute("content", location.href.split("#")[0]);
+        if (ogImage) ogImage.setAttribute("content", `${apiBase}/kakao-guest-share.png`);
+        const ogDesc = document.querySelector('meta[property="og:description"]');
+        if (ogDesc) ogDesc.setAttribute("content", `${schedule.title} · ${schedule.startDate} ~ ${schedule.endDate}`);
+        const descEl = document.getElementById("desc");
+        const descText = schedule.description || "";
+        descEl.innerHTML = [
+          descText ? `<span class="sub-desc">${escapeHtml(descText)}</span>` : "",
+          `<span class="date-pill">📅 ${schedule.startDate} ~ ${schedule.endDate}</span>`
+        ].join("");
 
         if (schedule.status === "CONFIRMED" || schedule.status === "DONE") {
           renderConfirmed();
@@ -629,58 +870,115 @@
       }
     }
 
+    function formatSlotLabel(start) {
+      if (!start) return "";
+      const [date, timePart] = start.split("T");
+      if (!date || !timePart) return start;
+      const [y, m, d] = date.split("-");
+      const weekday = ["일", "월", "화", "수", "목", "금", "토"][new Date(date + "T00:00:00").getDay()];
+      return {
+        shortDate: `${m}/${d}`,
+        weekday,
+        time: timePart.substring(0, 5),
+        fullDate: `${parseInt(m, 10)}월 ${parseInt(d, 10)}일(${weekday})`,
+      };
+    }
+
+    function formatDayLabel(dateStr) {
+      const [y, m, d] = dateStr.split("-");
+      const weekday = ["일", "월", "화", "수", "목", "금", "토"][new Date(dateStr + "T00:00:00").getDay()];
+      return `${parseInt(m, 10)}월 ${parseInt(d, 10)}일 (${weekday})`;
+    }
+
+    function heatClass(count) {
+      if (count === 0) return "heat-0";
+      if (count === 1) return "heat-1";
+      if (count === 2) return "heat-2";
+      return "heat-3";
+    }
+
     function buildStatusHtml(data) {
       const participants = data.participants || [];
       const recs = data.recommendations || [];
       let html = `<div class="card status-card">
-        <h3>참여 현황 (${data.totalParticipants || 0}명)</h3>`;
+        <div class="section-title">
+          <span>참여 현황</span>
+          <span class="section-count">${data.totalParticipants || 0}명</span>
+        </div>`;
       if (participants.length === 0) {
-        html += '<p style="color:var(--sub);font-size:13px;">아직 응답이 없어요.</p>';
+        html += '<p class="empty-state">아직 응답이 없어요.</p>';
       } else {
         participants.forEach(p => {
-          const times = (p.slots || []).map(s => {
-            const st = s.start.split("T");
-            return st.length === 2 ? `${st[0].substring(5)} ${st[1].substring(0,5)}` : s.start;
-          }).slice(0, 8).join(", ");
-          html += `<div class="participant-row">
-            <div class="participant-name">${escapeHtml(p.name)} · ${p.slotCount}개 시간</div>
-            <div class="participant-times">${escapeHtml(times || "")}</div>
+          const initial = (p.name || "?").charAt(0);
+          const chips = (p.slots || []).map(s => {
+            const slot = formatSlotLabel(s.start);
+            if (typeof slot === "string") return `<span class="slot-chip">${escapeHtml(slot)}</span>`;
+            return `<span class="slot-chip"><span class="chip-date">${slot.shortDate}</span>${slot.time}</span>`;
+          }).join("");
+          html += `<div class="participant-card">
+            <div class="participant-head">
+              <div class="participant-avatar">${escapeHtml(initial)}</div>
+              <div class="participant-meta">
+                <div class="participant-name">${escapeHtml(p.name)}</div>
+                <div class="participant-count">가능 시간 ${p.slotCount}개</div>
+              </div>
+            </div>
+            <div class="slot-chips">${chips}</div>
           </div>`;
         });
       }
       html += '</div>';
 
       if (recs.length > 0) {
-        html += '<div class="card status-card"><h3>추천 시간</h3>';
+        html += `<div class="card status-card">
+          <div class="section-title"><span>추천 시간</span></div>
+          <div class="rec-list">`;
         recs.forEach(r => {
           const st = r.start.split("T");
           const en = r.end.split("T");
-          const label = st.length === 2 ? `${st[0]} ${st[1].substring(0,5)}~${en[1]?.substring(0,5) || ""}` : r.start;
-          html += `<div class="rec-row">${r.rank}위 · ${label} · <strong>${r.availableCount}명</strong> (${escapeHtml((r.availableMembers || []).join(", "))})</div>`;
+          const slot = formatSlotLabel(r.start);
+          const dateLabel = typeof slot === "object" ? slot.fullDate : st[0];
+          const range = st.length === 2
+            ? `${st[1].substring(0, 5)} ~ ${en[1]?.substring(0, 5) || ""}`
+            : r.start;
+          const rankClass = r.rank === 1 ? " rank-1" : "";
+          html += `<div class="rec-card${rankClass}">
+            <div class="rank-badge">${r.rank}위</div>
+            <div class="rec-date">${escapeHtml(dateLabel)}</div>
+            <div class="rec-range">${escapeHtml(range)}</div>
+            <div class="rec-people">${r.availableCount}명 · ${escapeHtml((r.availableMembers || []).join(", "))}</div>
+          </div>`;
         });
-        html += '<p style="font-size:11px;color:var(--sub);margin:8px 0 0;">인원이 같으면 더 이른 시간을 우선 표시해요.</p></div>';
+        html += '</div><p class="section-hint">인원이 같으면 더 이른 시간을 우선 표시해요.</p></div>';
       }
 
       const heatmap = data.heatmap || {};
       const dates = Object.keys(heatmap).sort();
       if (dates.length > 0) {
-        const hours = [];
-        for (let h = 8; h <= 22; h++) hours.push(String(h).padStart(2, "0") + ":00");
-        html += '<div class="card status-card"><h3>시간대별 가능 인원</h3><div style="overflow-x:auto"><table class="heatmap-table"><thead><tr><th>날짜</th>';
-        hours.forEach(h => { html += `<th>${h.substring(0,2)}</th>`; });
-        html += '</tr></thead><tbody>';
+        html += `<div class="card status-card">
+          <div class="section-title"><span>시간대별 가능 인원</span></div>`;
         dates.forEach(date => {
-          html += `<tr><th>${date.substring(5)}</th>`;
-          hours.forEach(h => {
-            const count = (heatmap[date] && heatmap[date][h]) || 0;
-            const cls = count === 0 ? "heat-0" : count === 1 ? "heat-1" : count === 2 ? "heat-2" : "heat-3";
-            const members = (data.heatmapMembers && data.heatmapMembers[date] && data.heatmapMembers[date][h]) || [];
-            const title = members.length ? members.join(", ") : "";
-            html += `<td class="heat-cell ${cls}" title="${escapeHtml(title)}">${count || ""}</td>`;
-          });
-          html += '</tr>';
+          html += `<div class="day-heatmap"><div class="day-heatmap-label">${formatDayLabel(date)}</div><div class="hour-grid">`;
+          for (let h = 8; h <= 22; h++) {
+            const timeKey = String(h).padStart(2, "0") + ":00";
+            const count = (heatmap[date] && heatmap[date][timeKey]) || 0;
+            const cls = heatClass(count);
+            const members = (data.heatmapMembers && data.heatmapMembers[date] && data.heatmapMembers[date][timeKey]) || [];
+            const title = members.length ? ` title="${escapeHtml(members.join(", "))}"` : "";
+            html += `<div class="hour-cell ${cls}"${title}>
+              <span class="hour-label">${String(h).padStart(2, "0")}:00</span>
+              <span class="hour-count">${count || "–"}</span>
+            </div>`;
+          }
+          html += '</div></div>';
         });
-        html += '</tbody></table></div><p style="font-size:11px;color:var(--sub);margin:8px 0 0;">셀을 길게 누르면 참여자 이름을 볼 수 있어요.</p></div>';
+        html += `<div class="heat-legend">
+          <span class="legend-item"><span class="legend-dot heat-0"></span>0명</span>
+          <span class="legend-item"><span class="legend-dot heat-1"></span>1명</span>
+          <span class="legend-item"><span class="legend-dot heat-2"></span>2명</span>
+          <span class="legend-item"><span class="legend-dot heat-3"></span>3명+</span>
+        </div>
+        <p class="section-hint">셀을 길게 누르면 참여자 이름을 볼 수 있어요.</p></div>`;
       }
       return html;
     }

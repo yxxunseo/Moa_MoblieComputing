@@ -1,7 +1,6 @@
 package com.example.moa_project.ui.notifications
 
 import android.content.Context
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.moa_project.network.GroupResponse
@@ -58,7 +57,8 @@ class NotificationsViewModel : ViewModel() {
                     addAll(guestNotifications())
                 }
                 val merged = (local + remote)
-                    .distinctBy { "${it.type}|${it.title}|${it.body}" }
+                    .filter { it.type == MoaNotificationType.CONFIRMED }
+                    .distinctBy { it.id }
                     .sortedByDescending { it.timestamp }
                 _state.value = NotificationsState.Success(merged)
             } catch (e: Exception) {
@@ -85,26 +85,20 @@ class NotificationsViewModel : ViewModel() {
     }
 
     private suspend fun guestNotifications(): List<MoaNotification> {
+        val ctx = appContext ?: return emptyList()
         return runCatching { RetrofitClient.instance.getMyGuestSchedules() }
             .getOrDefault(emptyList())
             .mapNotNull { guest ->
-                when (guest.status) {
-                    "CONFIRMED" -> MoaNotification(
-                        id = "guest-${guest.id}",
-                        type = MoaNotificationType.CONFIRMED,
-                        title = "단기 일정이 확정됐어요",
-                        body = "${guest.title} · 확정 시간을 확인해보세요.",
-                        timestamp = guest.confirmedStart?.let(HomeEventLoader::parseDateTime)
-                            ?: LocalDateTime.now(),
-                    )
-                    else -> MoaNotification(
-                        id = "guest-${guest.id}",
-                        type = MoaNotificationType.WAITING,
-                        title = "단기 일정 응답을 기다리고 있어요",
-                        body = "${guest.title} · 참여자들의 가능 시간을 모으는 중이에요.",
-                        timestamp = LocalDateTime.now(),
-                    )
-                }
+                if (guest.status != "CONFIRMED") return@mapNotNull null
+                val key = "guest-${guest.id}"
+                val receivedAt = MoaInAppNotificationStore.getOrRecordReceivedAt(ctx, key)
+                MoaNotification(
+                    id = key,
+                    type = MoaNotificationType.CONFIRMED,
+                    title = "단기 일정이 확정됐어요",
+                    body = "${guest.title} · 확정 시간을 확인해보세요.",
+                    timestamp = receivedAt,
+                )
             }
     }
 
@@ -112,34 +106,19 @@ class NotificationsViewModel : ViewModel() {
         schedule: ScheduleDetailResponse,
         groupName: String,
     ): MoaNotification? {
+        if (schedule.status != "CONFIRMED") return null
+        val ctx = appContext ?: return null
+        val key = "sch-${schedule.id}"
         val fmt = DateTimeFormatter.ofPattern("M월 d일 HH:mm")
-        return when (schedule.status) {
-            "CONFIRMED", "DONE" -> {
-                val start = schedule.confirmedStart?.let(HomeEventLoader::parseDateTime)
-                MoaNotification(
-                    id = "sch-${schedule.id}",
-                    type = MoaNotificationType.CONFIRMED,
-                    title = "일정이 확정됐어요",
-                    body = "$groupName · ${schedule.title}" +
-                        (start?.let { " (${it.format(fmt)})" } ?: ""),
-                    timestamp = start ?: LocalDateTime.now(),
-                )
-            }
-            "WAITING" -> MoaNotification(
-                id = "sch-${schedule.id}",
-                type = MoaNotificationType.WAITING,
-                title = "가능 시간을 입력해주세요",
-                body = "$groupName · ${schedule.title} 조율이 시작됐어요.",
-                timestamp = LocalDateTime.now(),
-            )
-            "ADJUSTING" -> MoaNotification(
-                id = "sch-${schedule.id}",
-                type = MoaNotificationType.ADJUSTING,
-                title = "일정을 조율 중이에요",
-                body = "$groupName · ${schedule.title}",
-                timestamp = LocalDateTime.now(),
-            )
-            else -> null
-        }
+        val start = schedule.confirmedStart?.let(HomeEventLoader::parseDateTime)
+        val receivedAt = MoaInAppNotificationStore.getOrRecordReceivedAt(ctx, key)
+        return MoaNotification(
+            id = key,
+            type = MoaNotificationType.CONFIRMED,
+            title = "일정이 확정됐어요",
+            body = "$groupName · ${schedule.title}" +
+                (start?.let { " (${it.format(fmt)})" } ?: ""),
+            timestamp = receivedAt,
+        )
     }
 }

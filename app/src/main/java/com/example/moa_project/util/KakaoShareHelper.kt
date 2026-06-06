@@ -2,7 +2,6 @@ package com.example.moa_project.util
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.util.Log
 import android.widget.Toast
 import com.example.moa_project.BuildConfig
@@ -15,8 +14,10 @@ import com.kakao.sdk.template.model.FeedTemplate
 import com.kakao.sdk.template.model.Link
 
 /**
- * 단기 일정 링크를 카카오톡 Feed 템플릿으로 공유한다.
- * WEB_SHARE_URL 도메인은 카카오 개발자 콘솔에 등록되어 있어야 한다.
+ * 단기 일정을 카카오톡 Feed 템플릿으로 공유한다.
+ *
+ * - [Link]에는 webUrl/mobileWebUrl만 사용 (androidExecutionParams 금지 → guest.html 직접 이동)
+ * - WEB_SHARE_URL 도메인을 카카오 개발자 콘솔 [제품 링크] > Web 도메인에 등록해야 카드·버튼 클릭이 동작함
  */
 object KakaoShareHelper {
     private const val TAG = "KakaoShareHelper"
@@ -54,10 +55,10 @@ object KakaoShareHelper {
             append("\n가능한 시간을 등록해주세요")
         }
 
+        // androidExecutionParams를 넣으면 모바일에서 앱/설정(apps.kakao.com)으로 빠짐 → 웹만 사용
         val link = Link(
             webUrl = webLink,
             mobileWebUrl = webLink,
-            androidExecutionParams = mapOf("link" to uniqueLink),
         )
 
         val feed = FeedTemplate(
@@ -78,8 +79,13 @@ object KakaoShareHelper {
         if (ShareClient.instance.isKakaoTalkSharingAvailable(context)) {
             ShareClient.instance.shareDefault(context, feed) { sharingResult, error ->
                 if (error != null) {
-                    Log.e(TAG, "카카오톡 공유 실패", error)
-                    Toast.makeText(context, "카카오톡 공유에 실패했어요.", Toast.LENGTH_SHORT).show()
+                    Log.e(TAG, "카카오 Feed 공유 실패: ${error.message}", error)
+                    Toast.makeText(
+                        context,
+                        "Feed 공유 실패. 카카오 콘솔에 WEB_SHARE_URL 도메인 등록을 확인해 주세요.",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                    shareViaWeb(context, feed)
                     return@shareDefault
                 }
                 sharingResult?.intent?.let { context.startActivity(it) }

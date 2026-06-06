@@ -313,15 +313,12 @@ fun ScheduleResultScreen(
                                     val timeText = raw.start.split("T").let {
                                         "${it.firstOrNull()?.substringAfterLast("-") ?: ""} ${it.lastOrNull()?.substringBeforeLast(":") ?: ""}"
                                     }
+                                    val notificationKey = "guest-${analysis?.scheduleId ?: uniqueLink}"
                                     MoaNotificationHelper.notifyScheduleConfirmed(
                                         context,
                                         analysis?.title ?: scheduleTitle,
-                                        timeText
-                                    )
-                                    MoaNotificationHelper.notifyCalendarAdded(
-                                        context,
-                                        analysis?.title ?: scheduleTitle,
-                                        timeText
+                                        timeText,
+                                        notificationKey = notificationKey,
                                     )
                                     viewModel.fetchAnalysis(uniqueLink)
                                     onConfirmClick()
@@ -485,15 +482,12 @@ fun GroupScheduleResultScreen(
                                     val timeText = raw.start.split("T").let {
                                         "${it.firstOrNull()?.substringAfterLast("-") ?: ""} ${it.lastOrNull()?.substringBeforeLast(":") ?: ""}"
                                     }
+                                    val notificationKey = "sch-$scheduleId"
                                     MoaNotificationHelper.notifyScheduleConfirmed(
                                         context,
                                         analysis?.title ?: "일정",
-                                        timeText
-                                    )
-                                    MoaNotificationHelper.notifyCalendarAdded(
-                                        context,
-                                        analysis?.title ?: "일정",
-                                        timeText
+                                        timeText,
+                                        notificationKey = notificationKey,
                                     )
                                     onConfirmComplete()
                                 }

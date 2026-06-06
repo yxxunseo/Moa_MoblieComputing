@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -28,6 +30,7 @@ import androidx.compose.material.icons.outlined.VideoCall
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -46,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -57,6 +61,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.moa_project.ui.components.MoaBottomNavigationBar
 import com.example.moa_project.ui.components.MoaMascot
 import com.example.moa_project.ui.components.ProfileAvatar
+import com.example.moa_project.ui.home.HomeActivityItem
 import com.example.moa_project.ui.home.HomeDashboardState
 import com.example.moa_project.ui.home.HomeDashboardViewModel
 import com.example.moa_project.ui.meetings.CreateOrJoinMeetingSheet
@@ -78,6 +83,7 @@ fun InitialHomeScreen(
     currentRoute: String = "home",
     onNavigate: (String) -> Unit = {},
     onNotificationsClick: () -> Unit = {},
+    onCoordinationScheduleClick: (Long) -> Unit = {},
     userViewModel: UserViewModel = viewModel(),
     dashboardViewModel: HomeDashboardViewModel = viewModel(),
     meetingsViewModel: MeetingsViewModel = viewModel(),
@@ -103,8 +109,10 @@ fun InitialHomeScreen(
     val isDashboardLoading = dashboardState is HomeDashboardState.Loading
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val coordinationSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     var showSheet by remember { mutableStateOf(false) }
+    var showCoordinationSheet by remember { mutableStateOf(false) }
     var sheetInitialTab by remember { mutableIntStateOf(0) }
 
     fun openCreateSheet() {
@@ -141,6 +149,30 @@ fun InitialHomeScreen(
         }
     }
 
+    if (showCoordinationSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showCoordinationSheet = false },
+            sheetState = coordinationSheetState,
+            containerColor = Color.White,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        ) {
+            CoordinationListSheet(
+                items = success?.pendingCoordinationItems.orEmpty(),
+                onDismiss = {
+                    scope.launch { coordinationSheetState.hide() }.invokeOnCompletion {
+                        showCoordinationSheet = false
+                    }
+                },
+                onItemClick = { scheduleId ->
+                    scope.launch { coordinationSheetState.hide() }.invokeOnCompletion {
+                        showCoordinationSheet = false
+                        onCoordinationScheduleClick(scheduleId)
+                    }
+                },
+            )
+        }
+    }
+
     Scaffold(
         bottomBar = {
             MoaBottomNavigationBar(
@@ -154,64 +186,77 @@ fun InitialHomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .padding(innerPadding),
         ) {
             HomeProfileHeader(
                 nickname = userNickname,
                 profileImageUrl = profileImageUrl,
                 hasUnread = unreadCount > 0,
                 onNotificationsClick = onNotificationsClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MoaScreenBackground)
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 16.dp),
+            ) {
+                Spacer(modifier = Modifier.height(4.dp))
 
-            HomeHeroCard(
-                nickname = userNickname,
-                hasGroups = hasGroups,
-                pendingCount = success?.pendingCoordinationCount ?: 0,
-                confirmedCount = success?.confirmedThisWeekCount ?: 0,
-                isLoading = isDashboardLoading,
-                onPrimaryClick = {
-                    if (hasGroups) onNavigate("meetings") else openCreateSheet()
-                },
-            )
+                HomeHeroCard(
+                    nickname = userNickname,
+                    hasGroups = hasGroups,
+                    pendingCount = success?.pendingCoordinationCount ?: 0,
+                    confirmedCount = success?.confirmedThisWeekCount ?: 0,
+                    isLoading = isDashboardLoading,
+                    onPrimaryClick = {
+                        if (hasGroups) onNavigate("meetings") else openCreateSheet()
+                    },
+                )
 
-            Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
-            HomeQuickAccessGrid(
-                state = dashboardState,
-                onCreateClick = { openCreateSheet() },
-                onJoinClick = { openJoinSheet() },
-                onCalendarClick = { onNavigate("calendar") },
-                onMeetingsClick = { onNavigate("meetings") },
-            )
+                HomeQuickAccessGrid(
+                    state = dashboardState,
+                    onCreateClick = { openCreateSheet() },
+                    onJoinClick = { openJoinSheet() },
+                    onCalendarClick = { onNavigate("calendar") },
+                    onMeetingsClick = { onNavigate("meetings") },
+                )
 
-            Spacer(modifier = Modifier.height(28.dp))
+                Spacer(modifier = Modifier.height(28.dp))
 
-            HomeTaskSection(
-                state = dashboardState,
-                onSeeAllClick = { onNavigate("calendar") },
-                onCalendarClick = { onNavigate("calendar") },
-                onCreateClick = { openCreateSheet() },
-            )
+                HomeTaskSection(
+                    state = dashboardState,
+                    onCoordinationListClick = { showCoordinationSheet = true },
+                    onCoordinationScheduleClick = onCoordinationScheduleClick,
+                    onCalendarClick = { onNavigate("calendar") },
+                    onCreateClick = { openCreateSheet() },
+                )
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+            }
         }
     }
 }
 
-/** 상단: 프로필 + 인사 | 알림 */
+/** 상단: 프로필 + 인사 | 알림 (스크롤과 분리되어 고정) */
 @Composable
 private fun HomeProfileHeader(
     nickname: String?,
     profileImageUrl: String?,
     hasUnread: Boolean,
     onNotificationsClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ProfileAvatar(
@@ -222,7 +267,7 @@ private fun HomeProfileHeader(
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "Hello,",
+                text = "안녕하세요,",
                 fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.Medium,
                 fontSize = 13.sp,
@@ -488,48 +533,22 @@ private fun HomeQuickAccessCard(
     }
 }
 
-/**
- * 내 일정: 모임·단기 일정에서 확정된, 아직 지나지 않은 일정을 날짜순으로 보여준다.
- */
+/** 내 일정: 조율 현황(진행률) + 다가오는 확정 일정 */
 @Composable
 private fun HomeTaskSection(
     state: HomeDashboardState,
-    onSeeAllClick: () -> Unit,
+    onCoordinationListClick: () -> Unit,
+    onCoordinationScheduleClick: (Long) -> Unit,
     onCalendarClick: () -> Unit,
     onCreateClick: () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column {
-                Text(
-                    text = "내 일정",
-                    fontFamily = SBAggroFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    color = MoaTextPrimary,
-                )
-                Text(
-                    text = "확정된 다가오는 일정",
-                    fontFamily = SBAggroFontFamily,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 11.sp,
-                    color = MoaTextSecondary,
-                )
-            }
-            Text(
-                text = "캘린더 보기",
-                fontFamily = SBAggroFontFamily,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 13.sp,
-                color = MoaBlue,
-                modifier = Modifier.clickable(onClick = onSeeAllClick),
-            )
-        }
-    }
+    Text(
+        text = "내 일정",
+        fontFamily = SBAggroFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 18.sp,
+        color = MoaTextPrimary,
+    )
 
     Spacer(modifier = Modifier.height(14.dp))
 
@@ -545,18 +564,51 @@ private fun HomeTaskSection(
             }
         }
         is HomeDashboardState.Error -> {
-            HomeScheduleCard(
+            HomeProgressCard(
                 title = "일정을 불러오지 못했어요",
-                dayNumber = "—",
-                dayOfWeek = "",
-                timeLabel = state.message.lines().firstOrNull() ?: "연결 확인",
-                sourceLabel = "다시 시도",
+                subtitle = state.message.lines().firstOrNull() ?: "연결 확인",
+                progress = 0f,
+                progressLabel = "다시 시도",
+                dueLabel = "—",
                 accent = Color(0xFFFF9500),
-                onClick = onSeeAllClick,
+                onClick = onCoordinationListClick,
             )
         }
         is HomeDashboardState.Success -> {
+            val activities = buildCoordinationItems(state)
             val events = buildUpcomingEvents(state)
+
+            if (activities.isNotEmpty()) {
+                HomeSectionHeader(
+                    title = "조율 현황",
+                    actionLabel = "전체 보기",
+                    onActionClick = onCoordinationListClick,
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                activities.take(2).forEachIndexed { index, item ->
+                    HomeProgressCard(
+                        title = item.title,
+                        subtitle = item.subtitle,
+                        progress = item.progress,
+                        progressLabel = item.progressLabel,
+                        dueLabel = item.dueLabel,
+                        accent = item.accent,
+                        onClick = { onCoordinationScheduleClick(item.scheduleId) },
+                    )
+                    if (index < activities.take(2).lastIndex) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+                }
+                Spacer(modifier = Modifier.height(20.dp))
+            }
+
+            HomeSectionHeader(
+                title = "다가오는 확정 일정",
+                actionLabel = "캘린더 보기",
+                onActionClick = onCalendarClick,
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+
             if (events.isEmpty()) {
                 HomeScheduleCard(
                     title = "확정된 일정이 없어요",
@@ -564,26 +616,53 @@ private fun HomeTaskSection(
                     dayOfWeek = "",
                     timeLabel = "모임·단기 일정에서 확정하면 여기에 표시돼요",
                     sourceLabel = "일정 만들기",
-                    accent = MoaBlue,
                     onClick = onCreateClick,
                 )
             } else {
-                events.take(3).forEachIndexed { index, event ->
+                events.take(2).forEachIndexed { index, event ->
                     HomeScheduleCard(
                         title = event.title,
                         dayNumber = event.dayNumber,
                         dayOfWeek = event.dayOfWeek,
                         timeLabel = event.timeLabel,
                         sourceLabel = event.sourceLabel,
-                        accent = event.accent,
                         onClick = onCalendarClick,
                     )
-                    if (index != events.lastIndex && index < 2) {
-                        Spacer(modifier = Modifier.height(12.dp))
+                    if (index < events.take(2).lastIndex) {
+                        Spacer(modifier = Modifier.height(10.dp))
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun HomeSectionHeader(
+    title: String,
+    actionLabel: String,
+    onActionClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title,
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 13.sp,
+            color = MoaTextSecondary,
+        )
+        Text(
+            text = actionLabel,
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 12.sp,
+            color = MoaBlue,
+            modifier = Modifier.clickable(onClick = onActionClick),
+        )
     }
 }
 
@@ -593,8 +672,32 @@ private data class HomeScheduleItem(
     val dayOfWeek: String,
     val timeLabel: String,
     val sourceLabel: String,
+)
+
+private data class HomeProgressItem(
+    val scheduleId: Long,
+    val title: String,
+    val subtitle: String,
+    val progress: Float,
+    val progressLabel: String,
+    val dueLabel: String,
     val accent: Color,
 )
+
+private fun buildCoordinationItems(state: HomeDashboardState.Success): List<HomeProgressItem> {
+    return state.pendingCoordinationItems.map { activity ->
+        val (progress, label) = progressForResponse(activity.respondedCount, activity.totalMembers)
+        HomeProgressItem(
+            scheduleId = activity.scheduleId,
+            title = activity.scheduleTitle,
+            subtitle = activity.groupName,
+            progress = progress,
+            progressLabel = label,
+            dueLabel = activity.statusLabel,
+            accent = parseColor(activity.groupColor),
+        )
+    }
+}
 
 private fun buildUpcomingEvents(state: HomeDashboardState.Success): List<HomeScheduleItem> {
     val locale = java.util.Locale.KOREAN
@@ -605,7 +708,231 @@ private fun buildUpcomingEvents(state: HomeDashboardState.Success): List<HomeSch
             dayOfWeek = event.start.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, locale),
             timeLabel = formatKoreanTime(event.start.hour, event.start.minute),
             sourceLabel = event.subtitle ?: "확정 일정",
-            accent = parseColor(event.color),
+        )
+    }
+}
+
+private fun progressForResponse(respondedCount: Int, totalMembers: Int): Pair<Float, String> {
+    if (totalMembers <= 0) return 0f to "응답 없음"
+    val progress = respondedCount.toFloat() / totalMembers
+    return progress to "${respondedCount}/${totalMembers}명 응답"
+}
+
+@Composable
+private fun HomeProgressCard(
+    title: String,
+    subtitle: String,
+    progress: Float,
+    progressLabel: String,
+    dueLabel: String,
+    accent: Color,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.White)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 16.dp),
+    ) {
+        Text(
+            text = title,
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 15.sp,
+            color = MoaTextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        LinearProgressIndicator(
+            progress = { progress.coerceIn(0f, 1f) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(RoundedCornerShape(4.dp)),
+            color = accent,
+            trackColor = accent.copy(alpha = 0.15f),
+            strokeCap = StrokeCap.Round,
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = progressLabel,
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                color = accent,
+            )
+            Text(
+                text = dueLabel,
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = 11.sp,
+                color = MoaTextSecondary,
+            )
+        }
+        if (subtitle.isNotBlank()) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = subtitle,
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = 11.sp,
+                color = MoaTextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CoordinationListSheet(
+    items: List<HomeActivityItem>,
+    onDismiss: () -> Unit,
+    onItemClick: (Long) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 28.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "조율 중인 일정",
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = MoaTextPrimary,
+            )
+            Text(
+                text = "닫기",
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+                color = MoaTextSecondary,
+                modifier = Modifier.clickable(onClick = onDismiss),
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "${items.size}건 · 응답 대기·조율 중",
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Medium,
+            fontSize = 12.sp,
+            color = MoaTextSecondary,
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (items.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 120.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "조율 중인 일정이 없어요",
+                    fontFamily = SBAggroFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 14.sp,
+                    color = MoaTextSecondary,
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.heightIn(max = 420.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                items(items, key = { it.scheduleId }) { item ->
+                    CoordinationListItem(
+                        item = item,
+                        onClick = { onItemClick(item.scheduleId) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CoordinationListItem(
+    item: HomeActivityItem,
+    onClick: () -> Unit,
+) {
+    val accent = parseColor(item.groupColor)
+    val (progress, responseLabel) = progressForResponse(item.respondedCount, item.totalMembers)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = item.scheduleTitle,
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                color = MoaTextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = item.statusLabel,
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 11.sp,
+                color = MoaTextSecondary,
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = item.groupName,
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Medium,
+            fontSize = 12.sp,
+            color = MoaTextSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        LinearProgressIndicator(
+            progress = { progress.coerceIn(0f, 1f) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp)),
+            color = accent,
+            trackColor = accent.copy(alpha = 0.15f),
+            strokeCap = StrokeCap.Round,
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = responseLabel,
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Medium,
+            fontSize = 11.sp,
+            color = accent,
         )
     }
 }
@@ -617,7 +944,6 @@ private fun HomeScheduleCard(
     dayOfWeek: String,
     timeLabel: String,
     sourceLabel: String,
-    accent: Color,
     onClick: () -> Unit,
 ) {
     Row(
@@ -633,7 +959,7 @@ private fun HomeScheduleCard(
             modifier = Modifier
                 .width(56.dp)
                 .clip(RoundedCornerShape(14.dp))
-                .background(accent.copy(alpha = 0.12f))
+                .background(MoaBlue.copy(alpha = 0.1f))
                 .padding(vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -642,7 +968,7 @@ private fun HomeScheduleCard(
                 fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.Bold,
                 fontSize = 20.sp,
-                color = accent,
+                color = MoaBlue,
                 maxLines = 1,
             )
             if (dayOfWeek.isNotBlank()) {
@@ -651,7 +977,7 @@ private fun HomeScheduleCard(
                     fontFamily = SBAggroFontFamily,
                     fontWeight = FontWeight.Medium,
                     fontSize = 10.sp,
-                    color = accent.copy(alpha = 0.8f),
+                    color = MoaBlue.copy(alpha = 0.75f),
                     maxLines = 1,
                 )
             }
@@ -673,7 +999,7 @@ private fun HomeScheduleCard(
                 fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 13.sp,
-                color = accent,
+                color = MoaBlue,
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(

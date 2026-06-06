@@ -16,6 +16,8 @@ data class ScheduleDetailResponse(
     val status: String,
     val confirmedStart: String? = null,
     val confirmedEnd: String? = null,
+    val respondedCount: Int = 0,
+    val totalMembers: Int = 0,
 )
 
 data class TimeSlotDto(

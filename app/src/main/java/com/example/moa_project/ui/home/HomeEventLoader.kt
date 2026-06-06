@@ -7,7 +7,9 @@ import com.example.moa_project.network.ScheduleDetailResponse
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.OffsetDateTime
 import java.time.YearMonth
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
 
@@ -17,11 +19,15 @@ object HomeEventLoader {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return null
         return runCatching { LocalDateTime.parse(trimmed) }.getOrNull()
+            ?: runCatching { OffsetDateTime.parse(trimmed).toLocalDateTime() }.getOrNull()
+            ?: runCatching { ZonedDateTime.parse(trimmed).toLocalDateTime() }.getOrNull()
             ?: runCatching {
                 LocalDateTime.parse(trimmed, DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm"))
             }.getOrNull()
             ?: runCatching {
-                LocalDateTime.parse(trimmed.substringBefore('.').substringBefore('Z'))
+                LocalDateTime.parse(
+                    trimmed.substringBefore('.').substringBefore('Z').substringBefore('+'),
+                )
             }.getOrNull()
     }
 
