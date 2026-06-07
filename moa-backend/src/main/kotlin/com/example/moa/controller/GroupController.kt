@@ -78,6 +78,11 @@ class GroupController(
         return ResponseEntity.ok(groupService.getGroupMembers(userId, id))
     }
 
+    @GetMapping("/invite-preview")
+    fun getInvitePreview(@RequestParam code: String): ResponseEntity<Map<String, String>> {
+        return ResponseEntity.ok(groupService.getInvitePreview(code))
+    }
+
     @PostMapping("/join")
     fun joinGroup(
         @AuthenticationPrincipal userDetails: UserDetails,

@@ -69,6 +69,17 @@ class GroupService(
         }
     }
 
+    @Transactional(readOnly = true)
+    fun getInvitePreview(inviteCode: String): Map<String, String> {
+        val group = groupRepository.findByInviteCode(inviteCode.trim())
+            ?: throw IllegalArgumentException("유효하지 않은 초대코드입니다.")
+        val inviterName = group.createdBy?.nickname?.takeIf { it.isNotBlank() } ?: "친구"
+        return mapOf(
+            "inviterName" to inviterName,
+            "groupName" to group.name,
+        )
+    }
+
     @Transactional
     fun joinGroup(userId: Long, inviteCode: String): Map<String, Any> {
         val user = userRepository.findById(userId).orElseThrow { 

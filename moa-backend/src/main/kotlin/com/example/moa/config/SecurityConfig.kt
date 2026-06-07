@@ -27,7 +27,10 @@ class SecurityConfig(
         return WebSecurityCustomizer { web ->
             web.ignoring().requestMatchers(
                 "/guest.html",
+                "/join.html",
+                "/join",
                 "/kakao-guest-share.png",
+                "/join-mascot.png",
                 "/error",
                 "/favicon.ico"
             )
@@ -48,6 +51,11 @@ class SecurityConfig(
                         "/api/health",
                         "/error",
                         "/guest.html",
+                        "/join.html",
+                        "/join",
+                        "/kakao-guest-share.png",
+                "/join-mascot.png",
+                        "/api/groups/invite-preview",
                         "/api/guest-schedules/*",
                         "/api/guest-schedules/*/timeslots",
                         "/api/guest-schedules/*/analysis",

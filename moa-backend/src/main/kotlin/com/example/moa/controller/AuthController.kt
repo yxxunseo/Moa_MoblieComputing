@@ -47,6 +47,8 @@ data class UserResponse(
     val profileImageUrl: String?
 )
 
+data class AvailabilityResponse(val available: Boolean)
+
 fun User.toResponse() = UserResponse(id, loginId, email, nickname, provider, profileImageUrl)
 
 // ─── Controller ────────────────────────────────────────────
@@ -80,6 +82,25 @@ class AuthController(
         val refreshToken = jwtTokenProvider.generateRefreshToken(user.id)
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(AuthResponse(token = token, refreshToken = refreshToken, isNewUser = true, user = user.toResponse()))
+    }
+
+    // 아이디·이메일 중복 확인 (회원가입)
+    @GetMapping("/check-login-id")
+    fun checkLoginId(@RequestParam loginId: String): ResponseEntity<AvailabilityResponse> {
+        val trimmed = loginId.trim()
+        if (trimmed.isBlank()) {
+            return ResponseEntity.badRequest().body(AvailabilityResponse(available = false))
+        }
+        return ResponseEntity.ok(AvailabilityResponse(available = !userRepository.existsByLoginId(trimmed)))
+    }
+
+    @GetMapping("/check-email")
+    fun checkEmail(@RequestParam email: String): ResponseEntity<AvailabilityResponse> {
+        val trimmed = email.trim()
+        if (trimmed.isBlank()) {
+            return ResponseEntity.badRequest().body(AvailabilityResponse(available = false))
+        }
+        return ResponseEntity.ok(AvailabilityResponse(available = !userRepository.existsByEmail(trimmed)))
     }
 
     // 일반 로그인
