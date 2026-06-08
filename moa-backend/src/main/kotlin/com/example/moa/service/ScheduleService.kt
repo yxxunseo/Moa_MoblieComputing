@@ -84,7 +84,9 @@ class ScheduleService(
         if (!groupMemberRepository.existsByGroupAndUser(group, user)) {
             throw IllegalArgumentException("해당 그룹의 멤버가 아닙니다.")
         }
-        
+
+        require(!endDate.isBefore(startDate)) { "종료일은 시작일보다 빠를 수 없습니다." }
+
         val schedule = scheduleRepository.save(
             Schedule(
                 group = group,
@@ -114,8 +116,7 @@ class ScheduleService(
         val totalMembers = groupMemberRepository.countByGroup(group)
         
         return schedules.map { schedule ->
-            val respondedCount = timeSlotRepository.findAllBySchedule(schedule)
-                .map { it.user!!.id }.distinct().count().toLong()
+            val respondedCount = timeSlotRepository.countDistinctRespondedUsers(schedule)
             schedule.toResponse(respondedCount, totalMembers)
         }
     }
@@ -123,9 +124,9 @@ class ScheduleService(
     @Transactional(readOnly = true)
     fun getScheduleDetail(userId: Long, scheduleId: Long): ScheduleResponse {
         val schedule = scheduleRepository.findById(scheduleId).orElseThrow { IllegalArgumentException("일정을 찾을 수 없습니다.") }
-        val totalMembers = groupMemberRepository.countByGroup(schedule.group!!)
-        val respondedCount = timeSlotRepository.findAllBySchedule(schedule)
-            .map { it.user!!.id }.distinct().count().toLong()
+        val group = schedule.group ?: throw IllegalArgumentException("일정의 그룹 정보가 없습니다.")
+        val totalMembers = groupMemberRepository.countByGroup(group)
+        val respondedCount = timeSlotRepository.countDistinctRespondedUsers(schedule)
         return schedule.toResponse(respondedCount, totalMembers)
     }
 
@@ -134,29 +135,40 @@ class ScheduleService(
     fun addTimeSlots(userId: Long, scheduleId: Long, slots: List<TimeSlotDto>): Map<String, Any> {
         val user = userRepository.findById(userId).orElseThrow { IllegalArgumentException("사용자를 찾을 수 없습니다.") }
         val schedule = scheduleRepository.findById(scheduleId).orElseThrow { IllegalArgumentException("일정을 찾을 수 없습니다.") }
-        
-        // 기존에 입력한 시간이 있다면 초기화
-        timeSlotRepository.deleteAllByScheduleAndUser(schedule, user)
-        
+        val group = schedule.group ?: throw IllegalArgumentException("일정의 그룹 정보가 없습니다.")
+
+        // 그룹 멤버만 가능 시간을 입력할 수 있다 (기존엔 검증이 없어 외부인도 입력 가능했음)
+        if (!groupMemberRepository.existsByGroupAndUser(group, user)) {
+            throw IllegalArgumentException("해당 그룹의 멤버가 아닙니다.")
+        }
+
         val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm")
-        
-        slots.forEach { slot ->
+        val parsedSlots = slots.map { slot ->
+            val start = LocalDateTime.parse(slot.start, formatter)
+            val end = LocalDateTime.parse(slot.end, formatter)
+            require(end.isAfter(start)) { "종료 시간은 시작 시간보다 늦어야 합니다." }
+            start to end
+        }
+
+        // 기존에 입력한 시간이 있다면 초기화 (파싱/검증 통과 후 삭제하여 실패 시 데이터 보존)
+        timeSlotRepository.deleteAllByScheduleAndUser(schedule, user)
+
+        parsedSlots.forEach { (start, end) ->
             timeSlotRepository.save(
                 TimeSlot(
                     schedule = schedule,
                     user = user,
-                    slotStart = LocalDateTime.parse(slot.start, formatter),
-                    slotEnd = LocalDateTime.parse(slot.end, formatter)
+                    slotStart = start,
+                    slotEnd = end
                 )
             )
         }
-        
+
         // 상태 업데이트
         schedule.status = "ADJUSTING"
-        
-        val respondedCount = timeSlotRepository.findAllBySchedule(schedule)
-            .map { it.user!!.id }.distinct().count().toLong()
-        val totalMembers = groupMemberRepository.countByGroup(schedule.group!!)
+
+        val respondedCount = timeSlotRepository.countDistinctRespondedUsers(schedule)
+        val totalMembers = groupMemberRepository.countByGroup(group)
         
         return mapOf(
             "message" to "가능 시간이 등록되었습니다.",
@@ -230,24 +242,40 @@ class ScheduleService(
     @Transactional
     fun confirmSchedule(userId: Long, scheduleId: Long, start: String, end: String): Map<String, Any> {
         val schedule = scheduleRepository.findById(scheduleId).orElseThrow { IllegalArgumentException("일정을 찾을 수 없습니다.") }
-        
+        val group = schedule.group ?: throw IllegalArgumentException("일정의 그룹 정보가 없습니다.")
+        val user = userRepository.findById(userId).orElseThrow { IllegalArgumentException("사용자를 찾을 수 없습니다.") }
+
+        // 그룹 멤버만, 그리고 일정 생성자가 있다면 생성자만 확정할 수 있다 (기존엔 누구나 확정 가능했음)
+        if (!groupMemberRepository.existsByGroupAndUser(group, user)) {
+            throw IllegalArgumentException("해당 그룹의 멤버가 아닙니다.")
+        }
+        val creatorId = schedule.createdBy?.id
+        if (creatorId != null && creatorId != userId) {
+            throw IllegalArgumentException("일정 확정 권한이 없습니다. (일정 생성자만 확정할 수 있습니다)")
+        }
+
         val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm")
-        schedule.confirmedStart = LocalDateTime.parse(start, formatter)
-        schedule.confirmedEnd = LocalDateTime.parse(end, formatter)
+        val confirmedStart = LocalDateTime.parse(start, formatter)
+        val confirmedEnd = LocalDateTime.parse(end, formatter)
+        require(confirmedEnd.isAfter(confirmedStart)) { "종료 시간은 시작 시간보다 늦어야 합니다." }
+
+        schedule.confirmedStart = confirmedStart
+        schedule.confirmedEnd = confirmedEnd
         schedule.status = "CONFIRMED"
-        
+        scheduleRepository.save(schedule)
+
         // 그룹의 모든 멤버 캘린더에 일정 자동 추가
-        val groupMembers = groupMemberRepository.findAllByGroup(schedule.group!!)
+        val groupMembers = groupMemberRepository.findAllByGroup(group)
         groupMembers.forEach { member ->
             calendarEventRepository.save(
                 CalendarEvent(
                     user = member.user,
-                    group = schedule.group,
+                    group = group,
                     schedule = schedule,
                     title = schedule.title,
-                    eventStart = schedule.confirmedStart!!,
-                    eventEnd = schedule.confirmedEnd!!,
-                    color = schedule.group!!.color,
+                    eventStart = confirmedStart,
+                    eventEnd = confirmedEnd,
+                    color = group.color,
                     source = "GROUP"
                 )
             )

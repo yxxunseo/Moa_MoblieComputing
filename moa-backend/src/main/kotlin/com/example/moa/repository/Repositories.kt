@@ -42,6 +42,11 @@ interface TimeSlotRepository : JpaRepository<TimeSlot, Long> {
     fun findAllBySchedule(schedule: Schedule): List<TimeSlot>
     fun findAllByScheduleAndUser(schedule: Schedule, user: User): List<TimeSlot>
     fun deleteAllByScheduleAndUser(schedule: Schedule, user: User)
+    fun deleteAllBySchedule(schedule: Schedule)
+
+    /** 일정에 시간을 입력한 고유 사용자 수. 기존엔 전체 슬롯을 메모리에 로드해 distinct 했음. */
+    @Query("SELECT COUNT(DISTINCT t.user.id) FROM TimeSlot t WHERE t.schedule = :schedule")
+    fun countDistinctRespondedUsers(schedule: Schedule): Long
 }
 
 @Repository
@@ -77,6 +82,7 @@ interface GuestVisitorSessionRepository : JpaRepository<com.example.moa.entity.G
 interface ScheduleReactionRepository : JpaRepository<ScheduleReaction, Long> {
     fun findAllBySchedule(schedule: Schedule): List<ScheduleReaction>
     fun findByScheduleAndUser(schedule: Schedule, user: User): ScheduleReaction?
+    fun deleteAllBySchedule(schedule: Schedule)
 }
 
 @Repository
