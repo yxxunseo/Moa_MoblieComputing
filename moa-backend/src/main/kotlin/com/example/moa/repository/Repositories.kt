@@ -2,6 +2,7 @@ package com.example.moa.repository
 
 import com.example.moa.entity.*
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 import java.time.LocalDateTime
@@ -42,11 +43,15 @@ interface TimeSlotRepository : JpaRepository<TimeSlot, Long> {
     fun findAllBySchedule(schedule: Schedule): List<TimeSlot>
     fun findAllByScheduleAndUser(schedule: Schedule, user: User): List<TimeSlot>
     fun deleteAllByScheduleAndUser(schedule: Schedule, user: User)
-    fun deleteAllBySchedule(schedule: Schedule)
 
     /** 일정에 시간을 입력한 고유 사용자 수. 기존엔 전체 슬롯을 메모리에 로드해 distinct 했음. */
     @Query("SELECT COUNT(DISTINCT t.user.id) FROM TimeSlot t WHERE t.schedule = :schedule")
     fun countDistinctRespondedUsers(schedule: Schedule): Long
+
+    /** 그룹에 속한 모든 일정의 타임슬롯을 단일 DELETE로 제거 (그룹 삭제용) */
+    @Modifying
+    @Query("DELETE FROM TimeSlot t WHERE t.schedule.group = :group")
+    fun deleteAllByGroup(group: MeetingGroup)
 }
 
 @Repository
@@ -55,6 +60,11 @@ interface CalendarEventRepository : JpaRepository<CalendarEvent, Long> {
 
     @Query("SELECT e FROM CalendarEvent e WHERE e.user = :user AND YEAR(e.eventStart) = :year AND MONTH(e.eventStart) = :month")
     fun findAllByUserAndYearMonth(user: User, year: Int, month: Int): List<CalendarEvent>
+
+    /** 그룹에 연결된 캘린더 이벤트를 단일 DELETE로 제거 (그룹 삭제 시 FK 위반 방지) */
+    @Modifying
+    @Query("DELETE FROM CalendarEvent e WHERE e.group = :group")
+    fun deleteAllByGroup(group: MeetingGroup)
 }
 
 @Repository
@@ -82,7 +92,11 @@ interface GuestVisitorSessionRepository : JpaRepository<com.example.moa.entity.G
 interface ScheduleReactionRepository : JpaRepository<ScheduleReaction, Long> {
     fun findAllBySchedule(schedule: Schedule): List<ScheduleReaction>
     fun findByScheduleAndUser(schedule: Schedule, user: User): ScheduleReaction?
-    fun deleteAllBySchedule(schedule: Schedule)
+
+    /** 그룹에 속한 모든 일정의 반응을 단일 DELETE로 제거 (그룹 삭제용) */
+    @Modifying
+    @Query("DELETE FROM ScheduleReaction r WHERE r.schedule.group = :group")
+    fun deleteAllByGroup(group: MeetingGroup)
 }
 
 @Repository

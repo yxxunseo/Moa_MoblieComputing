@@ -5,6 +5,7 @@ import com.example.moa.controller.GroupResponse
 import com.example.moa.controller.GroupMemberResponse
 import com.example.moa.entity.GroupMember
 import com.example.moa.entity.MeetingGroup
+import com.example.moa.repository.CalendarEventRepository
 import com.example.moa.repository.GroupMemberRepository
 import com.example.moa.repository.GroupRepository
 import com.example.moa.repository.ScheduleRepository
@@ -22,6 +23,7 @@ class GroupService(
     private val scheduleRepository: ScheduleRepository,
     private val timeSlotRepository: TimeSlotRepository,
     private val scheduleReactionRepository: ScheduleReactionRepository,
+    private val calendarEventRepository: CalendarEventRepository,
     private val userRepository: UserRepository
 ) {
     @Transactional
@@ -194,15 +196,18 @@ class GroupService(
         }
     }
 
-    /** 그룹과 모든 연관 데이터(일정, 타임슬롯, 반응, 멤버)를 순서대로 삭제 */
+    /**
+     * 그룹과 모든 연관 데이터(캘린더 이벤트, 타임슬롯, 반응, 일정, 멤버)를 자식→부모 순서로 삭제.
+     * 기존엔 일정마다 findAll 후 deleteAll을 반복(N+1)했고, 일정을 참조하는 캘린더 이벤트를
+     * 지우지 않아 확정 일정이 있는 그룹은 FK 위반으로 삭제가 실패할 수 있었다.
+     * 이제 그룹 단위 단일 DELETE 쿼리들로 일정 수와 무관하게 일정한 쿼리 수로 삭제한다.
+     */
     @Transactional
     fun deleteGroupAndAllRelatedData(group: MeetingGroup) {
-        val schedules = scheduleRepository.findAllByGroup(group)
-        schedules.forEach { schedule ->
-            timeSlotRepository.deleteAll(timeSlotRepository.findAllBySchedule(schedule))
-            scheduleReactionRepository.deleteAll(scheduleReactionRepository.findAllBySchedule(schedule))
-        }
-        scheduleRepository.deleteAll(schedules)
+        calendarEventRepository.deleteAllByGroup(group)
+        timeSlotRepository.deleteAllByGroup(group)
+        scheduleReactionRepository.deleteAllByGroup(group)
+        scheduleRepository.deleteAllByGroup(group)
         groupMemberRepository.deleteAllByGroup(group)
         groupRepository.delete(group)
     }
