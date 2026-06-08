@@ -65,19 +65,21 @@ class UserViewModel : ViewModel() {
     fun uploadProfileImage(context: Context, uri: Uri, nickname: String, onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
             _uiState.value = UserState.Loading
+            // 갤러리 원본은 너무 커서 그대로 올리면 실패 → 리사이즈/압축 후 업로드
+            val tempFile = ImageCompressor.compressToTempFile(context, uri, "profile_")
             try {
-                // 갤러리 원본은 너무 커서 그대로 올리면 실패 → 리사이즈/압축 후 업로드
-                val tempFile = ImageCompressor.compressToTempFile(context, uri, "profile_")
                 val body = tempFile.asRequestBody("image/jpeg".toMediaTypeOrNull())
                 val part = MultipartBody.Part.createFormData("file", tempFile.name, body)
                 val response = RetrofitClient.instance.uploadProfileImage(part)
-                tempFile.delete()
                 TokenManager.saveUserInfo(response.id, response.nickname)
                 _uiState.value = UserState.Success(response)
                 onSuccess()
             } catch (e: Exception) {
                 MoaErrorLog.log("UserViewModel", "uploadProfileImage", e)
                 _uiState.value = UserState.Error(uploadErrorMessage(e))
+            } finally {
+                // 업로드 성공·실패와 무관하게 임시 파일 정리 (기존엔 실패 시 누수)
+                tempFile.delete()
             }
         }
     }
