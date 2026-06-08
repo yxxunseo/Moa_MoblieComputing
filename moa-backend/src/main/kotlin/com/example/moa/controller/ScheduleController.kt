@@ -1,6 +1,8 @@
 package com.example.moa.controller
 
 import com.example.moa.service.*
+import jakarta.validation.Valid
+import jakarta.validation.constraints.NotBlank
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -9,7 +11,7 @@ import org.springframework.web.bind.annotation.*
 import java.time.LocalDate
 
 data class CreateScheduleRequest(
-    val title: String,
+    @field:NotBlank(message = "일정 제목을 입력해주세요.") val title: String,
     val description: String? = null,
     val startDate: LocalDate,
     val endDate: LocalDate
@@ -20,11 +22,11 @@ data class AddTimeSlotsRequest(
 )
 
 data class ConfirmScheduleRequest(
-    val confirmedStart: String,
-    val confirmedEnd: String
+    @field:NotBlank val confirmedStart: String,
+    @field:NotBlank val confirmedEnd: String
 )
 
-data class UpsertReactionRequest(val emoji: String)
+data class UpsertReactionRequest(@field:NotBlank val emoji: String)
 
 @RestController
 @RequestMapping("/api")
@@ -37,7 +39,7 @@ class ScheduleController(
     fun createSchedule(
         @AuthenticationPrincipal userDetails: UserDetails,
         @PathVariable groupId: Long,
-        @RequestBody request: CreateScheduleRequest
+        @Valid @RequestBody request: CreateScheduleRequest
     ): ResponseEntity<ScheduleResponse> {
         val userId = userDetails.username.toLong()
         val schedule = scheduleService.createSchedule(
@@ -97,7 +99,7 @@ class ScheduleController(
     fun confirmSchedule(
         @AuthenticationPrincipal userDetails: UserDetails,
         @PathVariable id: Long,
-        @RequestBody request: ConfirmScheduleRequest
+        @Valid @RequestBody request: ConfirmScheduleRequest
     ): ResponseEntity<Map<String, Any>> {
         val userId = userDetails.username.toLong()
         return ResponseEntity.ok(scheduleService.confirmSchedule(
@@ -121,7 +123,7 @@ class ScheduleController(
     fun upsertReaction(
         @AuthenticationPrincipal userDetails: UserDetails,
         @PathVariable id: Long,
-        @RequestBody request: UpsertReactionRequest
+        @Valid @RequestBody request: UpsertReactionRequest
     ): ResponseEntity<ReactionDto> {
         val userId = userDetails.username.toLong()
         return ResponseEntity.ok(scheduleReactionService.upsertReaction(userId, id, request.emoji))

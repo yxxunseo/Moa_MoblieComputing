@@ -63,9 +63,13 @@ class AuthController(
     // 일반 회원가입
     @PostMapping("/signup")
     fun signup(@Valid @RequestBody request: SignupRequest): ResponseEntity<AuthResponse> {
-        if (userRepository.existsByLoginId(request.loginId) || userRepository.existsByEmail(request.email)) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(null)
+        // 기존엔 충돌 시 빈 null 바디(409)를 반환해 클라이언트가 원인을 알 수 없었음.
+        // IllegalStateException을 던지면 전역 핸들러가 409 + {"message": ...}로 변환한다.
+        if (userRepository.existsByLoginId(request.loginId)) {
+            throw IllegalStateException("이미 사용 중인 아이디입니다.")
+        }
+        if (userRepository.existsByEmail(request.email)) {
+            throw IllegalStateException("이미 가입된 이메일입니다.")
         }
 
         val user = userRepository.save(

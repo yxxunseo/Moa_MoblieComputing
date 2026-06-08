@@ -2,6 +2,8 @@ package com.example.moa.controller
 
 import com.example.moa.service.GroupImageStorageService
 import com.example.moa.service.GroupService
+import jakarta.validation.Valid
+import jakarta.validation.constraints.NotBlank
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
@@ -11,13 +13,13 @@ import org.springframework.web.bind.annotation.*
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder
 
 data class CreateGroupRequest(
-    val name: String,
+    @field:NotBlank(message = "모임 이름을 입력해주세요.") val name: String,
     val description: String? = null,
-    val color: String
+    @field:NotBlank(message = "모임 색상을 선택해주세요.") val color: String
 )
 
 data class JoinGroupRequest(
-    val inviteCode: String
+    @field:NotBlank(message = "초대코드를 입력해주세요.") val inviteCode: String
 )
 
 data class GroupMemberPreview(
@@ -53,10 +55,10 @@ class GroupController(
     @PostMapping
     fun createGroup(
         @AuthenticationPrincipal userDetails: UserDetails,
-        @RequestBody request: CreateGroupRequest
+        @Valid @RequestBody request: CreateGroupRequest
     ): ResponseEntity<GroupResponse> {
         val userId = userDetails.username.toLong()
-        val group = groupService.createGroup(userId, request.name, request.description, request.color)
+        val group = groupService.createGroup(userId, request.name.trim(), request.description, request.color)
         return ResponseEntity.status(HttpStatus.CREATED).body(group)
     }
 
@@ -86,10 +88,10 @@ class GroupController(
     @PostMapping("/join")
     fun joinGroup(
         @AuthenticationPrincipal userDetails: UserDetails,
-        @RequestBody request: JoinGroupRequest
+        @Valid @RequestBody request: JoinGroupRequest
     ): ResponseEntity<Map<String, Any>> {
         val userId = userDetails.username.toLong()
-        return ResponseEntity.ok(groupService.joinGroup(userId, request.inviteCode))
+        return ResponseEntity.ok(groupService.joinGroup(userId, request.inviteCode.trim()))
     }
 
     @PostMapping("/{id}/cover-image", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
