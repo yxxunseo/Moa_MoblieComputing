@@ -53,6 +53,10 @@ interface TimeSlotRepository : JpaRepository<TimeSlot, Long> {
     @Query("SELECT COUNT(DISTINCT t.user.id) FROM TimeSlot t WHERE t.schedule = :schedule")
     fun countDistinctRespondedUsers(schedule: Schedule): Long
 
+    /** 여러 일정의 응답자 수를 한 번에 조회 (목록 조회 시 일정마다 쿼리하던 N+1 제거). [scheduleId, count] 행 반환. */
+    @Query("SELECT t.schedule.id, COUNT(DISTINCT t.user.id) FROM TimeSlot t WHERE t.schedule IN :schedules GROUP BY t.schedule.id")
+    fun countDistinctRespondedUsersGrouped(schedules: List<Schedule>): List<Array<Any>>
+
     /** 그룹에 속한 모든 일정의 타임슬롯을 단일 DELETE로 제거 (그룹 삭제용) */
     @Modifying
     @Query("DELETE FROM TimeSlot t WHERE t.schedule.group = :group")

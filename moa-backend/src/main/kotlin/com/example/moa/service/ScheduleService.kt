@@ -114,9 +114,14 @@ class ScheduleService(
         
         val schedules = scheduleRepository.findAllByGroup(group)
         val totalMembers = groupMemberRepository.countByGroup(group)
-        
+        if (schedules.isEmpty()) return emptyList()
+
+        // 일정마다 COUNT 쿼리(N+1) 대신 단일 GROUP BY 쿼리로 응답자 수를 한 번에 조회
+        val respondedCountById = timeSlotRepository.countDistinctRespondedUsersGrouped(schedules)
+            .associate { (it[0] as Long) to (it[1] as Long) }
+
         return schedules.map { schedule ->
-            val respondedCount = timeSlotRepository.countDistinctRespondedUsers(schedule)
+            val respondedCount = respondedCountById[schedule.id] ?: 0L
             schedule.toResponse(respondedCount, totalMembers)
         }
     }
