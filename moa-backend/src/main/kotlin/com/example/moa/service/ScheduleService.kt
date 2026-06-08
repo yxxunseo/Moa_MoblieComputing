@@ -181,9 +181,10 @@ class ScheduleService(
     @Transactional(readOnly = true)
     fun analyzeSchedule(userId: Long, scheduleId: Long): ScheduleAnalysisResponse {
         val schedule = scheduleRepository.findById(scheduleId).orElseThrow { IllegalArgumentException("일정을 찾을 수 없습니다.") }
-        val totalMembers = groupMemberRepository.countByGroup(schedule.group!!)
-        val allSlots = timeSlotRepository.findAllBySchedule(schedule)
-        
+        val group = schedule.group ?: throw IllegalArgumentException("일정의 그룹 정보가 없습니다.")
+        val totalMembers = groupMemberRepository.countByGroup(group)
+        val allSlots = timeSlotRepository.findAllByScheduleWithUser(schedule)
+
         val heatmap = mutableMapOf<String, MutableMap<String, Int>>()
         val heatmapMembers = mutableMapOf<String, MutableMap<String, MutableList<String>>>()
         val userAvailability = mutableMapOf<LocalDateTime, MutableList<String>>()

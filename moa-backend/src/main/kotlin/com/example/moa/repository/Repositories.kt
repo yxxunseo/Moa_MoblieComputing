@@ -41,6 +41,11 @@ interface ScheduleRepository : JpaRepository<Schedule, Long> {
 @Repository
 interface TimeSlotRepository : JpaRepository<TimeSlot, Long> {
     fun findAllBySchedule(schedule: Schedule): List<TimeSlot>
+
+    /** user를 JOIN FETCH로 함께 로드 — 슬롯마다 user 지연 로딩이 발생하던 N+1 제거 */
+    @Query("SELECT t FROM TimeSlot t JOIN FETCH t.user WHERE t.schedule = :schedule")
+    fun findAllByScheduleWithUser(schedule: Schedule): List<TimeSlot>
+
     fun findAllByScheduleAndUser(schedule: Schedule, user: User): List<TimeSlot>
     fun deleteAllByScheduleAndUser(schedule: Schedule, user: User)
 
