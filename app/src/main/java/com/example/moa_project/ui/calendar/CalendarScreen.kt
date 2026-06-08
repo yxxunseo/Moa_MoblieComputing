@@ -75,6 +75,7 @@ import com.kizitonwose.calendar.compose.rememberCalendarState
 import com.kizitonwose.calendar.core.CalendarDay
 import com.kizitonwose.calendar.core.DayPosition
 import com.kizitonwose.calendar.core.daysOfWeek
+import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import android.content.Context
 import java.time.DayOfWeek
@@ -229,12 +230,14 @@ fun CalendarScreen(
                             title = editTitle,
                             start = startStr,
                             end = endStr,
-                            color = "#2179FE"
-                        ) {
-                            val monthStr = visibleYearMonth.format(DateTimeFormatter.ofPattern("yyyy-MM"))
-                            viewModel.fetchMonthlyEvents(monthStr, includeGoogleEvents = includeGoogle)
-                            editingEvent = null
-                        }
+                            color = "#2179FE",
+                            onComplete = {
+                                val monthStr = visibleYearMonth.format(DateTimeFormatter.ofPattern("yyyy-MM"))
+                                viewModel.fetchMonthlyEvents(monthStr, includeGoogleEvents = includeGoogle)
+                                editingEvent = null
+                            },
+                            onError = { msg -> Toast.makeText(context, msg, Toast.LENGTH_SHORT).show() },
+                        )
                     }) { MoaDialogButtonText("저장") }
                 },
                 dismissButton = {
@@ -259,13 +262,15 @@ fun CalendarScreen(
                     title = event.title,
                     start = startStr,
                     end = endStr,
-                    color = "#007AFF"
-                ) {
-                    val monthStr = visibleYearMonth.format(DateTimeFormatter.ofPattern("yyyy-MM"))
-                    viewModel.fetchMonthlyEvents(monthStr, includeGoogleEvents = includeGoogle)
-                    showAddDialog = false
-                    viewMode = CalendarViewMode.Day
-                }
+                    color = "#007AFF",
+                    onComplete = {
+                        val monthStr = visibleYearMonth.format(DateTimeFormatter.ofPattern("yyyy-MM"))
+                        viewModel.fetchMonthlyEvents(monthStr, includeGoogleEvents = includeGoogle)
+                        showAddDialog = false
+                        viewMode = CalendarViewMode.Day
+                    },
+                    onError = { msg -> Toast.makeText(context, msg, Toast.LENGTH_SHORT).show() },
+                )
             },
         )
     }
@@ -322,10 +327,14 @@ fun CalendarScreen(
                     },
                     onDeleteEvent = { event ->
                         event.id?.let { id ->
-                            viewModel.deleteEvent(id) {
-                                val monthStr = visibleYearMonth.format(DateTimeFormatter.ofPattern("yyyy-MM"))
-                                viewModel.fetchMonthlyEvents(monthStr, includeGoogleEvents = includeGoogle)
-                            }
+                            viewModel.deleteEvent(
+                                eventId = id,
+                                onComplete = {
+                                    val monthStr = visibleYearMonth.format(DateTimeFormatter.ofPattern("yyyy-MM"))
+                                    viewModel.fetchMonthlyEvents(monthStr, includeGoogleEvents = includeGoogle)
+                                },
+                                onError = { msg -> Toast.makeText(context, msg, Toast.LENGTH_SHORT).show() },
+                            )
                         }
                     },
                     onEditEvent = { event ->

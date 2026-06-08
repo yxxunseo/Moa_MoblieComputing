@@ -45,29 +45,46 @@ class CalendarViewModel : ViewModel() {
         }
     }
 
-    fun addEvent(title: String, start: String, end: String, color: String, onComplete: () -> Unit) {
+    fun addEvent(
+        title: String,
+        start: String,
+        end: String,
+        color: String,
+        onComplete: () -> Unit,
+        onError: (String) -> Unit = {},
+    ) {
         viewModelScope.launch {
             try {
                 RetrofitClient.instance.addManualEvent(AddEventRequest(title, start, end, color))
                 onComplete()
             } catch (e: Exception) {
                 MoaErrorLog.log("CalendarViewModel", "addEvent", e)
+                onError(MoaErrorLog.userMessage(e, "일정을 추가하지 못했습니다."))
             }
         }
     }
 
-    fun deleteEvent(eventId: Long, onComplete: () -> Unit) {
+    fun deleteEvent(eventId: Long, onComplete: () -> Unit, onError: (String) -> Unit = {}) {
         viewModelScope.launch {
             try {
                 RetrofitClient.instance.deleteEvent(eventId)
                 onComplete()
             } catch (e: Exception) {
                 MoaErrorLog.log("CalendarViewModel", "deleteEvent", e, mapOf("eventId" to eventId.toString()))
+                onError(MoaErrorLog.userMessage(e, "일정을 삭제하지 못했습니다."))
             }
         }
     }
 
-    fun updateEvent(eventId: Long, title: String, start: String, end: String, color: String, onComplete: () -> Unit) {
+    fun updateEvent(
+        eventId: Long,
+        title: String,
+        start: String,
+        end: String,
+        color: String,
+        onComplete: () -> Unit,
+        onError: (String) -> Unit = {},
+    ) {
         viewModelScope.launch {
             try {
                 RetrofitClient.instance.updateEvent(
@@ -77,6 +94,7 @@ class CalendarViewModel : ViewModel() {
                 onComplete()
             } catch (e: Exception) {
                 MoaErrorLog.log("CalendarViewModel", "updateEvent", e, mapOf("eventId" to eventId.toString()))
+                onError(MoaErrorLog.userMessage(e, "일정을 수정하지 못했습니다."))
             }
         }
     }
