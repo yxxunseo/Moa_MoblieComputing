@@ -190,58 +190,17 @@ class ScheduleService(
         val totalMembers = groupMemberRepository.countByGroup(group)
         val allSlots = timeSlotRepository.findAllByScheduleWithUser(schedule)
 
-        val heatmap = mutableMapOf<String, MutableMap<String, Int>>()
-        val heatmapMembers = mutableMapOf<String, MutableMap<String, MutableList<String>>>()
-        val userAvailability = mutableMapOf<LocalDateTime, MutableList<String>>()
-        
-        // 1시간 단위로 나누어 가능한 인원수 카운트
-        allSlots.forEach { slot ->
-            val nickname = slot.user!!.nickname
-            var current = slot.slotStart
-            while (current.isBefore(slot.slotEnd)) {
-                val dateStr = current.toLocalDate().toString()
-                val timeStr = String.format("%02d:00", current.hour)
-                
-                heatmap.putIfAbsent(dateStr, mutableMapOf())
-                heatmap[dateStr]!![timeStr] = heatmap[dateStr]!!.getOrDefault(timeStr, 0) + 1
+        val result = ScheduleHeatmapBuilder.build(
+            allSlots.map { ScheduleHeatmapBuilder.Availability(it.user!!.nickname, it.slotStart, it.slotEnd) }
+        )
 
-                heatmapMembers.putIfAbsent(dateStr, mutableMapOf())
-                heatmapMembers[dateStr]!!.putIfAbsent(timeStr, mutableListOf())
-                if (!heatmapMembers[dateStr]!![timeStr]!!.contains(nickname)) {
-                    heatmapMembers[dateStr]!![timeStr]!!.add(nickname)
-                }
-                
-                userAvailability.putIfAbsent(current, mutableListOf())
-                userAvailability[current]!!.add(nickname)
-                
-                current = current.plusHours(1)
-            }
-        }
-        
-        // 가장 많이 겹치는 시간대 상위 3개 추천
-        val recommendations = userAvailability.entries
-            .sortedWith(
-                compareByDescending<Map.Entry<LocalDateTime, MutableList<String>>> { it.value.size }
-                    .thenBy { it.key }
-            )
-            .take(3)
-            .mapIndexed { index, entry ->
-                RecommendationDto(
-                    rank = index + 1,
-                    start = entry.key.toString(),
-                    end = entry.key.plusHours(1).toString(), // 1시간 단위
-                    availableCount = entry.value.size,
-                    availableMembers = entry.value.distinct()
-                )
-            }
-            
         return ScheduleAnalysisResponse(
             scheduleId = schedule.id,
             title = schedule.title,
             totalMembers = totalMembers,
-            recommendations = recommendations,
-            heatmap = heatmap,
-            heatmapMembers = heatmapMembers,
+            recommendations = result.recommendations,
+            heatmap = result.heatmap,
+            heatmapMembers = result.heatmapMembers,
         )
     }
     

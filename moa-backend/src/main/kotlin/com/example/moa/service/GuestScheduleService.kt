@@ -193,38 +193,22 @@ class GuestScheduleService(
             ?: throw IllegalArgumentException("유효하지 않은 링크입니다.")
             
         val allSlots = guestTimeSlotRepository.findAllByGuestSchedule(schedule)
-        
-        val heatmap = mutableMapOf<String, MutableMap<String, Int>>()
-        val heatmapMembers = mutableMapOf<String, MutableMap<String, MutableList<String>>>()
-        val userAvailability = mutableMapOf<LocalDateTime, MutableList<String>>()
-        val participantSlots = mutableMapOf<String, MutableList<Map<String, String>>>()
-        
-        allSlots.forEach { slot ->
-            participantSlots.putIfAbsent(slot.guestName, mutableListOf())
-            participantSlots[slot.guestName]!!.add(
-                mapOf("start" to slot.slotStart.toString(), "end" to slot.slotEnd.toString())
-            )
-            var current = slot.slotStart
-            while (current.isBefore(slot.slotEnd)) {
-                val dateStr = current.toLocalDate().toString()
-                val timeStr = String.format("%02d:00", current.hour)
-                
-                heatmap.putIfAbsent(dateStr, mutableMapOf())
-                heatmap[dateStr]!![timeStr] = heatmap[dateStr]!!.getOrDefault(timeStr, 0) + 1
 
-                heatmapMembers.putIfAbsent(dateStr, mutableMapOf())
-                heatmapMembers[dateStr]!!.putIfAbsent(timeStr, mutableListOf())
-                if (!heatmapMembers[dateStr]!![timeStr]!!.contains(slot.guestName)) {
-                    heatmapMembers[dateStr]!![timeStr]!!.add(slot.guestName)
-                }
-                
-                userAvailability.putIfAbsent(current, mutableListOf())
-                userAvailability[current]!!.add(slot.guestName)
-                
-                current = current.plusHours(1)
-            }
+        // 참여자별 슬롯 목록 (히트맵과 별개로 응답에 포함)
+        val participantSlots = mutableMapOf<String, MutableList<Map<String, String>>>()
+        allSlots.forEach { slot ->
+            participantSlots.getOrPut(slot.guestName) { mutableListOf() }
+                .add(mapOf("start" to slot.slotStart.toString(), "end" to slot.slotEnd.toString()))
         }
-        
+
+        // 히트맵·추천은 그룹 일정과 동일한 공통 빌더 사용
+        val heatmapResult = ScheduleHeatmapBuilder.build(
+            allSlots.map { ScheduleHeatmapBuilder.Availability(it.guestName, it.slotStart, it.slotEnd) }
+        )
+        val heatmap = heatmapResult.heatmap
+        val heatmapMembers = heatmapResult.heatmapMembers
+        val recommendations = heatmapResult.recommendations
+
         val totalParticipants = allSlots.map { it.guestName }.distinct().size
 
         val participants = participantSlots.entries.map { (name, slots) ->
@@ -234,22 +218,6 @@ class GuestScheduleService(
                 "slots" to slots
             )
         }.sortedByDescending { (it["slotCount"] as Int) }
-        
-        val recommendations = userAvailability.entries
-            .sortedWith(
-                compareByDescending<Map.Entry<LocalDateTime, MutableList<String>>> { it.value.size }
-                    .thenBy { it.key }
-            )
-            .take(3)
-            .mapIndexed { index, entry ->
-                RecommendationDto(
-                    rank = index + 1,
-                    start = entry.key.toString(),
-                    end = entry.key.plusHours(1).toString(),
-                    availableCount = entry.value.size,
-                    availableMembers = entry.value.distinct()
-                )
-            }
 
         val participantNames = participants.mapNotNull { it["name"] as? String }.toSet()
         val (viewerName, hasSubmitted) = resolveViewerGuestName(
