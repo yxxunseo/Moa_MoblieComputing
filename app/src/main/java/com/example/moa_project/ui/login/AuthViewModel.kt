@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.moa_project.network.RetrofitClient
 import com.example.moa_project.network.GoogleLoginRequest
 import com.example.moa_project.network.KakaoLoginRequest
+import com.example.moa_project.BuildConfig
 import com.example.moa_project.network.TokenManager
 import com.example.moa_project.util.MoaErrorLog
 import com.kakao.sdk.auth.model.OAuthToken
@@ -28,14 +29,28 @@ class AuthViewModel : ViewModel() {
         val callback: (OAuthToken?, Throwable?) -> Unit = { token, error ->
             if (error != null) {
                 MoaErrorLog.log("AuthViewModel", "loginWithKakaoAccount", error)
-                _loginState.value = LoginState.Error("카카오 로그인 실패: ${error.message}")
+                if (error is ClientError && error.reason == ClientErrorCause.Cancelled) {
+                    _loginState.value = LoginState.Error(
+                        "카카오 로그인 창이 닫혔어요. 에뮬레이터면 Chrome·인터넷을 확인하거나 실기기(카카오톡)로 시도해 주세요.",
+                    )
+                } else {
+                    _loginState.value = LoginState.Error("카카오 로그인 실패: ${error.message}")
+                }
             } else if (token != null) {
                 Log.i("AuthViewModel", "카카오계정 로그인 SDK 성공")
                 sendKakaoTokenToServer(token.accessToken, onSuccess)
             }
         }
 
-        if (UserApiClient.instance.isKakaoTalkLoginAvailable(context)) {
+        val kakaoTalkAvailable = UserApiClient.instance.isKakaoTalkLoginAvailable(context)
+        if (BuildConfig.DEBUG) {
+            Log.i(
+                "AuthViewModel",
+                "loginWithKakao | kakaoTalk=$kakaoTalkAvailable | redirect=kakao${BuildConfig.KAKAO_APP_KEY}://oauth",
+            )
+        }
+
+        if (kakaoTalkAvailable) {
             UserApiClient.instance.loginWithKakaoTalk(context) { token, error ->
                 if (error != null) {
                     MoaErrorLog.log("AuthViewModel", "loginWithKakaoTalk", error)
@@ -59,7 +74,7 @@ class AuthViewModel : ViewModel() {
             try {
                 val response = RetrofitClient.instance.loginWithKakao(KakaoLoginRequest(accessToken))
                 TokenManager.saveTokens(response.token, response.refreshToken)
-                TokenManager.saveUserInfo(response.user.id, response.user.nickname)
+                TokenManager.saveUserInfo(response.user.id, response.user.nickname, response.user.profileImageUrl)
                 _loginState.value = LoginState.Success("kakao", response.token)
                 onSuccess()
             } catch (e: Exception) {
@@ -81,7 +96,7 @@ class AuthViewModel : ViewModel() {
                     try {
                         val response = RetrofitClient.instance.loginWithGoogle(GoogleLoginRequest(idToken))
                         TokenManager.saveTokens(response.token, response.refreshToken)
-                        TokenManager.saveUserInfo(response.user.id, response.user.nickname)
+                        TokenManager.saveUserInfo(response.user.id, response.user.nickname, response.user.profileImageUrl)
                         _loginState.value = LoginState.Success("google", response.token)
                         onSuccess()
                     } catch (e: Exception) {
@@ -110,7 +125,7 @@ class AuthViewModel : ViewModel() {
                     com.example.moa_project.network.EmailLoginRequest(loginId, password)
                 )
                 TokenManager.saveTokens(response.token, response.refreshToken)
-                TokenManager.saveUserInfo(response.user.id, response.user.nickname)
+                TokenManager.saveUserInfo(response.user.id, response.user.nickname, response.user.profileImageUrl)
                 _loginState.value = LoginState.Success("email", response.token)
                 onSuccess()
             } catch (e: retrofit2.HttpException) {
@@ -132,7 +147,7 @@ class AuthViewModel : ViewModel() {
                     com.example.moa_project.network.SignupRequest(loginId, email, password, nickname)
                 )
                 TokenManager.saveTokens(response.token, response.refreshToken)
-                TokenManager.saveUserInfo(response.user.id, response.user.nickname)
+                TokenManager.saveUserInfo(response.user.id, response.user.nickname, response.user.profileImageUrl)
                 _loginState.value = LoginState.Success("email", response.token)
                 onSuccess()
             } catch (e: retrofit2.HttpException) {

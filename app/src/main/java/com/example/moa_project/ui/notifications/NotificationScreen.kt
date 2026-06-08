@@ -50,14 +50,14 @@ import java.time.LocalDateTime
 @Composable
 fun NotificationScreen(
     onBackClick: () -> Unit = {},
+    onNavigate: (String) -> Unit = {},
     viewModel: NotificationsViewModel = viewModel(),
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
 
-    LaunchedEffect(Unit) {
-        viewModel.attachContext(context)
-        viewModel.refresh(markReadAfterLoad = true)
+    LaunchedEffect(context) {
+        viewModel.refresh(context, markReadAfterLoad = true)
     }
 
     Scaffold(
@@ -118,7 +118,14 @@ fun NotificationScreen(
                                     )
                                 }
                                 items(section.items, key = { it.id }) { item ->
-                                    NotificationCard(item)
+                                    NotificationCard(
+                                        item = item,
+                                        onClick = {
+                                            if (item.isNavigable()) {
+                                                viewModel.onNotificationClicked(item, onNavigate)
+                                            }
+                                        },
+                                    )
                                 }
                             }
                             item { Spacer(modifier = Modifier.height(16.dp)) }
@@ -164,11 +171,15 @@ private fun NotificationTopBar(onBackClick: () -> Unit) {
 }
 
 @Composable
-private fun NotificationCard(item: MoaNotification) {
+private fun NotificationCard(
+    item: MoaNotification,
+    onClick: () -> Unit = {},
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .moaCardSurface(cornerRadius = 18.dp)
+            .clickable(enabled = item.isNavigable(), onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
         Row(
@@ -177,11 +188,11 @@ private fun NotificationCard(item: MoaNotification) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "확정",
+                text = notificationTypeLabel(item.type),
                 fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 11.sp,
-                color = MoaTextSecondary,
+                color = notificationTypeColor(item.type),
             )
             Text(
                 text = formatTime(item.timestamp),
@@ -284,6 +295,21 @@ private fun formatTime(timestamp: LocalDateTime): String {
         date.isEqual(today.minusDays(1)) -> "어제 $time"
         else -> "${date.monthValue}.${date.dayOfMonth} $time"
     }
+}
+
+private fun notificationTypeLabel(type: MoaNotificationType): String = when (type) {
+    MoaNotificationType.CONFIRMED -> "확정"
+    MoaNotificationType.WEEKLY_REMINDER -> "일정 등록"
+    MoaNotificationType.UPCOMING -> "예정"
+    MoaNotificationType.WAITING -> "대기"
+    MoaNotificationType.ADJUSTING -> "조율 중"
+    MoaNotificationType.INFO -> "안내"
+}
+
+private fun notificationTypeColor(type: MoaNotificationType): Color = when (type) {
+    MoaNotificationType.CONFIRMED -> MoaBlue
+    MoaNotificationType.WEEKLY_REMINDER -> Color(0xFFF2994A)
+    else -> MoaTextSecondary
 }
 
 private fun formatKoreanTime(hour: Int, minute: Int): String {

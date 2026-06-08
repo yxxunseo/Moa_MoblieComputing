@@ -90,7 +90,7 @@ fun InitialHomeScreen(
     currentRoute: String = "home",
     onNavigate: (String) -> Unit = {},
     onNotificationsClick: () -> Unit = {},
-    onCoordinationScheduleClick: (Long) -> Unit = {},
+    onCoordinationScheduleClick: (scheduleId: Long, openResult: Boolean) -> Unit = { _, _ -> },
     userViewModel: UserViewModel = viewModel(),
     dashboardViewModel: HomeDashboardViewModel = viewModel(),
     meetingsViewModel: MeetingsViewModel = viewModel(),
@@ -107,7 +107,7 @@ fun InitialHomeScreen(
         if (currentRoute == "home") {
             userViewModel.fetchMyProfile()
             dashboardViewModel.refresh()
-            unreadCount = MoaInAppNotificationStore.unreadCount(context)
+            unreadCount = runCatching { MoaInAppNotificationStore.unreadCount(context) }.getOrDefault(0)
         }
     }
 
@@ -170,10 +170,10 @@ fun InitialHomeScreen(
                         showCoordinationSheet = false
                     }
                 },
-                onItemClick = { scheduleId ->
+                onItemClick = { item ->
                     scope.launch { coordinationSheetState.hide() }.invokeOnCompletion {
                         showCoordinationSheet = false
-                        onCoordinationScheduleClick(scheduleId)
+                        onCoordinationScheduleClick(item.scheduleId, item.respondedCount > 0)
                     }
                 },
             )
@@ -600,7 +600,7 @@ private fun HomeQuickAccessCard(
 private fun HomeTaskSection(
     state: HomeDashboardState,
     onCoordinationListClick: () -> Unit,
-    onCoordinationScheduleClick: (Long) -> Unit,
+    onCoordinationScheduleClick: (scheduleId: Long, openResult: Boolean) -> Unit,
     onCalendarClick: () -> Unit,
     onCreateClick: () -> Unit,
 ) {
@@ -654,7 +654,7 @@ private fun HomeTaskSection(
                         progress = item.progress,
                         progressLabel = item.progressLabel,
                         dueLabel = item.dueLabel,
-                        onClick = { onCoordinationScheduleClick(item.scheduleId) },
+                        onClick = { onCoordinationScheduleClick(item.scheduleId, item.respondedCount > 0) },
                     )
                     if (index < activities.take(2).lastIndex) {
                         Spacer(modifier = Modifier.height(10.dp))
@@ -742,6 +742,7 @@ private data class HomeProgressItem(
     val progress: Float,
     val progressLabel: String,
     val dueLabel: String,
+    val respondedCount: Int,
 )
 
 private fun buildCoordinationItems(state: HomeDashboardState.Success): List<HomeProgressItem> {
@@ -754,6 +755,7 @@ private fun buildCoordinationItems(state: HomeDashboardState.Success): List<Home
             progress = progress,
             progressLabel = label,
             dueLabel = activity.statusLabel,
+            respondedCount = activity.respondedCount,
         )
     }
 }
@@ -864,7 +866,7 @@ private fun HomeProgressCard(
 private fun CoordinationListSheet(
     items: List<HomeActivityItem>,
     onDismiss: () -> Unit,
-    onItemClick: (Long) -> Unit,
+    onItemClick: (HomeActivityItem) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -926,7 +928,7 @@ private fun CoordinationListSheet(
                 items(items, key = { it.scheduleId }) { item ->
                     CoordinationListItem(
                         item = item,
-                        onClick = { onItemClick(item.scheduleId) },
+                        onClick = { onItemClick(item) },
                     )
                 }
             }

@@ -4,6 +4,7 @@ import android.util.Log
 import com.example.moa_project.network.RetrofitClient
 import com.google.gson.JsonParseException
 import com.google.gson.JsonSyntaxException
+import org.json.JSONException
 import retrofit2.HttpException
 import java.io.IOException
 import java.net.ConnectException
@@ -73,6 +74,8 @@ object MoaErrorLog {
             }
             is JsonSyntaxException, is JsonParseException ->
                 "서버 응답 형식 오류. SERVER_URL($url) 확인"
+            is JSONException ->
+                "저장된 알림 데이터를 읽지 못했습니다. 다시 시도해주세요."
             else -> root.message?.takeIf { it.isNotBlank() } ?: fallback
         }
     }

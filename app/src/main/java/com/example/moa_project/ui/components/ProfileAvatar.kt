@@ -1,5 +1,6 @@
 package com.example.moa_project.ui.components
 
+import android.net.Uri
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -9,16 +10,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import coil.compose.SubcomposeAsyncImage
-import com.example.moa_project.util.ImageUrlHelper
+import coil.request.ImageRequest
 import com.example.moa_project.R
 import com.example.moa_project.ui.theme.MoaBlueSoft
+import com.example.moa_project.util.ImageUrlHelper
+import com.example.moa_project.util.ProfileImageCache
 
 @Composable
 fun ProfileAvatar(
@@ -26,9 +31,27 @@ fun ProfileAvatar(
     nickname: String? = null,
     modifier: Modifier = Modifier,
     size: Dp,
+    previewUri: Uri? = null,
+    useLocalCache: Boolean = true,
     @DrawableRes defaultImageResId: Int = R.drawable.ic_character,
 ) {
+    val context = LocalContext.current
     val fallbackResId = if (defaultImageResId != 0) defaultImageResId else R.drawable.ic_character
+    val model: Any? = if (useLocalCache) {
+        ProfileImageCache.resolveModel(context, imageUrl, previewUri)
+    } else {
+        previewUri ?: ImageUrlHelper.resolve(imageUrl)
+    }
+    val imageRequest = remember(model) {
+        model?.let {
+            ImageRequest.Builder(context)
+                .data(it)
+                .crossfade(true)
+                .memoryCacheKey(it.toString())
+                .diskCacheKey(it.toString())
+                .build()
+        }
+    }
 
     Box(
         modifier = modifier
@@ -37,9 +60,9 @@ fun ProfileAvatar(
             .background(MoaBlueSoft),
         contentAlignment = Alignment.Center,
     ) {
-        if (!imageUrl.isNullOrBlank()) {
+        if (imageRequest != null) {
             SubcomposeAsyncImage(
-                model = ImageUrlHelper.resolve(imageUrl),
+                model = imageRequest,
                 contentDescription = "프로필",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,

@@ -4,7 +4,8 @@ data class CreateScheduleRequest(
     val title: String,
     val description: String?,
     val startDate: String,
-    val endDate: String
+    val endDate: String,
+    val isWeeklyRecurring: Boolean = false,
 )
 
 data class ScheduleDetailResponse(
@@ -18,6 +19,7 @@ data class ScheduleDetailResponse(
     val confirmedEnd: String? = null,
     val respondedCount: Int = 0,
     val totalMembers: Int = 0,
+    val isWeeklyRecurring: Boolean = false,
 )
 
 data class TimeSlotDto(
@@ -46,10 +48,22 @@ data class RecommendationDto(
 data class ScheduleAnalysisResponse(
     val scheduleId: Long,
     val title: String,
+    val startDate: String? = null,
+    val endDate: String? = null,
     val totalMembers: Int,
     val recommendations: List<RecommendationDto>,
     val heatmap: Map<String, Map<String, Int>>,
     val heatmapMembers: Map<String, Map<String, List<String>>>? = null,
+    val allMembers: List<String>? = null,
+)
+
+data class WeeklyReminderDto(
+    val scheduleId: Long,
+    val groupName: String,
+    val title: String,
+    val daysUntilDeadline: Int,
+    val hasSubmitted: Boolean,
+    val deadlineLabel: String = "일요일",
 )
 
 data class ConfirmScheduleRequest(

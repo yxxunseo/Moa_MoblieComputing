@@ -14,7 +14,8 @@ data class CreateScheduleRequest(
     @field:NotBlank(message = "일정 제목을 입력해주세요.") val title: String,
     val description: String? = null,
     val startDate: LocalDate,
-    val endDate: LocalDate
+    val endDate: LocalDate,
+    val isWeeklyRecurring: Boolean = false,
 )
 
 data class AddTimeSlotsRequest(
@@ -48,9 +49,18 @@ class ScheduleController(
             title = request.title,
             description = request.description,
             startDate = request.startDate,
-            endDate = request.endDate
+            endDate = request.endDate,
+            isWeeklyRecurring = request.isWeeklyRecurring,
         )
         return ResponseEntity.status(HttpStatus.CREATED).body(schedule)
+    }
+
+    @GetMapping("/schedules/reminders/weekly")
+    fun getWeeklyReminders(
+        @AuthenticationPrincipal userDetails: UserDetails,
+    ): ResponseEntity<List<WeeklyReminderResponse>> {
+        val userId = userDetails.username.toLong()
+        return ResponseEntity.ok(scheduleService.getWeeklyReminders(userId))
     }
 
     // 2. 그룹 내 일정 목록
@@ -73,7 +83,17 @@ class ScheduleController(
         return ResponseEntity.ok(scheduleService.getScheduleDetail(userId, id))
     }
 
-    // 3. 내 가능 시간 입력
+    // 3. 내가 등록한 가능 시간 조회
+    @GetMapping("/schedules/{id}/timeslots/mine")
+    fun getMyTimeSlots(
+        @AuthenticationPrincipal userDetails: UserDetails,
+        @PathVariable id: Long,
+    ): ResponseEntity<List<TimeSlotDto>> {
+        val userId = userDetails.username.toLong()
+        return ResponseEntity.ok(scheduleService.getMyTimeSlots(userId, id))
+    }
+
+    // 4. 내 가능 시간 입력
     @PostMapping("/schedules/{id}/timeslots")
     fun addTimeSlots(
         @AuthenticationPrincipal userDetails: UserDetails,

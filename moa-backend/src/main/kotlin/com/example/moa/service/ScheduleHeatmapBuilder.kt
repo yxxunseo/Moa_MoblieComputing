@@ -1,5 +1,6 @@
 package com.example.moa.service
 
+import java.time.LocalDate
 import java.time.LocalDateTime
 
 /**
@@ -20,7 +21,13 @@ object ScheduleHeatmapBuilder {
         val recommendations: List<RecommendationDto>,
     )
 
-    fun build(slots: List<Availability>): Result {
+    private val defaultHours = (0..23).map { "%02d:00".format(it) }
+
+    fun build(
+        slots: List<Availability>,
+        rangeStart: LocalDate? = null,
+        rangeEnd: LocalDate? = null,
+    ): Result {
         val heatmap = mutableMapOf<String, MutableMap<String, Int>>()
         val heatmapMembers = mutableMapOf<String, MutableMap<String, MutableList<String>>>()
         val hourlyAvailability = mutableMapOf<LocalDateTime, MutableList<String>>()
@@ -61,6 +68,33 @@ object ScheduleHeatmapBuilder {
                 )
             }
 
-        return Result(heatmap, heatmapMembers, recommendations)
+        val filledHeatmap = if (rangeStart != null && rangeEnd != null && !rangeEnd.isBefore(rangeStart)) {
+            fillDateRange(rangeStart, rangeEnd, heatmap)
+        } else {
+            heatmap
+        }
+
+        return Result(filledHeatmap, heatmapMembers, recommendations)
+    }
+
+    /** 조율 기간 전체 날짜를 히트맵에 포함하고, 투표 없는 칸은 0으로 채운다. */
+    private fun fillDateRange(
+        start: LocalDate,
+        end: LocalDate,
+        heatmap: Map<String, Map<String, Int>>,
+    ): Map<String, Map<String, Int>> {
+        val result = linkedMapOf<String, Map<String, Int>>()
+        var current = start
+        while (!current.isAfter(end)) {
+            val dateStr = current.toString()
+            val existing = heatmap[dateStr].orEmpty()
+            val day = linkedMapOf<String, Int>()
+            defaultHours.forEach { hour ->
+                day[hour] = existing[hour] ?: 0
+            }
+            result[dateStr] = day
+            current = current.plusDays(1)
+        }
+        return result
     }
 }

@@ -203,7 +203,9 @@ class GuestScheduleService(
 
         // 히트맵·추천은 그룹 일정과 동일한 공통 빌더 사용
         val heatmapResult = ScheduleHeatmapBuilder.build(
-            allSlots.map { ScheduleHeatmapBuilder.Availability(it.guestName, it.slotStart, it.slotEnd) }
+            slots = allSlots.map { ScheduleHeatmapBuilder.Availability(it.guestName, it.slotStart, it.slotEnd) },
+            rangeStart = schedule.startDate,
+            rangeEnd = schedule.endDate,
         )
         val heatmap = heatmapResult.heatmap
         val heatmapMembers = heatmapResult.heatmapMembers

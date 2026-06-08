@@ -13,6 +13,7 @@ object TokenManager {
     private const val KEY_REFRESH_TOKEN = "refresh_token"
     private const val KEY_USER_ID = "user_id"
     private const val KEY_NICKNAME = "nickname"
+    private const val KEY_PROFILE_IMAGE_URL = "profile_image_url"
 
     private lateinit var prefs: SharedPreferences
 
@@ -35,12 +36,23 @@ object TokenManager {
 
     fun getToken(): String? = prefs.getString(KEY_TOKEN, null)
 
-    fun saveUserInfo(userId: Long, nickname: String) {
+    fun saveUserInfo(userId: Long, nickname: String, profileImageUrl: String? = null) {
         prefs.edit()
             .putLong(KEY_USER_ID, userId)
             .putString(KEY_NICKNAME, nickname)
             .apply()
+        saveProfileImageUrl(profileImageUrl)
     }
+
+    fun saveProfileImageUrl(url: String?) {
+        if (url.isNullOrBlank()) {
+            prefs.edit().remove(KEY_PROFILE_IMAGE_URL).apply()
+        } else {
+            prefs.edit().putString(KEY_PROFILE_IMAGE_URL, url.trim()).apply()
+        }
+    }
+
+    fun getProfileImageUrl(): String? = prefs.getString(KEY_PROFILE_IMAGE_URL, null)
 
     fun getUserId(): Long = prefs.getLong(KEY_USER_ID, -1L)
     fun getNickname(): String? = prefs.getString(KEY_NICKNAME, null)

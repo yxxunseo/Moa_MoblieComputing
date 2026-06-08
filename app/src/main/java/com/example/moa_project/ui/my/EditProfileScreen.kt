@@ -1,8 +1,7 @@
 package com.example.moa_project.ui.my
 
 import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -31,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,6 +56,8 @@ import com.example.moa_project.ui.theme.MoaScreenBackground
 import com.example.moa_project.ui.theme.MoaTextPrimary
 import com.example.moa_project.ui.theme.MoaTextSecondary
 import com.example.moa_project.ui.theme.SBAggroFontFamily
+import com.example.moa_project.util.launchImagePicker
+import com.example.moa_project.util.rememberImagePickerLauncher
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,19 +68,32 @@ fun EditProfileScreen(
 ) {
     val context = LocalContext.current
     val uiState by userViewModel.uiState.collectAsState()
+    val isUploadingImage by userViewModel.isUploadingImage.collectAsState()
+    val uploadError by userViewModel.uploadError.collectAsState()
     val user = (uiState as? UserState.Success)?.user
     val currentNickname = user?.nickname.orEmpty()
     var nickname by remember(currentNickname) { mutableStateOf(currentNickname) }
-    val isLoading = uiState is UserState.Loading
+    var previewUri by remember { mutableStateOf<Uri?>(null) }
+    val isLoading = uiState is UserState.Loading || isUploadingImage
 
-    val imagePicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            userViewModel.uploadProfileImage(context, uri, nickname.trim().ifBlank { currentNickname }) {
-                onSaveSuccess()
-            }
+    LaunchedEffect(uploadError) {
+        uploadError?.let { message ->
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            previewUri = null
+            userViewModel.clearUploadError()
         }
+    }
+
+    val imagePicker = rememberImagePickerLauncher { uri ->
+        previewUri = uri
+        userViewModel.uploadProfileImage(
+            context = context,
+            uri = uri,
+            nickname = nickname.trim().ifBlank { currentNickname },
+            onSuccess = {
+                Toast.makeText(context, "프로필 사진이 변경되었습니다.", Toast.LENGTH_SHORT).show()
+            },
+        )
     }
 
     Scaffold(
@@ -114,15 +129,31 @@ fun EditProfileScreen(
                 ProfileAvatar(
                     imageUrl = user?.profileImageUrl,
                     nickname = nickname.ifBlank { currentNickname },
+                    previewUri = previewUri,
                     size = 96.dp,
                 )
+                if (isUploadingImage) {
+                    Box(
+                        modifier = Modifier
+                            .size(96.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.35f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            modifier = Modifier.size(28.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    }
+                }
                 Box(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
                         .background(MoaBlue)
                         .border(2.dp, Color.White, CircleShape)
-                        .clickable { imagePicker.launch("image/*") },
+                        .clickable { launchImagePicker(imagePicker) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(

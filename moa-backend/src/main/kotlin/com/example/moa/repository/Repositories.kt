@@ -49,6 +49,10 @@ interface TimeSlotRepository : JpaRepository<TimeSlot, Long> {
     fun findAllByScheduleAndUser(schedule: Schedule, user: User): List<TimeSlot>
     fun deleteAllByScheduleAndUser(schedule: Schedule, user: User)
 
+    @Modifying
+    @Query("DELETE FROM TimeSlot t WHERE t.schedule = :schedule")
+    fun deleteAllBySchedule(schedule: Schedule)
+
     /** 일정에 시간을 입력한 고유 사용자 수. 기존엔 전체 슬롯을 메모리에 로드해 distinct 했음. */
     @Query("SELECT COUNT(DISTINCT t.user.id) FROM TimeSlot t WHERE t.schedule = :schedule")
     fun countDistinctRespondedUsers(schedule: Schedule): Long

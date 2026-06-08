@@ -24,12 +24,16 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Share
 import com.example.moa_project.ui.components.MoaCaptionText
 import com.example.moa_project.ui.components.MoaMascot
 import com.example.moa_project.ui.components.MoaMascotVariant
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,6 +45,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
@@ -59,15 +64,15 @@ import com.example.moa_project.network.GuestParticipantDto
 import com.example.moa_project.network.GuestScheduleAnalysisResponse
 import com.example.moa_project.network.ScheduleAnalysisResponse
 import com.example.moa_project.ui.components.MoaBodyText
+import com.example.moa_project.ui.components.MoaShareBottomSheet
 import com.example.moa_project.ui.components.ScheduleHeatmapCard
+import com.example.moa_project.util.GuestLinkShareHelper
 import com.example.moa_project.ui.theme.Moa_ProjectTheme
 import com.example.moa_project.util.GuestLinkHelper
 import com.example.moa_project.util.KakaoShareHelper
 import com.example.moa_project.util.MoaNotificationHelper
 import androidx.compose.ui.platform.LocalContext
 import android.content.Context
-import androidx.compose.ui.res.painterResource
-import com.example.moa_project.R
 import com.example.moa_project.network.ReactionDto
 import com.example.moa_project.network.TokenManager
 import com.example.moa_project.ui.theme.MoaAccentGreen
@@ -80,6 +85,10 @@ import com.example.moa_project.ui.theme.MoaTextPrimary
 import com.example.moa_project.ui.theme.MoaTextSecondary
 import com.example.moa_project.ui.theme.SBAggroFontFamily
 import com.example.moa_project.ui.theme.moaCardSurface
+import com.example.moa_project.ui.theme.MoaBlueSoft
+import java.time.LocalDate
+import java.time.format.TextStyle
+import java.util.Locale
 
 data class RecommendedTime(
     val rank: Int,
@@ -112,6 +121,7 @@ private fun ScheduleAnalysisResponse.toRecommendedTimes(): List<RecommendedTime>
 fun ScheduleResultScreen(
     uniqueLink: String = "DEMO",
     onBackClick: () -> Unit = {},
+    onEditMyVoteClick: () -> Unit = {},
     onConfirmClick: () -> Unit = {},
     viewModel: GuestScheduleViewModel = viewModel(key = "guest_result_$uniqueLink")
 ) {
@@ -121,10 +131,15 @@ fun ScheduleResultScreen(
     val canHostConfirm = TokenManager.isLoggedIn()
 
     LaunchedEffect(uniqueLink) {
+        viewModel.fetchSchedule(uniqueLink)
         viewModel.fetchAnalysis(uniqueLink)
     }
 
     val analysis = (uiState as? GuestScheduleState.AnalysisSuccess)?.analysis
+    val guestStartDate by viewModel.scheduleStartDate.collectAsState()
+    val guestEndDate by viewModel.scheduleEndDate.collectAsState()
+    val guestHeatmapStartDate = analysis?.startDate?.takeIf { it.isNotBlank() } ?: guestStartDate
+    val guestHeatmapEndDate = analysis?.endDate?.takeIf { it.isNotBlank() } ?: guestEndDate
     val isConfirmed = analysis?.status == "CONFIRMED" || analysis?.status == "DONE"
 
     LaunchedEffect(uniqueLink, isConfirmed) {
@@ -157,6 +172,40 @@ fun ScheduleResultScreen(
         GuestLinkHelper.resolveWebLink(uniqueLink, analysis?.webLink)
     }
     val linkReachable = remember(webLink) { GuestLinkHelper.isExternalReachable(webLink) }
+    var showShareSheet by remember { mutableStateOf(false) }
+
+    if (!isLoading && analysis != null) {
+        MoaShareBottomSheet(
+            visible = showShareSheet,
+            onDismiss = { showShareSheet = false },
+            kakaoEnabled = linkReachable,
+            onKakaoClick = {
+                KakaoShareHelper.shareGuestSchedule(
+                    context = context,
+                    scheduleTitle = analysis.title,
+                    scheduleDescription = analysis.description?.takeIf { it.isNotBlank() },
+                    startDate = analysis.startDate ?: "-",
+                    endDate = analysis.endDate ?: "-",
+                    uniqueLink = uniqueLink,
+                    webLink = webLink,
+                )
+            },
+            onCopyLinkClick = {
+                GuestLinkShareHelper.copyWebLink(context, webLink)
+            },
+            onMoreClick = {
+                GuestLinkShareHelper.openShareChooser(
+                    context = context,
+                    scheduleTitle = analysis.title,
+                    scheduleDescription = analysis.description?.takeIf { it.isNotBlank() },
+                    startDate = analysis.startDate ?: "-",
+                    endDate = analysis.endDate ?: "-",
+                    webLink = webLink,
+                )
+            },
+        )
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -176,6 +225,17 @@ fun ScheduleResultScreen(
                             contentDescription = "뒤로가기",
                             tint = MoaTextPrimary
                         )
+                    }
+                },
+                actions = {
+                    if (!isLoading && analysis != null) {
+                        IconButton(onClick = { showShareSheet = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = "공유하기",
+                                tint = MoaBlue,
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -220,21 +280,15 @@ fun ScheduleResultScreen(
                 Spacer(modifier = Modifier.height(20.dp))
             }
 
-            if (!isLoading && analysis != null) {
+            if (!isLoading && analysis != null && !isConfirmed) {
                 item {
-                    GuestKakaoShareButton(
-                        enabled = linkReachable,
-                        onClick = {
-                            KakaoShareHelper.shareGuestSchedule(
-                                context = context,
-                                scheduleTitle = analysis.title,
-                                scheduleDescription = analysis.description?.takeIf { it.isNotBlank() },
-                                startDate = analysis.startDate ?: "-",
-                                endDate = analysis.endDate ?: "-",
-                                uniqueLink = uniqueLink,
-                                webLink = webLink,
-                            )
-                        },
+                    EditMyVoteCard(onClick = onEditMyVoteClick)
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+                item {
+                    GuestSharePromptCard(
+                        linkReachable = linkReachable,
+                        onShareClick = { showShareSheet = true },
                     )
                     Spacer(modifier = Modifier.height(20.dp))
                 }
@@ -265,6 +319,10 @@ fun ScheduleResultScreen(
                     heatmap = analysis?.heatmap,
                     heatmapMembers = analysis?.heatmapMembers,
                     participants = analysis?.participants,
+                    totalMembers = analysis?.totalParticipants ?: 0,
+                    allMemberNames = analysis?.participants?.map { it.name },
+                    startDate = guestHeatmapStartDate,
+                    endDate = guestHeatmapEndDate,
                 )
                 Spacer(modifier = Modifier.height(24.dp))
             }
@@ -329,6 +387,7 @@ fun ScheduleResultScreen(
                                         analysis?.title ?: scheduleTitle,
                                         timeText,
                                         notificationKey = notificationKey,
+                                        targetRoute = "schedule_result/$uniqueLink",
                                     )
                                     viewModel.fetchAnalysis(uniqueLink)
                                     onConfirmClick()
@@ -348,6 +407,8 @@ fun ScheduleResultScreen(
 fun GroupScheduleResultScreen(
     scheduleId: Long,
     onBackClick: () -> Unit = {},
+    onSaveClick: () -> Unit = {},
+    onEditMyVoteClick: () -> Unit = {},
     onConfirmComplete: () -> Unit = {},
     viewModel: ScheduleViewModel = viewModel(
         factory = ScheduleViewModel.Factory(scheduleId),
@@ -357,17 +418,22 @@ fun GroupScheduleResultScreen(
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val reactions by viewModel.reactions.collectAsState()
-    val syncGoogle = remember {
-        context.getSharedPreferences("moa_settings", Context.MODE_PRIVATE)
-            .getBoolean("google_calendar", false)
-    }
+    var isSaving by remember { mutableStateOf(false) }
 
     LaunchedEffect(scheduleId) {
+        viewModel.fetchDetail()
+        viewModel.fetchMyTimeSlots()
         viewModel.fetchAnalysis()
         viewModel.fetchReactions()
     }
 
     val analysis = (uiState as? ScheduleState.AnalysisSuccess)?.analysis
+    val scheduleStatus by viewModel.scheduleStatus.collectAsState()
+    val canEditVote = scheduleStatus in listOf("WAITING", "ADJUSTING")
+    val scheduleStartDate by viewModel.scheduleStartDate.collectAsState()
+    val scheduleEndDate by viewModel.scheduleEndDate.collectAsState()
+    val heatmapStartDate = analysis?.startDate?.takeIf { it.isNotBlank() } ?: scheduleStartDate
+    val heatmapEndDate = analysis?.endDate?.takeIf { it.isNotBlank() } ?: scheduleEndDate
     val recommendations = analysis?.toRecommendedTimes() ?: emptyList()
     val isLoading = uiState is ScheduleState.Loading
 
@@ -389,6 +455,32 @@ fun GroupScheduleResultScreen(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "뒤로가기",
                             tint = MoaTextPrimary
+                        )
+                    }
+                },
+                actions = {
+                    TextButton(
+                        enabled = !isSaving && !isLoading,
+                        onClick = {
+                            isSaving = true
+                            viewModel.saveProgress {
+                                isSaving = false
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "선택한 시간이 저장됐어요.",
+                                    android.widget.Toast.LENGTH_SHORT,
+                                ).show()
+                                viewModel.fetchAnalysis()
+                                onSaveClick()
+                            }
+                        },
+                    ) {
+                        Text(
+                            text = if (isSaving) "저장 중..." else "저장하기",
+                            fontFamily = SBAggroFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = MoaBlue,
                         )
                     }
                 },
@@ -429,11 +521,22 @@ fun GroupScheduleResultScreen(
                 Spacer(modifier = Modifier.height(20.dp))
             }
 
+            if (canEditVote) {
+                item {
+                    EditMyVoteCard(onClick = onEditMyVoteClick)
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+            }
+
             // 히트맵 (상단)
             item {
                 ScheduleHeatmapCard(
                     heatmap = analysis?.heatmap,
                     heatmapMembers = analysis?.heatmapMembers,
+                    totalMembers = analysis?.totalMembers ?: 0,
+                    allMemberNames = analysis?.allMembers,
+                    startDate = heatmapStartDate,
+                    endDate = heatmapEndDate,
                 )
                 Spacer(modifier = Modifier.height(24.dp))
             }
@@ -488,8 +591,6 @@ fun GroupScheduleResultScreen(
                                 viewModel.confirm(
                                     start = start,
                                     end = end,
-                                    title = analysis?.title ?: "일정",
-                                    syncGoogle = syncGoogle,
                                 ) {
                                     val timeText = ScheduleConfirmHelper.formatTimeRange(
                                         start,
@@ -511,6 +612,45 @@ fun GroupScheduleResultScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun EditMyVoteCard(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "내 가능 시간 수정",
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                color = MoaTextPrimary,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "이미 투표했어도 다시 선택해서 수정할 수 있어요",
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+                color = MoaTextSecondary,
+            )
+        }
+        Text(
+            text = "수정하기",
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp,
+            color = MoaBlue,
+        )
     }
 }
 
@@ -541,133 +681,134 @@ private fun RecommendationCard(
         if (startIso.isBlank()) recommendation.timeString
         else ScheduleConfirmHelper.formatTimeRange(startIso, durationHours)
     }
-    Box(
+    val availabilityRatio = if (recommendation.totalCount > 0) {
+        recommendation.availableCount.toFloat() / recommendation.totalCount
+    } else 0f
+    val memberNames = remember(recommendation.members) {
+        recommendation.members.split(",").map { it.trim() }.filter { it.isNotBlank() }
+    }
+    val dateLabel = formatRecommendationDate(recommendation.dateString)
+
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(
-                elevation = if (isTopRank) 12.dp else 4.dp,
-                shape = RoundedCornerShape(20.dp),
-                spotColor = if (isTopRank) MoaBlue else Color(0xFFDDE4F2)
-            )
-            .clip(RoundedCornerShape(20.dp))
-            .background(if (isTopRank) Color(0xFFF0F5FF) else Color.White)
+            .clip(RoundedCornerShape(18.dp))
+            .background(if (isTopRank) Color(0xFFF4F8FF) else Color.White)
             .border(
-                width = if (isTopRank) 1.5.dp else 0.dp,
-                color = if (isTopRank) MoaBlue.copy(alpha = 0.5f) else Color.Transparent,
-                shape = RoundedCornerShape(20.dp)
+                width = if (isTopRank) 1.5.dp else 1.dp,
+                color = if (isTopRank) MoaBlue.copy(alpha = 0.35f) else Color(0xFFE8ECF4),
+                shape = RoundedCornerShape(18.dp),
             )
-            .padding(20.dp)
+            .padding(18.dp),
     ) {
-        Column {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                // Badge
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (isTopRank) MoaBlue else Color(0xFFE8EBF2))
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "${recommendation.rank}순위",
-                        fontFamily = SBAggroFontFamily,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 12.sp,
-                        color = if (isTopRank) Color.White else MoaTextSecondary
-                    )
-                }
-                
-                Spacer(modifier = Modifier.weight(1f))
-                
-                // Available Count
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            RankBadge(rank = recommendation.rank, isTopRank = isTopRank)
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "${recommendation.availableCount}/${recommendation.totalCount}명 가능",
-                    fontFamily = SBAggroFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    color = if (recommendation.availableCount == recommendation.totalCount) MoaStatusConfirmed else MoaTextPrimary
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            Text(
-                text = recommendation.dateString,
-                fontFamily = SBAggroFontFamily,
-                fontWeight = FontWeight.Medium,
-                fontSize = 14.sp,
-                color = MoaTextSecondary
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = timeRangeLabel,
-                fontFamily = SBAggroFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 22.sp,
-                color = MoaTextPrimary,
-            )
-
-            if (showHostConfirm && maxHours > 1) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "확정 시간",
+                    text = dateLabel,
                     fontFamily = SBAggroFontFamily,
                     fontWeight = FontWeight.Medium,
-                    fontSize = 12.sp,
+                    fontSize = 13.sp,
                     color = MoaTextSecondary,
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    (1..maxHours).forEach { hours ->
-                        val selected = durationHours == hours
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (selected) MoaBlue else Color(0xFFF0F2F8))
-                                .clickable { durationHours = hours }
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = "${hours}시간",
-                                fontFamily = SBAggroFontFamily,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                color = if (selected) Color.White else MoaTextPrimary,
-                            )
-                        }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = timeRangeLabel,
+                    fontFamily = SBAggroFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = if (isTopRank) 22.sp else 18.sp,
+                    color = MoaTextPrimary,
+                )
+            }
+            AvailabilityRing(
+                available = recommendation.availableCount,
+                total = recommendation.totalCount,
+                ratio = availabilityRatio,
+                highlight = isTopRank,
+            )
+        }
+
+        if (memberNames.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(14.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                memberNames.take(5).forEach { name ->
+                    Text(
+                        text = name,
+                        fontFamily = SBAggroFontFamily,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 12.sp,
+                        color = MoaBlue,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(MoaBlueSoft)
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    )
+                }
+                if (memberNames.size > 5) {
+                    Text(
+                        text = "+${memberNames.size - 5}",
+                        fontFamily = SBAggroFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        color = MoaTextSecondary,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(0xFFF0F2F8))
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    )
+                }
+            }
+        }
+
+        if (showHostConfirm && maxHours > 1) {
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = "확정 길이",
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+                color = MoaTextSecondary,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                (1..maxHours.coerceAtMost(4)).forEach { hours ->
+                    val selected = durationHours == hours
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (selected) MoaBlue else Color(0xFFF0F2F8))
+                            .clickable { durationHours = hours }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "${hours}시간",
+                            fontFamily = SBAggroFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = if (selected) Color.White else MoaTextPrimary,
+                        )
                     }
                 }
             }
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (isTopRank) Color.White else Color(0xFFF7F8FC))
-                    .padding(12.dp)
-            ) {
-                Text(
-                    text = "참여 가능: ${recommendation.members}",
-                    fontFamily = SBAggroFontFamily,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 12.sp,
-                    color = MoaTextSecondary
-                )
-            }
+        }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            if (showHostConfirm) {
-                Spacer(modifier = Modifier.height(16.dp))
+        if (showHostConfirm) {
+            Spacer(modifier = Modifier.height(16.dp))
+            if (isTopRank) {
                 Button(
                     onClick = {
                         if (startIso.isNotBlank()) {
@@ -678,13 +819,11 @@ private fun RecommendationCard(
                         }
                     },
                     enabled = startIso.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isTopRank) MoaBlue else Color(0xFF4B556B),
-                    ),
-                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MoaBlue),
+                    shape = RoundedCornerShape(14.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp),
+                        .height(50.dp),
                 ) {
                     Text(
                         text = "이 시간으로 확정하기",
@@ -694,38 +833,160 @@ private fun RecommendationCard(
                         color = Color.White,
                     )
                 }
+            } else {
+                OutlinedButton(
+                    onClick = {
+                        if (startIso.isNotBlank()) {
+                            onConfirmClick(
+                                startIso,
+                                ScheduleConfirmHelper.buildEndTime(startIso, durationHours),
+                            )
+                        }
+                    },
+                    enabled = startIso.isNotBlank(),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                ) {
+                    Text(
+                        text = "이 시간으로 확정",
+                        fontFamily = SBAggroFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = MoaBlue,
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun GuestKakaoShareButton(
-    enabled: Boolean,
-    onClick: () -> Unit,
-) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
+private fun RankBadge(rank: Int, isTopRank: Boolean) {
+    Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .height(52.dp),
-        shape = RoundedCornerShape(14.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFEE500)),
+            .size(42.dp)
+            .clip(CircleShape)
+            .background(if (isTopRank) MoaBlue else Color(0xFFE8ECF4)),
+        contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            painter = painterResource(id = R.drawable.ic_kakao),
-            contentDescription = null,
-            tint = Color(0xFF3C1E1E),
-            modifier = Modifier.size(20.dp),
-        )
-        Spacer(modifier = Modifier.size(8.dp))
         Text(
-            text = "카카오톡으로 공유",
-            color = Color(0xFF3C1E1E),
+            text = if (isTopRank) "1st" else "${rank}위",
             fontFamily = SBAggroFontFamily,
             fontWeight = FontWeight.Bold,
+            fontSize = if (isTopRank) 12.sp else 11.sp,
+            color = if (isTopRank) Color.White else MoaTextSecondary,
         )
+    }
+}
+
+@Composable
+private fun AvailabilityRing(
+    available: Int,
+    total: Int,
+    ratio: Float,
+    highlight: Boolean,
+) {
+    Box(contentAlignment = Alignment.Center) {
+        CircularProgressIndicator(
+            progress = { ratio.coerceIn(0f, 1f) },
+            modifier = Modifier.size(52.dp),
+            color = if (highlight) MoaBlue else MoaBlue.copy(alpha = 0.55f),
+            trackColor = Color(0xFFE8ECF4),
+            strokeWidth = 5.dp,
+        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = "$available",
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                color = MoaTextPrimary,
+            )
+            Text(
+                text = "/$total",
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = 10.sp,
+                color = MoaTextSecondary,
+            )
+        }
+    }
+}
+
+private fun formatRecommendationDate(isoDate: String): String =
+    runCatching {
+        val date = LocalDate.parse(isoDate)
+        val dow = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.KOREAN)
+        "${date.monthValue}월 ${date.dayOfMonth}일 ($dow)"
+    }.getOrDefault(isoDate)
+
+@Composable
+private fun GuestSharePromptCard(
+    linkReachable: Boolean,
+    onShareClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.White)
+            .padding(18.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "팀원들에게 링크를 공유해보세요!",
+                    fontFamily = SBAggroFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = MoaTextPrimary,
+                    lineHeight = 22.sp,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = if (linkReachable) {
+                        "카카오톡·링크복사로 가능한 시간을 받아보세요."
+                    } else {
+                        "WEB_SHARE_URL 설정 후 외부 공유가 가능해요."
+                    },
+                    fontFamily = SBAggroFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 12.sp,
+                    color = if (linkReachable) MoaTextSecondary else MoaAccentOrange,
+                    lineHeight = 18.sp,
+                )
+            }
+            MoaMascot(size = 56.dp, variant = MoaMascotVariant.Sparkle)
+        }
+        Spacer(modifier = Modifier.height(14.dp))
+        Button(
+            onClick = onShareClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = MoaBlue),
+        ) {
+            Icon(
+                imageVector = Icons.Default.Share,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "공유하기",
+                color = Color.White,
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+            )
+        }
     }
 }
 

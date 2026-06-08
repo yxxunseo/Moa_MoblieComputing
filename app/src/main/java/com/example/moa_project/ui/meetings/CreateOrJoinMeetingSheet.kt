@@ -77,12 +77,15 @@ fun CreateOrJoinMeetingSheet(
     onDismiss: () -> Unit,
     onSuccess: () -> Unit,
     initialTab: Int = 0,
+    initialInviteCode: String? = null,
     viewModel: GroupActionViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsState()
 
     // 탭 상태: 0 = 생성하기, 1 = 입장하기
-    var selectedTab by remember { mutableIntStateOf(initialTab) }
+    var selectedTab by remember(initialTab, initialInviteCode) {
+        mutableIntStateOf(if (!initialInviteCode.isNullOrBlank()) 1 else initialTab)
+    }
 
     // 생성 폼 상태
     var groupName by remember { mutableStateOf("") }
@@ -90,7 +93,9 @@ fun CreateOrJoinMeetingSheet(
     var selectedColorHex by remember { mutableStateOf("#2179FE") }
 
     // 입장 폼 상태
-    var inviteCode by remember { mutableStateOf("") }
+    var inviteCode by remember(initialInviteCode) {
+        mutableStateOf(initialInviteCode?.uppercase().orEmpty())
+    }
 
     // 성공/에러 처리
     LaunchedEffect(state) {

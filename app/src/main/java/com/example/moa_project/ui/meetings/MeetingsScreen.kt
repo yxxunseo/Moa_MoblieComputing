@@ -151,10 +151,12 @@ private fun parseGroupColor(hex: String): Color {
 fun MeetingsScreen(
     currentRoute: String = "meetings",
     favoritesOnly: Boolean = false,
+    initialJoinCode: String? = null,
     onNavigate: (String) -> Unit = {},
     onMeetingClick: (Long) -> Unit = {},
     onGuestScheduleResultClick: (String) -> Unit = {},
     onNeedsReLogin: () -> Unit = {},
+    onJoinHandled: () -> Unit = {},
     viewModel: MeetingsViewModel = viewModel(),
     guestListViewModel: GuestScheduleListViewModel = viewModel(),
     userViewModel: UserViewModel = viewModel(),
@@ -167,6 +169,8 @@ fun MeetingsScreen(
     val guestSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     var showSheet by remember { mutableStateOf(false) }
+    var joinSheetCode by remember { mutableStateOf<String?>(null) }
+    var showInviteWelcome by remember { mutableStateOf(false) }
     var showGuestSheet by remember { mutableStateOf(false) }
     var guestCreateKey by remember { mutableIntStateOf(0) }
     var selectedTab by remember { mutableStateOf(MeetingsPageTab.Groups) }
@@ -181,6 +185,14 @@ fun MeetingsScreen(
         guestListViewModel.fetchMySchedules()
     }
 
+    androidx.compose.runtime.LaunchedEffect(initialJoinCode) {
+        val code = initialJoinCode?.trim()?.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
+        selectedTab = MeetingsPageTab.Groups
+        joinSheetCode = code.uppercase()
+        showInviteWelcome = true
+        onJoinHandled()
+    }
+
     // 토큰 만료 시 즉시 로그인 화면으로 이동
     androidx.compose.runtime.LaunchedEffect(uiState) {
         if (uiState is MeetingsState.NeedsReLogin) {
@@ -188,6 +200,7 @@ fun MeetingsScreen(
         }
     }
 
+    Box(modifier = Modifier.fillMaxSize()) {
     // 바텀 시트
     if (showSheet) {
         ModalBottomSheet(
@@ -197,10 +210,14 @@ fun MeetingsScreen(
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
         ) {
             CreateOrJoinMeetingSheet(
+                initialTab = if (joinSheetCode != null) 1 else 0,
+                initialInviteCode = joinSheetCode,
                 onDismiss = {
+                    joinSheetCode = null
                     scope.launch { sheetState.hide() }.invokeOnCompletion { showSheet = false }
                 },
                 onSuccess = {
+                    joinSheetCode = null
                     scope.launch { sheetState.hide() }.invokeOnCompletion {
                         showSheet = false
                         viewModel.fetchMyGroups() // 목록 새로고침
@@ -218,7 +235,8 @@ fun MeetingsScreen(
             },
             sheetState = guestSheetState,
             containerColor = Color.White,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            shape = RoundedCornerShape(topStart = MoaRadius.sheet, topEnd = MoaRadius.sheet),
+            dragHandle = null,
         ) {
             CreateGuestScheduleSheet(
                 viewModel = viewModel(key = "guest_create_$guestCreateKey"),
@@ -456,6 +474,17 @@ fun MeetingsScreen(
                 }
             }
         }
+    }
+
+    if (showInviteWelcome && !joinSheetCode.isNullOrBlank()) {
+        GroupInviteWelcomeScreen(
+            inviteCode = joinSheetCode!!,
+            onJoinClick = {
+                showInviteWelcome = false
+                showSheet = true
+            },
+        )
+    }
     }
 }
 
@@ -699,6 +728,7 @@ private fun MemberAvatarStack(
                     .offset(x = (index * 22).dp)
                     .border(2.dp, Color.White, CircleShape),
                 size = avatarSize,
+                useLocalCache = false,
             )
         }
         if (extraMemberCount > 0) {

@@ -2,6 +2,8 @@ package com.example.moa_project.ui.schedule
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,14 +35,25 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -63,7 +76,9 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private val BlockedColor = MoaDivider
+private val BusyColor = Color(0xFFE8ECF4)
+private val UnselectedColor = Color(0xFFF0F2F8)
+private const val GRID_COLUMNS = 3
 
 data class TimeSlot(val date: LocalDate, val hour: Int)
 
@@ -74,7 +89,9 @@ fun ScheduleCoordinationScreen(
     startDate: LocalDate = LocalDate.of(2026, 5, 20),
     endDate: LocalDate = LocalDate.of(2026, 5, 25),
     isGuest: Boolean = true,
-    blockedSlots: Set<TimeSlot> = emptySet(),
+    busySlotLabels: Map<TimeSlot, String> = emptyMap(),
+    initialSelectedSlots: List<TimeSlot> = emptyList(),
+    initialGuestName: String = "",
     coordinationKey: String = scheduleTitle,
     onBackClick: () -> Unit = {},
     onSubmitClick: (String, List<TimeSlot>) -> Unit = { _, _ -> }
@@ -93,8 +110,20 @@ fun ScheduleCoordinationScreen(
         mutableStateOf(dates.firstOrNull() ?: startDate)
     }
     val selectedTimeSlots = remember(coordinationKey) { mutableStateListOf<TimeSlot>() }
-    var guestName by remember(coordinationKey) { mutableStateOf("") }
+    var guestName by remember(coordinationKey) { mutableStateOf(initialGuestName) }
 
+    LaunchedEffect(coordinationKey, initialSelectedSlots) {
+        selectedTimeSlots.clear()
+        selectedTimeSlots.addAll(initialSelectedSlots)
+    }
+
+    LaunchedEffect(coordinationKey, initialGuestName) {
+        if (initialGuestName.isNotBlank()) {
+            guestName = initialGuestName
+        }
+    }
+
+    val isEditingExisting = initialSelectedSlots.isNotEmpty()
     val dateIndex = dates.indexOf(selectedDate).coerceAtLeast(0)
 
     Scaffold(
@@ -126,6 +155,7 @@ fun ScheduleCoordinationScreen(
             BottomSubmitBar(
                 selectedCount = selectedTimeSlots.size,
                 submitEnabled = selectedTimeSlots.isNotEmpty() && (!isGuest || guestName.isNotBlank()),
+                submitLabel = if (isEditingExisting) "수정 완료" else "입력 완료",
                 onSubmit = { onSubmitClick(guestName, selectedTimeSlots) }
             )
         },
@@ -149,11 +179,21 @@ fun ScheduleCoordinationScreen(
                     color = MoaTextPrimary
                 )
                 Spacer(modifier = Modifier.height(6.dp))
+                if (isEditingExisting) {
+                    Text(
+                        text = "이전에 선택한 시간을 바꿀 수 있어요. 다시 탭하거나 드래그해서 수정해주세요.",
+                        fontFamily = SBAggroFontFamily,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 13.sp,
+                        color = MoaBlue,
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
                 Text(
-                    text = if (blockedSlots.isNotEmpty()) {
-                        "가능한 시간을 선택해주세요 (회색은 기존 일정)"
+                    text = if (busySlotLabels.isNotEmpty()) {
+                        "탭하거나 드래그해서 가능한 시간을 선택해주세요 (회색은 기존 일정, 선택 가능)"
                     } else {
-                        "가능한 시간을 선택해주세요"
+                        "탭하거나 드래그해서 가능한 시간을 선택해주세요"
                     },
                     fontFamily = SBAggroFontFamily,
                     fontWeight = FontWeight.Medium,
@@ -193,7 +233,7 @@ fun ScheduleCoordinationScreen(
                 HourPickerGrid(
                     selectedDate = selectedDate,
                     selectedTimeSlots = selectedTimeSlots,
-                    blockedSlots = blockedSlots,
+                    busySlotLabels = busySlotLabels,
                     onSlotToggled = { slot, isSelected ->
                         if (isSelected && !selectedTimeSlots.contains(slot)) {
                             selectedTimeSlots.add(slot)
@@ -277,28 +317,83 @@ private fun DateNavRow(
 private fun HourPickerGrid(
     selectedDate: LocalDate,
     selectedTimeSlots: List<TimeSlot>,
-    blockedSlots: Set<TimeSlot>,
+    busySlotLabels: Map<TimeSlot, String>,
     onSlotToggled: (TimeSlot, Boolean) -> Unit
 ) {
-    val hours = (8..22).toList()
+    val hours = (0..23).toList()
+    val touchSlop = LocalViewConfiguration.current.touchSlop
+    val currentSlots = rememberUpdatedState(selectedTimeSlots)
+    val chipBounds = remember(selectedDate) { mutableMapOf<Int, Rect>() }
+    var gridCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var dragPreviewHours by remember(selectedDate) { mutableStateOf<IntRange?>(null) }
+    var dragSelecting by remember(selectedDate) { mutableStateOf<Boolean?>(null) }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        hours.chunked(3).forEach { rowHours ->
+    fun hourAtRoot(rootOffset: Offset): Int? =
+        chipBounds.entries.firstOrNull { (_, rect) -> rect.contains(rootOffset) }?.key
+
+    fun applyRange(range: IntRange, select: Boolean) {
+        range.forEach { hour ->
+            onSlotToggled(TimeSlot(selectedDate, hour), select)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .onGloballyPositioned { gridCoords = it }
+            .pointerInput(selectedDate, touchSlop) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val rootPos = gridCoords?.localToRoot(down.position) ?: return@awaitEachGesture
+                    val anchorHour = hourAtRoot(rootPos) ?: return@awaitEachGesture
+                    val anchorSlot = TimeSlot(selectedDate, anchorHour)
+
+                    val select = !currentSlots.value.contains(anchorSlot)
+                    var dragged = false
+                    dragSelecting = select
+                    dragPreviewHours = anchorHour..anchorHour
+
+                    do {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.first()
+                        if (change.positionChange().getDistance() > touchSlop) {
+                            dragged = true
+                        }
+                        val currentRoot = gridCoords?.localToRoot(change.position) ?: rootPos
+                        val currentHour = hourAtRoot(currentRoot) ?: anchorHour
+                        dragPreviewHours = minOf(anchorHour, currentHour)..maxOf(anchorHour, currentHour)
+                        if (change.pressed) change.consume()
+                    } while (event.changes.any { it.pressed })
+
+                    if (dragged) {
+                        dragPreviewHours?.let { applyRange(it, select) }
+                    } else {
+                        onSlotToggled(anchorSlot, select)
+                    }
+                    dragPreviewHours = null
+                    dragSelecting = null
+                }
+            },
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        hours.chunked(GRID_COLUMNS).forEach { rowHours ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 rowHours.forEach { hour ->
                     HourChip(
                         hour = hour,
                         selectedDate = selectedDate,
                         selectedTimeSlots = selectedTimeSlots,
-                        blockedSlots = blockedSlots,
-                        onSlotToggled = onSlotToggled,
-                        modifier = Modifier.weight(1f)
+                        busyLabel = busySlotLabels[TimeSlot(selectedDate, hour)],
+                        dragPreviewHours = dragPreviewHours,
+                        dragSelecting = dragSelecting,
+                        onBoundsChanged = { rect -> chipBounds[hour] = rect },
+                        modifier = Modifier.weight(1f),
                     )
                 }
-                repeat(3 - rowHours.size) {
+                repeat(GRID_COLUMNS - rowHours.size) {
                     Spacer(modifier = Modifier.weight(1f))
                 }
             }
@@ -311,50 +406,88 @@ private fun HourChip(
     hour: Int,
     selectedDate: LocalDate,
     selectedTimeSlots: List<TimeSlot>,
-    blockedSlots: Set<TimeSlot>,
-    onSlotToggled: (TimeSlot, Boolean) -> Unit,
+    busyLabel: String?,
+    dragPreviewHours: IntRange?,
+    dragSelecting: Boolean?,
+    onBoundsChanged: (Rect) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val slot = TimeSlot(selectedDate, hour)
     val isSelected = selectedTimeSlots.contains(slot)
-    val isBlocked = blockedSlots.contains(slot)
+    val isBusy = busyLabel != null
+    val inDragPreview = dragPreviewHours?.contains(hour) == true
+    val previewSelected = inDragPreview && dragSelecting == true
+    val previewDeselected = inDragPreview && dragSelecting == false
 
     Box(
         modifier = modifier
-            .height(42.dp)
+            .height(if (isBusy) 52.dp else 42.dp)
+            .onGloballyPositioned { coords ->
+                val pos = coords.positionInRoot()
+                val size = coords.size
+                onBoundsChanged(
+                    Rect(
+                        left = pos.x,
+                        top = pos.y,
+                        right = pos.x + size.width,
+                        bottom = pos.y + size.height,
+                    )
+                )
+            }
             .clip(RoundedCornerShape(10.dp))
             .background(
                 when {
-                    isBlocked -> BlockedColor
+                    previewSelected -> MoaBlue.copy(alpha = 0.65f)
+                    previewDeselected -> Color(0xFFE8F0FF)
                     isSelected -> MoaBlue
-                    else -> Color.White
+                    isBusy -> BusyColor
+                    else -> UnselectedColor
                 }
             )
             .border(
                 width = 1.dp,
                 color = when {
-                    isBlocked -> BlockedColor
                     isSelected -> MoaBlue
-                    else -> MoaDivider
+                    isBusy -> Color(0xFFD5DCEA)
+                    else -> Color.Transparent
                 },
                 shape = RoundedCornerShape(10.dp)
-            )
-            .clickable(enabled = !isBlocked) {
-                onSlotToggled(slot, !isSelected)
-            },
-        contentAlignment = Alignment.Center
+            ),
+        contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = if (isBlocked) "불가" else String.format("%02d:00", hour),
-            fontFamily = SBAggroFontFamily,
-            fontWeight = FontWeight.Medium,
-            fontSize = 13.sp,
-            color = when {
-                isBlocked -> MoaTextSecondary
-                isSelected -> Color.White
-                else -> MoaTextPrimary
+        if (isBusy && !isSelected) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(horizontal = 4.dp),
+            ) {
+                Text(
+                    text = String.format("%02d:00", hour),
+                    fontFamily = SBAggroFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    color = MoaTextSecondary,
+                )
+                Text(
+                    text = busyLabel,
+                    fontFamily = SBAggroFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 10.sp,
+                    color = MoaTextSecondary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 12.sp,
+                )
             }
-        )
+        } else {
+            Text(
+                text = String.format("%02d:00", hour),
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = 13.sp,
+                color = if (isSelected) Color.White else MoaTextPrimary,
+            )
+        }
     }
 }
 
@@ -362,6 +495,7 @@ private fun HourChip(
 private fun BottomSubmitBar(
     selectedCount: Int,
     submitEnabled: Boolean = selectedCount > 0,
+    submitLabel: String = "입력 완료",
     onSubmit: () -> Unit
 ) {
     Surface(
@@ -407,7 +541,7 @@ private fun BottomSubmitBar(
                     .height(52.dp)
             ) {
                 Text(
-                    text = "입력 완료",
+                    text = submitLabel,
                     fontFamily = SBAggroFontFamily,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,

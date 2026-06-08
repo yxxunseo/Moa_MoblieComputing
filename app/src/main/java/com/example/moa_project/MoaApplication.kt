@@ -10,7 +10,9 @@ import coil.util.DebugLogger
 import com.example.moa_project.network.TokenManager
 import com.example.moa_project.util.ServerConnectionHelper
 import com.example.moa_project.util.ServerUrlResolver
+import com.example.moa_project.util.WeeklyReminderWorker
 import com.kakao.sdk.common.KakaoSdk
+import com.kakao.sdk.common.util.Utility
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -21,9 +23,18 @@ class MoaApplication : Application(), ImageLoaderFactory {
         super.onCreate()
         if (BuildConfig.KAKAO_APP_KEY.isNotBlank()) {
             KakaoSdk.init(this, BuildConfig.KAKAO_APP_KEY)
+            if (BuildConfig.DEBUG) {
+                Log.i(
+                    "MoaApp",
+                    "Kakao redirectUri=kakao${BuildConfig.KAKAO_APP_KEY}://oauth keyHash=${runCatching { Utility.getKeyHash(this) }.getOrNull()}",
+                )
+            }
+        } else if (BuildConfig.DEBUG) {
+            Log.w("MoaApp", "KAKAO_APP_KEY is blank — set it in local.properties and rebuild")
         }
         TokenManager.init(this)
         com.example.moa_project.util.MoaNotificationHelper.createChannel(this)
+        WeeklyReminderWorker.schedule(this)
         if (BuildConfig.DEBUG) {
             Log.i("MoaApp", "SERVER configured=${ServerUrlResolver.configuredUrl()} resolved=${ServerUrlResolver.resolvedUrl()}")
             CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {

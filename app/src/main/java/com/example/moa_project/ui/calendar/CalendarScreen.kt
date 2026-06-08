@@ -123,21 +123,6 @@ fun CalendarScreen(
     val userState by userViewModel.uiState.collectAsState()
     val profileImageUrl = (userState as? UserState.Success)?.user?.profileImageUrl
     val context = LocalContext.current
-    val sharedPreferences = remember {
-        context.getSharedPreferences("moa_settings", Context.MODE_PRIVATE)
-    }
-    var includeGoogle by remember {
-        mutableStateOf(sharedPreferences.getBoolean("google_calendar", false))
-    }
-
-    LaunchedEffect(Unit) {
-        runCatching {
-            val status = RetrofitClient.instance.getGoogleCalendarStatus()
-            val connected = status["connected"] as? Boolean ?: false
-            includeGoogle = connected
-            sharedPreferences.edit().putBoolean("google_calendar", connected).apply()
-        }
-    }
     val today = remember { LocalDate.now() }
     var selectedDate by remember { mutableStateOf(today) }
     var viewMode by remember { mutableStateOf(CalendarViewMode.Month) }
@@ -158,9 +143,9 @@ fun CalendarScreen(
 
     // Fetch events when the visible month changes
     val visibleYearMonth = calendarState.firstVisibleMonth.yearMonth
-    LaunchedEffect(visibleYearMonth, includeGoogle) {
+    LaunchedEffect(visibleYearMonth) {
         val monthStr = visibleYearMonth.format(DateTimeFormatter.ofPattern("yyyy-MM"))
-        viewModel.fetchMonthlyEvents(monthStr, includeGoogleEvents = includeGoogle)
+        viewModel.fetchMonthlyEvents(monthStr)
     }
 
     // Process the fetched events into the UI format
@@ -233,7 +218,7 @@ fun CalendarScreen(
                             color = "#2179FE",
                             onComplete = {
                                 val monthStr = visibleYearMonth.format(DateTimeFormatter.ofPattern("yyyy-MM"))
-                                viewModel.fetchMonthlyEvents(monthStr, includeGoogleEvents = includeGoogle)
+                                viewModel.fetchMonthlyEvents(monthStr)
                                 editingEvent = null
                             },
                             onError = { msg -> Toast.makeText(context, msg, Toast.LENGTH_SHORT).show() },
@@ -265,7 +250,7 @@ fun CalendarScreen(
                     color = "#007AFF",
                     onComplete = {
                         val monthStr = visibleYearMonth.format(DateTimeFormatter.ofPattern("yyyy-MM"))
-                        viewModel.fetchMonthlyEvents(monthStr, includeGoogleEvents = includeGoogle)
+                        viewModel.fetchMonthlyEvents(monthStr)
                         showAddDialog = false
                         viewMode = CalendarViewMode.Day
                     },
@@ -331,7 +316,7 @@ fun CalendarScreen(
                                 eventId = id,
                                 onComplete = {
                                     val monthStr = visibleYearMonth.format(DateTimeFormatter.ofPattern("yyyy-MM"))
-                                    viewModel.fetchMonthlyEvents(monthStr, includeGoogleEvents = includeGoogle)
+                                    viewModel.fetchMonthlyEvents(monthStr)
                                 },
                                 onError = { msg -> Toast.makeText(context, msg, Toast.LENGTH_SHORT).show() },
                             )

@@ -3,11 +3,12 @@ package com.example.moa_project.util
 import android.os.Build
 import android.util.Log
 import com.example.moa_project.BuildConfig
+import java.net.URI
 
 /**
  * local.properties SERVER_URL을 실행 환경(에뮬레이터/실기기)에 맞게 보정한다.
- * - 실기기 + ADB reverse: http://127.0.0.1:8080/
- * - 에뮬레이터: 127.0.0.1 → 10.0.2.2 자동 치환
+ * - 에뮬레이터: 항상 10.0.2.2 (Mac localhost). LAN IP(172.x)는 에뮬에서 거절되는 경우가 많음.
+ * - 실기기 + ADB reverse: 127.0.0.1 유지
  */
 object ServerUrlResolver {
     private const val TAG = "MoaConnection"
@@ -18,15 +19,19 @@ object ServerUrlResolver {
         var url = configuredUrl().trim()
         if (!url.endsWith("/")) url += "/"
 
-        if (isProbablyEmulator() && isLocalHost(url)) {
-            val resolved = url
-                .replace("127.0.0.1", "10.0.2.2")
-                .replace("localhost", "10.0.2.2")
+        if (isProbablyEmulator()) {
+            val port = runCatching { URI(url).port }.getOrDefault(-1).let { if (it > 0) it else 8080 }
+            val resolved = "http://10.0.2.2:$port/"
             if (BuildConfig.DEBUG && resolved != url) {
-                Log.i(TAG, "Emulator detected: $url -> $resolved")
+                Log.i(TAG, "Emulator: $url -> $resolved")
             }
             return resolved
         }
+
+        if (isLocalHost(url)) {
+            return url
+        }
+
         return url
     }
 

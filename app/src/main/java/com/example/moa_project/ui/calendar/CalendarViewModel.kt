@@ -22,21 +22,11 @@ class CalendarViewModel : ViewModel() {
     private val _uiState = MutableStateFlow<CalendarState>(CalendarState.Idle)
     val uiState: StateFlow<CalendarState> = _uiState
 
-    fun fetchMonthlyEvents(month: String, includeGoogleEvents: Boolean = false) {
+    fun fetchMonthlyEvents(month: String) {
         viewModelScope.launch {
             _uiState.value = CalendarState.Loading
             try {
-                val response = RetrofitClient.instance.getMonthlyEvents(month).toMutableMap()
-                if (includeGoogleEvents) {
-                    runCatching {
-                        val googleResponse = RetrofitClient.instance.getGoogleCalendarEvents(month)
-                        val googleEvents = googleResponse["events"] as? List<*> ?: emptyList<Any>()
-                        val moaEvents = (response["events"] as? List<*>) ?: emptyList<Any>()
-                        response["events"] = moaEvents + googleEvents
-                    }.onFailure { e ->
-                        MoaErrorLog.log("CalendarViewModel", "fetchGoogleEvents", e, mapOf("month" to month))
-                    }
-                }
+                val response = RetrofitClient.instance.getMonthlyEvents(month)
                 _uiState.value = CalendarState.Success(response)
             } catch (e: Exception) {
                 MoaErrorLog.log("CalendarViewModel", "fetchMonthlyEvents", e, mapOf("month" to month))

@@ -20,7 +20,17 @@ data class ScheduleResponse(
     val confirmedStart: String? = null,
     val confirmedEnd: String? = null,
     val respondedCount: Long,
-    val totalMembers: Long
+    val totalMembers: Long,
+    val isWeeklyRecurring: Boolean = false,
+)
+
+data class WeeklyReminderResponse(
+    val scheduleId: Long,
+    val groupName: String,
+    val title: String,
+    val daysUntilDeadline: Int,
+    val hasSubmitted: Boolean,
+    val deadlineLabel: String = "일요일",
 )
 
 data class TimeSlotDto(val start: String, val end: String)
@@ -36,10 +46,13 @@ data class RecommendationDto(
 data class ScheduleAnalysisResponse(
     val scheduleId: Long,
     val title: String,
+    val startDate: String,
+    val endDate: String,
     val totalMembers: Long,
     val recommendations: List<RecommendationDto>,
     val heatmap: Map<String, Map<String, Int>>,
     val heatmapMembers: Map<String, Map<String, List<String>>> = emptyMap(),
+    val allMembers: List<String> = emptyList(),
 )
 
 fun Schedule.toResponse(respondedCount: Long, totalMembers: Long): ScheduleResponse {
@@ -63,7 +76,8 @@ fun Schedule.toResponse(respondedCount: Long, totalMembers: Long): ScheduleRespo
         confirmedStart = confirmedStart?.toString(),
         confirmedEnd = confirmedEnd?.toString(),
         respondedCount = respondedCount,
-        totalMembers = totalMembers
+        totalMembers = totalMembers,
+        isWeeklyRecurring = isWeeklyRecurring,
     )
 }
 
@@ -77,7 +91,15 @@ class ScheduleService(
     private val calendarEventRepository: CalendarEventRepository
 ) {
     @Transactional
-    fun createSchedule(userId: Long, groupId: Long, title: String, description: String?, startDate: LocalDate, endDate: LocalDate): ScheduleResponse {
+    fun createSchedule(
+        userId: Long,
+        groupId: Long,
+        title: String,
+        description: String?,
+        startDate: LocalDate,
+        endDate: LocalDate,
+        isWeeklyRecurring: Boolean = false,
+    ): ScheduleResponse {
         val user = userRepository.findById(userId).orElseThrow { IllegalArgumentException("사용자를 찾을 수 없습니다.") }
         val group = groupRepository.findById(groupId).orElseThrow { IllegalArgumentException("그룹을 찾을 수 없습니다.") }
         
@@ -95,7 +117,9 @@ class ScheduleService(
                 description = description,
                 startDate = startDate,
                 endDate = endDate,
-                status = "WAITING"
+                status = "WAITING",
+                isWeeklyRecurring = isWeeklyRecurring,
+                lastWeeklyResetAt = if (isWeeklyRecurring) LocalDateTime.now() else null,
             )
         )
         
@@ -103,7 +127,7 @@ class ScheduleService(
         return schedule.toResponse(0, totalMembers)
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     fun getGroupSchedules(userId: Long, groupId: Long): List<ScheduleResponse> {
         val user = userRepository.findById(userId).orElseThrow { IllegalArgumentException("사용자를 찾을 수 없습니다.") }
         val group = groupRepository.findById(groupId).orElseThrow { IllegalArgumentException("그룹을 찾을 수 없습니다.") }
@@ -115,6 +139,8 @@ class ScheduleService(
         val schedules = scheduleRepository.findAllByGroup(group)
         val totalMembers = groupMemberRepository.countByGroup(group)
         if (schedules.isEmpty()) return emptyList()
+
+        schedules.filter { it.isWeeklyRecurring }.forEach { ensureWeeklyReset(it) }
 
         // 일정마다 COUNT 쿼리(N+1) 대신 단일 GROUP BY 쿼리로 응답자 수를 한 번에 조회
         val respondedCountById = timeSlotRepository.countDistinctRespondedUsersGrouped(schedules)
@@ -135,7 +161,25 @@ class ScheduleService(
         return schedule.toResponse(respondedCount, totalMembers)
     }
 
-    
+    @Transactional(readOnly = true)
+    fun getMyTimeSlots(userId: Long, scheduleId: Long): List<TimeSlotDto> {
+        val user = userRepository.findById(userId).orElseThrow { IllegalArgumentException("사용자를 찾을 수 없습니다.") }
+        val schedule = scheduleRepository.findById(scheduleId).orElseThrow { IllegalArgumentException("일정을 찾을 수 없습니다.") }
+        val group = schedule.group ?: throw IllegalArgumentException("일정의 그룹 정보가 없습니다.")
+
+        if (!groupMemberRepository.existsByGroupAndUser(group, user)) {
+            throw IllegalArgumentException("해당 그룹의 멤버가 아닙니다.")
+        }
+
+        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm")
+        return timeSlotRepository.findAllByScheduleAndUser(schedule, user).map { slot ->
+            TimeSlotDto(
+                start = slot.slotStart.format(formatter),
+                end = slot.slotEnd.format(formatter),
+            )
+        }
+    }
+
     @Transactional
     fun addTimeSlots(userId: Long, scheduleId: Long, slots: List<TimeSlotDto>): Map<String, Any> {
         val user = userRepository.findById(userId).orElseThrow { IllegalArgumentException("사용자를 찾을 수 없습니다.") }
@@ -190,18 +234,71 @@ class ScheduleService(
         val totalMembers = groupMemberRepository.countByGroup(group)
         val allSlots = timeSlotRepository.findAllByScheduleWithUser(schedule)
 
+        val allMemberNames = groupMemberRepository.findAllByGroup(group)
+            .mapNotNull { it.user?.nickname?.takeIf { name -> name.isNotBlank() } }
+            .sorted()
+
         val result = ScheduleHeatmapBuilder.build(
-            allSlots.map { ScheduleHeatmapBuilder.Availability(it.user!!.nickname, it.slotStart, it.slotEnd) }
+            slots = allSlots.map { ScheduleHeatmapBuilder.Availability(it.user!!.nickname, it.slotStart, it.slotEnd) },
+            rangeStart = schedule.startDate,
+            rangeEnd = schedule.endDate,
         )
 
         return ScheduleAnalysisResponse(
             scheduleId = schedule.id,
             title = schedule.title,
+            startDate = schedule.startDate.toString(),
+            endDate = schedule.endDate.toString(),
             totalMembers = totalMembers,
             recommendations = result.recommendations,
             heatmap = result.heatmap,
             heatmapMembers = result.heatmapMembers,
+            allMembers = allMemberNames,
         )
+    }
+
+    @Transactional
+    fun getWeeklyReminders(userId: Long): List<WeeklyReminderResponse> {
+        val user = userRepository.findById(userId).orElseThrow { IllegalArgumentException("사용자를 찾을 수 없습니다.") }
+        val memberships = groupMemberRepository.findAllByUser(user)
+        val today = LocalDate.now()
+        val daysUntilSunday = (7 - today.dayOfWeek.value) % 7
+
+        return memberships.flatMap { membership ->
+            val group = membership.group ?: return@flatMap emptyList()
+            scheduleRepository.findAllByGroup(group)
+                .filter { it.isWeeklyRecurring && it.status in listOf("WAITING", "ADJUSTING") }
+                .onEach { ensureWeeklyReset(it) }
+                .mapNotNull { schedule ->
+                    val hasSubmitted = timeSlotRepository.findAllByScheduleAndUser(schedule, user).isNotEmpty()
+                    if (hasSubmitted) return@mapNotNull null
+                    WeeklyReminderResponse(
+                        scheduleId = schedule.id,
+                        groupName = group.name,
+                        title = schedule.title,
+                        daysUntilDeadline = daysUntilSunday,
+                        hasSubmitted = false,
+                    )
+                }
+        }
+    }
+
+    @Transactional
+    fun ensureWeeklyReset(schedule: Schedule) {
+        if (!schedule.isWeeklyRecurring) return
+        val now = LocalDateTime.now()
+        val thisMonday = LocalDate.now()
+            .with(java.time.DayOfWeek.MONDAY)
+            .atStartOfDay()
+        val lastReset = schedule.lastWeeklyResetAt
+        if (lastReset != null && !lastReset.isBefore(thisMonday)) return
+
+        timeSlotRepository.deleteAllBySchedule(schedule)
+        schedule.status = "WAITING"
+        schedule.confirmedStart = null
+        schedule.confirmedEnd = null
+        schedule.lastWeeklyResetAt = now
+        scheduleRepository.save(schedule)
     }
     
     @Transactional

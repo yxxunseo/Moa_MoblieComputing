@@ -42,7 +42,14 @@ data class Schedule(
     var confirmedEnd: LocalDateTime? = null,
 
     @Column(name = "created_at", nullable = false)
-    val createdAt: LocalDateTime = LocalDateTime.now()
+    val createdAt: LocalDateTime = LocalDateTime.now(),
+
+    /** 매주 반복 모임 — 매주 일요일까지 팀원 일정 등록 필요 */
+    @Column(name = "is_weekly_recurring", nullable = false)
+    var isWeeklyRecurring: Boolean = false,
+
+    @Column(name = "last_weekly_reset_at")
+    var lastWeeklyResetAt: LocalDateTime? = null,
 )
 
 @Entity

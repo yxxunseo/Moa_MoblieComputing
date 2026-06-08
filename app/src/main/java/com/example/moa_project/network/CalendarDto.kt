@@ -22,14 +22,6 @@ data class CalendarEventDto(
     val color: String
 )
 
-data class GoogleConnectRequest(val authCode: String)
-
-data class GoogleSyncRequest(
-    val title: String,
-    val start: String,
-    val end: String
-)
-
 data class ReactionDto(
     val emoji: String,
     val nickname: String,

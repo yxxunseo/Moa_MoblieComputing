@@ -6,44 +6,88 @@ import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.media.ExifInterface
 import android.net.Uri
+import android.os.Build
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.InputStream
 
 /**
  * 갤러리 원본 사진은 보통 3~12MB라 그대로 업로드하면 멀티파트 제한 초과·타임아웃·OOM으로 실패한다.
  * 업로드 전에 최대 변(1280px) 기준으로 다운스케일하고 JPEG 85%로 재인코딩해 1MB 미만으로 줄인다.
+ *
+ * content:// URI는 제공자마다 재오픈이 불안정하므로, 먼저 캐시 파일로 복사한 뒤 BitmapFactory로 디코딩한다.
  */
 object ImageCompressor {
     private const val MAX_DIMENSION = 1280
     private const val JPEG_QUALITY = 85
 
     fun compressToTempFile(context: Context, uri: Uri, prefix: String): File {
-        val resolver = context.contentResolver
+        val appContext = context.applicationContext
+        val sourceFile = copyUriToCache(appContext, uri, prefix)
+        try {
+            var bitmap = decodeBitmap(sourceFile)
+            bitmap = scaleToMax(bitmap, MAX_DIMENSION)
+            bitmap = applyExifRotation(sourceFile, bitmap)
 
-        // 1) 원본 크기만 먼저 읽어 inSampleSize 계산 (메모리 절약)
+            val output = File.createTempFile(prefix, ".jpg", appContext.cacheDir)
+            FileOutputStream(output).use { out ->
+                if (!bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out)) {
+                    output.delete()
+                    throw IllegalArgumentException("이미지를 저장할 수 없습니다.")
+                }
+            }
+            bitmap.recycle()
+            return output
+        } finally {
+            sourceFile.delete()
+        }
+    }
+
+    private fun copyUriToCache(context: Context, uri: Uri, prefix: String): File {
+        val temp = File.createTempFile("${prefix}src_", ".tmp", context.cacheDir)
+        val input = openUriInputStream(context, uri)
+            ?: run {
+                temp.delete()
+                throw IllegalArgumentException("이미지를 읽을 수 없습니다.")
+            }
+        try {
+            input.use { src ->
+                FileOutputStream(temp).use { dst ->
+                    src.copyTo(dst)
+                }
+            }
+        } catch (e: Exception) {
+            temp.delete()
+            throw IllegalArgumentException("이미지를 읽을 수 없습니다.", e)
+        }
+        if (temp.length() == 0L) {
+            temp.delete()
+            throw IllegalArgumentException("이미지 파일이 비어 있습니다.")
+        }
+        return temp
+    }
+
+    private fun openUriInputStream(context: Context, uri: Uri): InputStream? {
+        context.contentResolver.openInputStream(uri)?.let { return it }
+        return runCatching {
+            context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+                FileInputStream(pfd.fileDescriptor)
+            }
+        }.getOrNull()
+    }
+
+    private fun decodeBitmap(file: File): Bitmap {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-            ?: throw IllegalArgumentException("이미지를 읽을 수 없습니다.")
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+            throw IllegalArgumentException("JPEG/PNG 형식의 이미지만 업로드할 수 있습니다.")
+        }
 
         val sample = calculateInSampleSize(bounds.outWidth, bounds.outHeight, MAX_DIMENSION)
         val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sample }
-        var bitmap = resolver.openInputStream(uri)?.use {
-            BitmapFactory.decodeStream(it, null, decodeOptions)
-        } ?: throw IllegalArgumentException("이미지를 디코딩할 수 없습니다.")
-
-        // 2) 정확한 최대 변 맞춤
-        bitmap = scaleToMax(bitmap, MAX_DIMENSION)
-
-        // 3) EXIF 회전 보정
-        bitmap = applyExifRotation(context, uri, bitmap)
-
-        // 4) JPEG로 저장
-        val temp = File.createTempFile(prefix, ".jpg", context.cacheDir)
-        FileOutputStream(temp).use { out ->
-            bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out)
-        }
-        bitmap.recycle()
-        return temp
+        return BitmapFactory.decodeFile(file.absolutePath, decodeOptions)
+            ?: throw IllegalArgumentException("이미지를 디코딩할 수 없습니다.")
     }
 
     private fun calculateInSampleSize(width: Int, height: Int, maxDim: Int): Int {
@@ -72,20 +116,20 @@ object ImageCompressor {
         return scaled
     }
 
-    private fun applyExifRotation(context: Context, uri: Uri, bitmap: Bitmap): Bitmap {
+    private fun applyExifRotation(file: File, bitmap: Bitmap): Bitmap {
         val rotation = runCatching {
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                val exif = ExifInterface(input)
-                when (exif.getAttributeInt(
-                    ExifInterface.TAG_ORIENTATION,
-                    ExifInterface.ORIENTATION_NORMAL,
-                )) {
-                    ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-                    ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-                    ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-                    else -> 0f
-                }
-            } ?: 0f
+            val exif = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                ExifInterface(file)
+            } else {
+                @Suppress("DEPRECATION")
+                ExifInterface(file.absolutePath)
+            }
+            when (exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+                ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                else -> 0f
+            }
         }.getOrDefault(0f)
 
         if (rotation == 0f) return bitmap

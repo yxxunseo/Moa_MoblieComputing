@@ -51,13 +51,9 @@ import com.example.moa_project.network.RetrofitClient
 import java.time.LocalDateTime
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
-import com.example.moa_project.network.GoogleConnectRequest
-import com.example.moa_project.util.GoogleCalendarHelper
 import com.example.moa_project.util.GroupFavoriteManager
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
@@ -289,14 +285,10 @@ fun MyPageScreen(
 @Composable
 private fun IntegrationSettingsCard() {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val sharedPreferences = remember {
         context.getSharedPreferences("moa_settings", Context.MODE_PRIVATE)
     }
 
-    var googleCalendarEnabled by remember {
-        mutableStateOf(sharedPreferences.getBoolean("google_calendar", false))
-    }
     var scheduleConfirmedPush by remember {
         mutableStateOf(sharedPreferences.getBoolean("schedule_confirmed_push", true))
     }
@@ -304,69 +296,11 @@ private fun IntegrationSettingsCard() {
         mutableStateOf(sharedPreferences.getBoolean("calendar_added_push", true))
     }
 
-    LaunchedEffect(Unit) {
-        runCatching {
-            val status = RetrofitClient.instance.getGoogleCalendarStatus()
-            val connected = status["connected"] as? Boolean ?: false
-            googleCalendarEnabled = connected
-            sharedPreferences.edit().putBoolean("google_calendar", connected).apply()
-        }
-    }
-
-    val googleConnectLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val authCode = GoogleCalendarHelper.extractServerAuthCode(result.data)
-        if (authCode.isNullOrBlank()) {
-            googleCalendarEnabled = false
-            sharedPreferences.edit().putBoolean("google_calendar", false).apply()
-            android.widget.Toast.makeText(context, "구글 캘린더 연동에 실패했습니다.", android.widget.Toast.LENGTH_SHORT).show()
-            return@rememberLauncherForActivityResult
-        }
-        scope.launch {
-            runCatching {
-                RetrofitClient.instance.connectGoogleCalendar(GoogleConnectRequest(authCode))
-                googleCalendarEnabled = true
-                sharedPreferences.edit().putBoolean("google_calendar", true).apply()
-                android.widget.Toast.makeText(context, "구글 캘린더가 연동되었습니다.", android.widget.Toast.LENGTH_SHORT).show()
-            }.onFailure { e ->
-                googleCalendarEnabled = false
-                sharedPreferences.edit().putBoolean("google_calendar", false).apply()
-                android.widget.Toast.makeText(
-                    context,
-                    e.userMessage("구글 캘린더 연동에 실패했습니다."),
-                    android.widget.Toast.LENGTH_LONG,
-                ).show()
-            }
-        }
-    }
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .moaCard(padding = 0.dp),
     ) {
-        SettingsToggleRow(
-            title = "Google Calendar",
-            description = "외부 일정으로 불가능한 시간을 막아요",
-            icon = Icons.Default.DateRange,
-            checked = googleCalendarEnabled,
-            onCheckedChange = { isChecked ->
-                if (isChecked) {
-                    googleConnectLauncher.launch(
-                        GoogleCalendarHelper.createConnectClient(context).signInIntent
-                    )
-                } else {
-                    scope.launch {
-                        runCatching { RetrofitClient.instance.disconnectGoogleCalendar() }
-                        googleCalendarEnabled = false
-                        sharedPreferences.edit().putBoolean("google_calendar", false).apply()
-                        android.widget.Toast.makeText(context, "구글 캘린더 연동이 해제되었습니다.", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-        )
-        SettingsDivider()
         SettingsToggleRow(
             title = "일정 확정 알림",
             description = "최종 시간이 정해지면 알려드려요",

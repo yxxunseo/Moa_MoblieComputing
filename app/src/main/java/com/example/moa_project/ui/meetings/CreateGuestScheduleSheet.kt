@@ -3,6 +3,8 @@ package com.example.moa_project.ui.meetings
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -101,23 +103,23 @@ fun CreateGuestScheduleSheet(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp)
-            .padding(bottom = 28.dp)
+            .padding(bottom = 32.dp),
     ) {
-        Spacer(modifier = Modifier.height(8.dp))
         Box(
             modifier = Modifier
                 .size(width = 40.dp, height = 4.dp)
                 .clip(CircleShape)
                 .background(MoaInputBorder)
-                .align(Alignment.CenterHorizontally)
+                .align(Alignment.CenterHorizontally),
         )
         Spacer(modifier = Modifier.height(20.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Moa3DIcon(type = Moa3DIconType.Link, size = 40.dp)
@@ -130,7 +132,7 @@ fun CreateGuestScheduleSheet(
                         fontWeight = FontWeight.Bold,
                         fontSize = 22.sp,
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "앱 설치 없이 참여할 수 있는 링크를 만들어요",
                         color = MoaTextSecondary,
@@ -140,31 +142,42 @@ fun CreateGuestScheduleSheet(
                     )
                 }
             }
-            IconButton(onClick = onDismiss) {
-                Icon(Icons.Default.Close, contentDescription = "닫기", tint = MoaTextSecondary)
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFF0F2F7)),
+            ) {
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = "닫기",
+                    tint = MoaTextSecondary,
+                    modifier = Modifier.size(18.dp),
+                )
             }
         }
 
-        Spacer(modifier = Modifier.height(22.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         if (success == null) {
             MoaOutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
-                label = "일정 제목 (최대 30자)",
+                label = "일정 제목",
                 placeholder = "예: 팀플 최종 회의",
                 maxLength = 30,
             )
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             MoaOutlinedTextField(
                 value = description,
                 onValueChange = { description = it },
-                label = "설명 (선택, 최대 80자)",
-                placeholder = "장소나 안건을 적어주세요",
+                label = "설명 (선택)",
+                placeholder = "장소, 안건 등을 적어주세요",
                 maxLength = 80,
                 singleLine = false,
             )
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(20.dp))
             MoaDateRangePicker(
                 startDate = startLocalDate,
                 endDate = endLocalDate,
@@ -174,16 +187,17 @@ fun CreateGuestScheduleSheet(
 
             val message = localError ?: (state as? GuestScheduleActionState.Error)?.message
             if (message != null) {
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = message,
                     color = MoaError,
                     fontFamily = SBAggroFontFamily,
-                    fontSize = 12.sp
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 12.sp,
                 )
             }
 
-            Spacer(modifier = Modifier.height(22.dp))
+            Spacer(modifier = Modifier.height(24.dp))
             MoaPrimaryButton(
                 text = "링크 만들기",
                 onClick = {

@@ -1,8 +1,7 @@
 package com.example.moa_project.ui.meetings
 
 import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
@@ -15,7 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -32,6 +31,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.SubcomposeAsyncImage
 import com.example.moa_project.util.ImageUrlHelper
@@ -50,15 +50,22 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import com.example.moa_project.ui.components.MoaDateRangePicker
-import com.example.moa_project.ui.components.MoaDialogButtonText
+import com.example.moa_project.ui.components.MoaMascot
+import com.example.moa_project.ui.components.MoaMascotVariant
 import com.example.moa_project.ui.components.MoaOutlinedTextField
+import com.example.moa_project.ui.components.MoaShareBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,15 +73,26 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.moa_project.R
+import com.example.moa_project.util.GroupInviteLinkHelper
+import com.example.moa_project.util.GroupInviteShareHelper
+import com.example.moa_project.util.KakaoShareHelper
+import com.example.moa_project.util.launchImagePicker
+import com.example.moa_project.util.rememberImagePickerLauncher
 import com.example.moa_project.network.GroupResponse
+import com.example.moa_project.network.TokenManager
 import com.example.moa_project.network.GroupMemberResponse
 import com.example.moa_project.network.ScheduleDetailResponse
 import com.example.moa_project.ui.theme.MoaAccentOrange
@@ -116,6 +134,24 @@ fun GroupDetailScreen(
     var showCreateScheduleDialog by remember { mutableStateOf(false) }
     var showLeaveDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
+    var showShareSheet by remember { mutableStateOf(false) }
+    val isCreateScheduleLoading = createState is CreateScheduleState.Loading
+
+    fun dismissCreateScheduleDialog() {
+        showCreateScheduleDialog = false
+        createScheduleViewModel.resetState()
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, groupId) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.loadGroupDetail()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(createState) {
         val success = createState as? CreateScheduleState.Success
@@ -133,6 +169,7 @@ fun GroupDetailScreen(
         }
     } ?: false
 
+    Box(modifier = Modifier.fillMaxSize()) {
     if (showLeaveDialog) {
         AlertDialog(
             onDismissRequest = { showLeaveDialog = false },
@@ -172,19 +209,6 @@ fun GroupDetailScreen(
         )
     }
 
-    if (showCreateScheduleDialog) {
-        CreateScheduleDialog(
-            state = createState,
-            onDismiss = {
-                showCreateScheduleDialog = false
-                createScheduleViewModel.resetState()
-            },
-            onCreate = { title, description, startDate, endDate ->
-                createScheduleViewModel.createSchedule(title, description, startDate, endDate)
-            }
-        )
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -213,6 +237,15 @@ fun GroupDetailScreen(
                     }
                 },
                 actions = {
+                    if (state is GroupDetailState.Success) {
+                        IconButton(onClick = { showShareSheet = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = "공유하기",
+                                tint = MoaBlue,
+                            )
+                        }
+                    }
                     Box {
                         IconButton(onClick = { showMenu = true }) {
                             Icon(
@@ -288,6 +321,38 @@ fun GroupDetailScreen(
             }
 
             is GroupDetailState.Success -> {
+                val inviterName = TokenManager.getNickname()
+                MoaShareBottomSheet(
+                    visible = showShareSheet,
+                    onDismiss = { showShareSheet = false },
+                    kakaoEnabled = GroupInviteLinkHelper.isExternalShareReady(),
+                    onKakaoClick = {
+                        KakaoShareHelper.shareGroupInvite(
+                            context = context,
+                            groupName = s.group.name,
+                            groupDescription = s.group.description,
+                            inviteCode = s.group.inviteCode,
+                            inviterName = inviterName,
+                        )
+                    },
+                    onCopyLinkClick = {
+                        GroupInviteShareHelper.copyInviteLink(
+                            context = context,
+                            inviteCode = s.group.inviteCode,
+                            inviterName = inviterName,
+                        )
+                    },
+                    onMoreClick = {
+                        GroupInviteShareHelper.openShareChooser(
+                            context = context,
+                            groupName = s.group.name,
+                            groupDescription = s.group.description,
+                            inviteCode = s.group.inviteCode,
+                            inviterName = inviterName,
+                        )
+                    },
+                )
+
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
@@ -421,7 +486,10 @@ fun GroupDetailScreen(
                         ScheduleCard(
                             schedule = schedule,
                             onClick = {
-                                if (schedule.status == "CONFIRMED" || schedule.status == "DONE") {
+                                val openResult = schedule.status == "CONFIRMED" ||
+                                    schedule.status == "DONE" ||
+                                    schedule.respondedCount > 0
+                                if (openResult) {
                                     onScheduleClick(schedule.id)
                                 } else {
                                     onCoordinateClick(schedule.id)
@@ -433,6 +501,49 @@ fun GroupDetailScreen(
             }
         }
     }
+
+    if (showCreateScheduleDialog) {
+        val dialogMaxHeight = LocalConfiguration.current.screenHeightDp.dp * 0.88f
+        Dialog(
+            onDismissRequest = {
+                if (!isCreateScheduleLoading) dismissCreateScheduleDialog()
+            },
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                dismissOnBackPress = !isCreateScheduleLoading,
+                dismissOnClickOutside = !isCreateScheduleLoading,
+            ),
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .heightIn(max = dialogMaxHeight),
+                shape = RoundedCornerShape(20.dp),
+                color = Color.White,
+                tonalElevation = 0.dp,
+            ) {
+                CreateScheduleSheet(
+                    state = createState,
+                    onDismiss = { if (!isCreateScheduleLoading) dismissCreateScheduleDialog() },
+                    onCreate = { title, description, startDate, endDate, isWeeklyRecurring ->
+                        createScheduleViewModel.createSchedule(title, description, startDate, endDate, isWeeklyRecurring)
+                    },
+                )
+            }
+        }
+    }
+    }
+}
+
+@Composable
+private fun GroupCoverPlaceholder(modifier: Modifier = Modifier) {
+    Image(
+        painter = painterResource(R.drawable.ic_character),
+        contentDescription = "기본 모임 이미지",
+        modifier = modifier.padding(10.dp),
+        contentScale = ContentScale.Fit,
+    )
 }
 
 @Composable
@@ -442,9 +553,7 @@ private fun GroupInfoCard(
     onUploadCover: (Uri) -> Unit = {},
 ) {
     val context = LocalContext.current
-    val coverPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri -> if (uri != null) onUploadCover(uri) }
+    val coverPicker = rememberImagePickerLauncher(onUploadCover)
 
     Column(
         modifier = Modifier
@@ -456,42 +565,39 @@ private fun GroupInfoCard(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MoaBlueSoft)
-                    .then(
-                        if (isAdmin) Modifier.clickable { coverPicker.launch("image/*") }
-                        else Modifier,
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (!group.coverImageUrl.isNullOrBlank()) {
-                    SubcomposeAsyncImage(
-                        model = ImageUrlHelper.resolve(group.coverImageUrl),
-                        contentDescription = "모임 사진",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
-                    )
-                } else {
-                    Text(
-                        text = group.name.take(1),
-                        color = MoaBlue,
-                        fontFamily = SBAggroFontFamily,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 24.sp,
-                    )
+            Box(modifier = Modifier.size(64.dp)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MoaBlueSoft)
+                        .then(
+                            if (isAdmin) Modifier.clickable { launchImagePicker(coverPicker) }
+                            else Modifier,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (!group.coverImageUrl.isNullOrBlank()) {
+                        SubcomposeAsyncImage(
+                            model = ImageUrlHelper.resolve(group.coverImageUrl),
+                            contentDescription = "모임 사진",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                            loading = { GroupCoverPlaceholder(Modifier.fillMaxSize()) },
+                            error = { GroupCoverPlaceholder(Modifier.fillMaxSize()) },
+                        )
+                    } else {
+                        GroupCoverPlaceholder(Modifier.fillMaxSize())
+                    }
                 }
                 if (isAdmin) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .offset(x = 4.dp, y = 4.dp)
                             .size(22.dp)
                             .clip(CircleShape)
                             .background(MoaBlue)
-                            .clickable { coverPicker.launch("image/*") },
+                            .clickable { launchImagePicker(coverPicker) },
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -587,6 +693,35 @@ private fun GroupInfoCard(
                 modifier = Modifier.size(14.dp),
             )
         }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "친구를 이 모임으로 초대해보세요!",
+                    color = MoaTextPrimary,
+                    fontFamily = SBAggroFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "링크를 공유하면 MOA 앱에서 코드로 바로 입장할 수 있어요.",
+                    color = MoaTextSecondary,
+                    fontFamily = SBAggroFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp,
+                )
+            }
+            MoaMascot(size = 56.dp, variant = MoaMascotVariant.Sparkle)
+        }
+
     }
 }
 
@@ -617,6 +752,7 @@ private fun GroupMembersCard(members: List<GroupMemberResponse>) {
                     imageUrl = member.profileImageUrl,
                     nickname = member.nickname,
                     size = 36.dp,
+                    useLocalCache = false,
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
@@ -732,95 +868,158 @@ private fun ScheduleCard(
 }
 
 @Composable
-private fun CreateScheduleDialog(
+private fun CreateScheduleSheet(
     state: CreateScheduleState,
     onDismiss: () -> Unit,
-    onCreate: (String, String, LocalDate, LocalDate) -> Unit
+    onCreate: (String, String, LocalDate, LocalDate, Boolean) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var startDate by remember { mutableStateOf(LocalDate.now()) }
     var endDate by remember { mutableStateOf(LocalDate.now().plusDays(5)) }
+    var isWeeklyRecurring by remember { mutableStateOf(false) }
     var localError by remember { mutableStateOf<String?>(null) }
     val isLoading = state is CreateScheduleState.Loading
     val serverError = (state as? CreateScheduleState.Error)?.message
 
-    AlertDialog(
-        onDismissRequest = {
-            if (!isLoading) onDismiss()
-        },
-        title = {
-            Text(
-                text = "새 일정 조율",
-                fontFamily = SBAggroFontFamily,
-                fontWeight = FontWeight.Bold,
-                color = MoaTextPrimary
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp)
+            .padding(top = 20.dp, bottom = 32.dp),
+    ) {
+        Text(
+            text = "새 일정 조율",
+            color = MoaTextPrimary,
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 22.sp,
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        MoaOutlinedTextField(
+            value = title,
+            onValueChange = { if (it.length <= 30) title = it },
+            label = "일정 제목 (최대 30자)",
+            placeholder = "예: OS Seminar OT",
+            maxLength = 30,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        MoaOutlinedTextField(
+            value = description,
+            onValueChange = { if (it.length <= 80) description = it },
+            label = "설명 (선택, 최대 80자)",
+            placeholder = "장소, 안건 등을 적어주세요",
+            maxLength = 80,
+            singleLine = false,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(modifier = Modifier.height(20.dp))
+        MoaDateRangePicker(
+            startDate = startDate,
+            endDate = endDate,
+            onStartDateChange = { startDate = it },
+            onEndDateChange = { endDate = it },
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(if (isWeeklyRecurring) Color(0xFFEEF5FF) else Color(0xFFF5F6FA))
+                .clickable { isWeeklyRecurring = !isWeeklyRecurring }
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "매주 반복 모임",
+                    color = MoaTextPrimary,
+                    fontFamily = SBAggroFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "매주 일요일까지 모든 팀원이 일정을 등록해요",
+                    color = MoaTextSecondary,
+                    fontFamily = SBAggroFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 12.sp,
+                )
+            }
+            androidx.compose.material3.Switch(
+                checked = isWeeklyRecurring,
+                onCheckedChange = { isWeeklyRecurring = it },
             )
-        },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+        }
+
+        val message = localError ?: serverError
+        if (message != null) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = message,
+                color = MoaError,
+                fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(
+                onClick = { if (!isLoading) onDismiss() },
+                enabled = !isLoading,
             ) {
-                MoaOutlinedTextField(
-                    value = title,
-                    onValueChange = { if (it.length <= 30) title = it },
-                    label = "일정 제목 (최대 30자)",
-                    modifier = Modifier.fillMaxWidth(),
+                Text(
+                    text = "취소",
+                    color = MoaTextSecondary,
+                    fontFamily = SBAggroFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 15.sp,
                 )
-                MoaOutlinedTextField(
-                    value = description,
-                    onValueChange = { if (it.length <= 80) description = it },
-                    label = "설명 (선택, 최대 80자)",
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                MoaDateRangePicker(
-                    startDate = startDate,
-                    endDate = endDate,
-                    onStartDateChange = { startDate = it },
-                    onEndDateChange = { endDate = it },
-                )
-                val message = localError ?: serverError
-                if (message != null) {
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(
+                onClick = {
+                    localError = if (title.isBlank()) {
+                        "일정 제목을 입력해주세요."
+                    } else if (endDate.isBefore(startDate)) {
+                        "종료일은 시작일 이후여야 합니다."
+                    } else {
+                        onCreate(title, description, startDate, endDate, isWeeklyRecurring)
+                        null
+                    }
+                },
+                enabled = !isLoading,
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MoaBlue),
+                modifier = Modifier.height(44.dp),
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp,
+                    )
+                } else {
                     Text(
-                        text = message,
-                        color = MoaError,
+                        text = "생성",
+                        color = Color.White,
                         fontFamily = SBAggroFontFamily,
-                        fontSize = 12.sp
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
                     )
                 }
             }
-        },
-        confirmButton = {
-            Button(
-                enabled = !isLoading,
-                colors = ButtonDefaults.buttonColors(containerColor = MoaBlue),
-                onClick = {
-                    localError = if (endDate.isBefore(startDate)) {
-                        "종료일은 시작일 이후여야 합니다."
-                    } else {
-                        onCreate(title, description, startDate, endDate)
-                        null
-                    }
-                }
-            ) {
-                Text(
-                    if (isLoading) "생성 중" else "생성",
-                    fontFamily = SBAggroFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(
-                enabled = !isLoading,
-                onClick = onDismiss
-            ) {
-                MoaDialogButtonText("취소", MoaTextSecondary)
-            }
-        },
-        containerColor = Color.White,
-        shape = RoundedCornerShape(18.dp),
-    )
+        }
+    }
 }

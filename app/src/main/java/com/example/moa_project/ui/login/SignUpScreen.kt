@@ -1,25 +1,35 @@
 package com.example.moa_project.ui.login
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -27,13 +37,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -41,154 +47,594 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.moa_project.ui.theme.MoaBlue
-import com.example.moa_project.ui.theme.MoaCardShadow
+import com.example.moa_project.ui.components.MoaMascot
+import com.example.moa_project.ui.components.MoaMascotVariant
 import com.example.moa_project.ui.theme.MoaPlaceholder
-import com.example.moa_project.ui.theme.MoaScreenBackground
 import com.example.moa_project.ui.theme.MoaTextPrimary
 import com.example.moa_project.ui.theme.MoaTextSecondary
+import com.example.moa_project.ui.theme.MoaTextTertiary
 import com.example.moa_project.ui.theme.SBAggroFontFamily
+import com.example.moa_project.ui.theme.moaCardSurface
+
+private val dayLabels = listOf("월", "화", "수", "목", "금", "토", "일")
+private const val TOTAL_STEPS = 4
+
+/** 회원가입 온보딩 전용 — 차분한 블루 톤 */
+private val SignUpCalmBlue = Color(0xFF6B86E8)
+private val SignUpCalmBlueSoft = Color(0xFFEEF1F8)
+private val SignUpCalmGreen = Color(0xFF6B9E85)
+private val SignUpCalmRed = Color(0xFFBF7A7A)
+private val SignUpProgressInactive = Color(0xFFE8ECF4)
+private val SignUpInputBorder = Color(0xFFE0E4F0)
+private val SignUpFieldHeight = 60.dp
+private val SignUpHorizontalPadding = 24.dp
 
 @Composable
 fun SignUpScreen(
     onBackClick: () -> Unit = {},
     onSignUpSuccess: () -> Unit = {},
-    authViewModel: AuthViewModel = viewModel()
+    viewModel: SignUpViewModel = viewModel(),
 ) {
+    val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
-    val loginState by authViewModel.loginState.collectAsState()
-    var loginId by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
-    var nickname by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
 
-    val hasLower = password.any { it in 'a'..'z' }
-    val hasUpper = password.any { it in 'A'..'Z' }
-    val hasSpecial = password.any { !it.isLetterOrDigit() }
-    val hasMinLen = password.length >= 8
-    val isPasswordValid = hasLower && hasUpper && hasSpecial && hasMinLen
-
-    LaunchedEffect(loginState) {
-        when (val state = loginState) {
-            is LoginState.Success -> {
-                android.widget.Toast.makeText(context, "회원가입 완료!", android.widget.Toast.LENGTH_SHORT).show()
-                onSignUpSuccess()
-            }
-            is LoginState.Error -> {
-                android.widget.Toast.makeText(context, state.message, android.widget.Toast.LENGTH_LONG).show()
-            }
-            else -> {}
+    LaunchedEffect(state.errorMessage) {
+        state.errorMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            viewModel.consumeErrorMessage()
         }
     }
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MoaScreenBackground)
+            .background(Color.White)
+            .statusBarsPadding()
+            .navigationBarsPadding(),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 48.dp)
-        ) {
-            IconButton(onClick = onBackClick) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로가기", tint = MoaTextPrimary)
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(8.dp, RoundedCornerShape(18.dp), spotColor = MoaCardShadow)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Color.White)
-                    .padding(24.dp)
-            ) {
-            Text(
-                text = "회원가입",
-                fontFamily = SBAggroFontFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 32.sp,
-                color = MoaTextPrimary
+        if (state.step < 4) {
+            SignUpTopBar(
+                step = state.step,
+                onBack = { viewModel.goBack(onBackClick) },
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "모아와 함께 일정을 조율해 보세요",
-                fontFamily = SBAggroFontFamily,
-                fontWeight = FontWeight.Medium,
-                fontSize = 14.sp,
-                color = MoaTextSecondary
-            )
+        }
 
-            Spacer(modifier = Modifier.height(32.dp))
-
-            SignUpField("아이디", loginId, { loginId = it }, "로그인에 사용할 아이디를 입력하세요")
-            Spacer(modifier = Modifier.height(16.dp))
-            SignUpField("닉네임 (최대 20자)", nickname, { if (it.length <= 20) nickname = it }, "닉네임을 입력하세요")
-            Spacer(modifier = Modifier.height(16.dp))
-            SignUpField("이메일", email, { email = it }, "이메일을 입력하세요")
-            Spacer(modifier = Modifier.height(16.dp))
-            SignUpField("비밀번호", password, { password = it }, "비밀번호를 입력하세요", isPassword = true)
-
-            Spacer(modifier = Modifier.height(10.dp))
-            PasswordRequirement("영문 소문자 포함", hasLower)
-            PasswordRequirement("영문 대문자 포함", hasUpper)
-            PasswordRequirement("특수문자 포함 (!@#$ 등)", hasSpecial)
-            PasswordRequirement("8자 이상", hasMinLen)
-
-            Spacer(modifier = Modifier.height(16.dp))
-            SignUpField("비밀번호 확인", confirmPassword, { confirmPassword = it }, "비밀번호를 다시 입력하세요", isPassword = true)
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Button(
-                onClick = {
-                    when {
-                        loginId.isBlank() || nickname.isBlank() || email.isBlank() || password.isBlank() -> {
-                            android.widget.Toast.makeText(context, "모든 항목을 입력해주세요.", android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                        !isPasswordValid -> {
-                            android.widget.Toast.makeText(context, "비밀번호 조건을 모두 충족해주세요.", android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                        password != confirmPassword -> {
-                            android.widget.Toast.makeText(context, "비밀번호가 일치하지 않습니다.", android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                        else -> authViewModel.signup(loginId, email, password, nickname, onSuccess = onSignUpSuccess)
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(54.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MoaBlue),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Text(
-                    text = "가입하기",
-                    fontFamily = SBAggroFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    color = Color.White
+        Box(modifier = Modifier.weight(1f)) {
+            when (state.step) {
+                0 -> AccountStep(
+                    loginId = state.loginId,
+                    email = state.email,
+                    password = state.password,
+                    confirmPassword = state.confirmPassword,
+                    hasLower = state.hasLower,
+                    hasUpper = state.hasUpper,
+                    hasSpecial = state.hasSpecial,
+                    loginIdAvailability = state.loginIdAvailability,
+                    emailAvailability = state.emailAvailability,
+                    onLoginIdChange = viewModel::updateLoginId,
+                    onEmailChange = viewModel::updateEmail,
+                    onPasswordChange = viewModel::updatePassword,
+                    onConfirmPasswordChange = viewModel::updateConfirmPassword,
+                )
+                1 -> NicknameStep(
+                    nickname = state.nickname,
+                    onNicknameChange = viewModel::updateNickname,
+                )
+                2 -> PurposeStep(
+                    selected = state.selectedPurpose,
+                    customText = state.customPurpose,
+                    onSelect = viewModel::selectPurpose,
+                    onCustomChange = viewModel::updateCustomPurpose,
+                )
+                3 -> BusyTimeStep(
+                    selected = state.selectedBusyTime,
+                    customDays = state.customDays,
+                    startHour = state.customStartHour,
+                    endHour = state.customEndHour,
+                    onSelect = viewModel::selectBusyTime,
+                    onToggleDay = viewModel::toggleCustomDay,
+                    onStartHourChange = viewModel::updateCustomStartHour,
+                    onEndHourChange = viewModel::updateCustomEndHour,
+                )
+                else -> CompleteStep(
+                    nickname = state.nickname.trim(),
+                    purpose = state.purposeDisplay,
+                    busyTime = state.busyTimeDisplay,
                 )
             }
+        }
 
-            Spacer(modifier = Modifier.height(20.dp))
+        SignUpBottomButton(
+            label = when (state.step) {
+                4 -> "시작하기"
+                else -> "다음"
+            },
+            enabled = !state.isSubmitting,
+            loading = state.isSubmitting,
+            verticalPadding = when (state.step) {
+                0 -> 12.dp
+                else -> 24.dp
+            },
+            onClick = {
+                viewModel.goNext {
+                    Toast.makeText(context, "회원가입 완료!", Toast.LENGTH_SHORT).show()
+                    onSignUpSuccess()
+                }
+            },
+        )
+    }
+}
 
-            Text(
-                text = "이미 계정이 있으신가요? 로그인하기",
-                fontFamily = SBAggroFontFamily,
-                fontWeight = FontWeight.Medium,
-                fontSize = 13.sp,
-                color = MoaBlue,
+@Composable
+private fun SignUpTopBar(step: Int, onBack: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 4.dp, end = 20.dp, top = 20.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onBack) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "뒤로가기", tint = MoaTextPrimary)
+        }
+        SignUpProgressIndicator(currentStep = step + 1)
+    }
+}
+
+@Composable
+private fun RowScope.SignUpProgressIndicator(currentStep: Int) {
+    Row(
+        modifier = Modifier
+            .weight(1f)
+            .padding(start = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        repeat(TOTAL_STEPS) { index ->
+            val isFilled = index + 1 <= currentStep
+            Box(
                 modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .clickable(onClick = onBackClick)
+                    .weight(1f)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(if (isFilled) SignUpCalmBlue else SignUpProgressInactive),
             )
+        }
+    }
+}
+
+@Composable
+private fun AccountStep(
+    loginId: String,
+    email: String,
+    password: String,
+    confirmPassword: String,
+    hasLower: Boolean,
+    hasUpper: Boolean,
+    hasSpecial: Boolean,
+    loginIdAvailability: FieldAvailability,
+    emailAvailability: FieldAvailability,
+    onLoginIdChange: (String) -> Unit,
+    onEmailChange: (String) -> Unit,
+    onPasswordChange: (String) -> Unit,
+    onConfirmPasswordChange: (String) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = SignUpHorizontalPadding),
+    ) {
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "MOA에 오신 걸 환영해요!",
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 20.sp,
+            lineHeight = 28.sp,
+            color = MoaTextPrimary,
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "먼저 계정 정보를 입력해 주세요.",
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Medium,
+            fontSize = 13.sp,
+            color = MoaTextSecondary,
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        SignUpField("아이디", loginId, onLoginIdChange, "아이디", compact = true)
+        if (loginIdAvailability != FieldAvailability.Idle) {
+            AvailabilityRequirement(
+                status = loginIdAvailability,
+                text = availabilityMessage(
+                    status = loginIdAvailability,
+                    availableText = "사용 가능한 아이디입니다",
+                    duplicateText = "중복된 아이디입니다",
+                ),
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        SignUpField("이메일", email, onEmailChange, "이메일 주소", compact = true)
+        if (emailAvailability != FieldAvailability.Idle) {
+            AvailabilityRequirement(
+                status = emailAvailability,
+                text = availabilityMessage(
+                    status = emailAvailability,
+                    availableText = "사용 가능한 이메일입니다",
+                    duplicateText = "중복된 이메일입니다",
+                ),
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        SignUpField("비밀번호", password, onPasswordChange, "비밀번호", isPassword = true, compact = true)
+        Spacer(modifier = Modifier.height(4.dp))
+        PasswordRequirement("영문 소문자 포함", hasLower)
+        PasswordRequirement("영문 대문자 포함", hasUpper)
+        PasswordRequirement("특수문자 포함 (!@#$ 등)", hasSpecial)
+        Spacer(modifier = Modifier.height(8.dp))
+        SignUpField("비밀번호 확인", confirmPassword, onConfirmPasswordChange, "비밀번호 다시 입력", isPassword = true, compact = true)
+    }
+}
+
+private fun availabilityMessage(
+    status: FieldAvailability,
+    availableText: String,
+    duplicateText: String,
+): String = when (status) {
+    FieldAvailability.Available -> availableText
+    FieldAvailability.Duplicate -> duplicateText
+    FieldAvailability.Checking -> "확인 중..."
+    FieldAvailability.Failed -> "중복 확인에 실패했습니다. 다시 시도해 주세요."
+    FieldAvailability.Idle -> ""
+}
+
+@Composable
+private fun AvailabilityRequirement(status: FieldAvailability, text: String) {
+    val color = when (status) {
+        FieldAvailability.Available -> SignUpCalmGreen
+        FieldAvailability.Duplicate, FieldAvailability.Failed -> SignUpCalmRed
+        else -> MoaTextSecondary
+    }
+    val icon = when (status) {
+        FieldAvailability.Available -> "✓"
+        FieldAvailability.Duplicate, FieldAvailability.Failed -> "•"
+        else -> "•"
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp, bottom = 1.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = icon,
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp,
+            color = color,
+        )
+        Text(
+            text = "  $text",
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Medium,
+            fontSize = 12.sp,
+            color = color,
+        )
+    }
+}
+
+@Composable
+private fun NicknameStep(nickname: String, onNicknameChange: (String) -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = SignUpHorizontalPadding),
+    ) {
+        Spacer(modifier = Modifier.height(28.dp))
+        Text(
+            text = "반가워요!\n제가 불러드릴 닉네임을\n알려주세요.",
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 22.sp,
+            lineHeight = 32.sp,
+            color = MoaTextPrimary,
+        )
+        Spacer(modifier = Modifier.height(40.dp))
+        SignUpTextInput(
+            value = nickname,
+            onValueChange = onNicknameChange,
+            placeholder = "ex. 모아",
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            text = "특수문자를 제외한 한글, 영어만 입력해 주세요. (${nickname.length}/20)",
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Medium,
+            fontSize = 12.sp,
+            color = MoaTextTertiary,
+        )
+        Spacer(modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun PurposeStep(
+    selected: SignUpPurposeOption?,
+    customText: String,
+    onSelect: (SignUpPurposeOption) -> Unit,
+    onCustomChange: (String) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = SignUpHorizontalPadding),
+    ) {
+        Spacer(modifier = Modifier.height(28.dp))
+        Text(
+            text = "MOA를 주로\n어떻게 쓸 건가요?",
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 22.sp,
+            lineHeight = 32.sp,
+            color = MoaTextPrimary,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "하나만 선택해 주세요.",
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Medium,
+            fontSize = 13.sp,
+            color = MoaTextSecondary,
+        )
+        Spacer(modifier = Modifier.height(20.dp))
+        SignUpPurposeOption.entries.forEach { option ->
+            SelectableOptionRow(label = option.label, selected = selected == option, onClick = { onSelect(option) })
+            if (option == SignUpPurposeOption.CUSTOM && selected == SignUpPurposeOption.CUSTOM) {
+                Spacer(modifier = Modifier.height(8.dp))
+                SignUpTextInput(
+                    value = customText,
+                    onValueChange = onCustomChange,
+                    placeholder = "사용 목적을 입력해 주세요",
+                    trailingCounter = "${customText.length}/20",
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            } else {
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun BusyTimeStep(
+    selected: SignUpBusyTimeOption?,
+    customDays: Set<Int>,
+    startHour: Int,
+    endHour: Int,
+    onSelect: (SignUpBusyTimeOption) -> Unit,
+    onToggleDay: (Int) -> Unit,
+    onStartHourChange: (Int) -> Unit,
+    onEndHourChange: (Int) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = SignUpHorizontalPadding),
+    ) {
+        Spacer(modifier = Modifier.height(28.dp))
+        Text(
+            text = "좋아요!\n평소 바쁜 시간을\n알려주세요.",
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 22.sp,
+            lineHeight = 32.sp,
+            color = MoaTextPrimary,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "일정 조율할 때 자동으로 반영돼요.",
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Medium,
+            fontSize = 13.sp,
+            color = MoaTextSecondary,
+        )
+        Spacer(modifier = Modifier.height(20.dp))
+        SignUpBusyTimeOption.entries.forEach { option ->
+            SelectableOptionRow(label = option.label, selected = selected == option, onClick = { onSelect(option) })
+            if (option == SignUpBusyTimeOption.CUSTOM && selected == SignUpBusyTimeOption.CUSTOM) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("요일", fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = SignUpCalmBlue)
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    dayLabels.forEachIndexed { index, label ->
+                        val day = index + 1
+                        val isSelected = customDays.contains(day)
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(36.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isSelected) SignUpCalmBlue else SignUpCalmBlueSoft)
+                                .clickable { onToggleDay(day) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(label, fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                                color = if (isSelected) Color.White else MoaTextSecondary)
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    HourPickerField("시작", startHour, onStartHourChange, Modifier.weight(1f))
+                    HourPickerField("종료", endHour, onEndHourChange, Modifier.weight(1f))
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            } else {
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompleteStep(nickname: String, purpose: String, busyTime: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Spacer(modifier = Modifier.height(16.dp))
+        Box(
+            modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(SignUpCalmBlue).padding(horizontal = 16.dp, vertical = 8.dp),
+        ) {
+            Text("가입 완료", fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
+        }
+        Spacer(modifier = Modifier.height(20.dp))
+        Text(
+            text = "준비완료!\n함께하는 시간,\nMOA와 시작해요.",
+            fontFamily = SBAggroFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 24.sp,
+            lineHeight = 34.sp,
+            color = MoaTextPrimary,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        MoaMascot(size = 120.dp, variant = MoaMascotVariant.Sparkle)
+        Spacer(modifier = Modifier.height(24.dp))
+        Column(
+            modifier = Modifier.fillMaxWidth().moaCardSurface(cornerRadius = 16.dp).padding(20.dp),
+        ) {
+            SummaryRow("닉네임", nickname)
+            Spacer(modifier = Modifier.height(12.dp))
+            SummaryRow("사용 목적", purpose)
+            Spacer(modifier = Modifier.height(12.dp))
+            SummaryRow("바쁜 시간", busyTime)
+        }
+    }
+}
+
+@Composable
+private fun SummaryRow(label: String, value: String) {
+    Text(label, fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = MoaTextTertiary)
+    Spacer(modifier = Modifier.height(4.dp))
+    Text(value, fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MoaTextPrimary)
+}
+
+@Composable
+private fun SelectableOptionRow(label: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White)
+            .border(if (selected) 2.dp else 1.dp, if (selected) SignUpCalmBlue else SignUpInputBorder, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.weight(1f),
+            fontFamily = SBAggroFontFamily,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            fontSize = 15.sp,
+            color = if (selected) SignUpCalmBlue else MoaTextPrimary,
+        )
+        if (selected) {
+            Box(Modifier.size(24.dp).clip(CircleShape).background(SignUpCalmBlue), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun SignUpTextInput(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    trailingCounter: String? = null,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(SignUpFieldHeight)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color.White)
+                .border(1.dp, SignUpInputBorder, RoundedCornerShape(16.dp))
+                .padding(horizontal = 18.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            if (value.isEmpty()) {
+                Text(placeholder, fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Medium, fontSize = 15.sp, color = MoaPlaceholder)
+            }
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                textStyle = TextStyle(fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Medium, fontSize = 15.sp, color = MoaTextPrimary),
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+        }
+        trailingCounter?.let {
+            Text(it, modifier = Modifier.fillMaxWidth().padding(top = 6.dp), fontFamily = SBAggroFontFamily,
+                fontWeight = FontWeight.Medium, fontSize = 12.sp, color = MoaTextTertiary, textAlign = TextAlign.End)
+        }
+    }
+}
+
+@Composable
+private fun HourPickerField(label: String, hour: Int, onHourChange: (Int) -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(label, fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = SignUpCalmBlue)
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White)
+                .border(1.dp, SignUpInputBorder, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text("−", Modifier.clip(CircleShape).clickable { onHourChange(hour - 1) }.padding(horizontal = 8.dp, vertical = 4.dp),
+                fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = SignUpCalmBlue)
+            Text("${hour}시", fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MoaTextPrimary)
+            Text("+", Modifier.clip(CircleShape).clickable { onHourChange(hour + 1) }.padding(horizontal = 8.dp, vertical = 4.dp),
+                fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = SignUpCalmBlue)
+        }
+    }
+}
+
+@Composable
+private fun SignUpBottomButton(
+    label: String,
+    enabled: Boolean,
+    loading: Boolean,
+    onClick: () -> Unit,
+    verticalPadding: Dp = 20.dp,
+) {
+    Box(modifier = Modifier.fillMaxWidth().padding(horizontal = SignUpHorizontalPadding, vertical = verticalPadding)) {
+        Button(
+            onClick = onClick,
+            enabled = enabled && !loading,
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = SignUpCalmBlue,
+                disabledContainerColor = SignUpCalmBlue.copy(alpha = 0.45f),
+            ),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            if (loading) {
+                CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp)
+            } else {
+                Text(label, fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
             }
         }
     }
@@ -200,49 +646,39 @@ private fun SignUpField(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
-    isPassword: Boolean = false
+    isPassword: Boolean = false,
+    compact: Boolean = false,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            text = label,
+            label,
             fontFamily = SBAggroFontFamily,
             fontWeight = FontWeight.Bold,
-            fontSize = 14.sp,
-            color = MoaBlue
+            fontSize = if (compact) 13.sp else 14.sp,
+            color = SignUpCalmBlue,
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(if (compact) 4.dp else 8.dp))
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(MoaScreenBackground)
-                .border(1.dp, MoaBlue.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                .height(if (compact) 48.dp else SignUpFieldHeight)
+                .clip(RoundedCornerShape(if (compact) 12.dp else 16.dp))
+                .background(Color.White)
+                .border(1.dp, SignUpInputBorder, RoundedCornerShape(if (compact) 12.dp else 16.dp))
                 .padding(horizontal = 16.dp),
-            contentAlignment = Alignment.CenterStart
+            contentAlignment = Alignment.CenterStart,
         ) {
             if (value.isEmpty()) {
-                Text(
-                    text = placeholder,
-                    fontFamily = SBAggroFontFamily,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 14.sp,
-                    color = MoaPlaceholder
-                )
+                Text(placeholder, fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = MoaPlaceholder)
             }
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
-                textStyle = TextStyle(
-                    fontFamily = SBAggroFontFamily,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 14.sp,
-                    color = MoaTextPrimary
-                ),
+                textStyle = TextStyle(fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = MoaTextPrimary),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 visualTransformation = if (isPassword) PasswordVisualTransformation(mask = '*') else VisualTransformation.None,
-                keyboardOptions = if (isPassword) KeyboardOptions(keyboardType = KeyboardType.Password) else KeyboardOptions.Default
+                keyboardOptions = if (isPassword) KeyboardOptions(keyboardType = KeyboardType.Password) else KeyboardOptions.Default,
             )
         }
     }
@@ -250,25 +686,9 @@ private fun SignUpField(
 
 @Composable
 private fun PasswordRequirement(text: String, satisfied: Boolean) {
-    val color = if (satisfied) MoaBlue else MoaTextSecondary
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = if (satisfied) "✓" else "•",
-            fontFamily = SBAggroFontFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = 13.sp,
-            color = color
-        )
-        Spacer(modifier = Modifier.height(0.dp))
-        Text(
-            text = "  $text",
-            fontFamily = SBAggroFontFamily,
-            fontWeight = FontWeight.Medium,
-            fontSize = 12.sp,
-            color = color
-        )
+    val color = if (satisfied) SignUpCalmBlue else MoaTextSecondary
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(if (satisfied) "✓" else "•", fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = color)
+        Text("  $text", fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = color)
     }
 }

@@ -19,6 +19,11 @@ interface MoaApi {
     @GET("api/schedules/{id}")
     suspend fun getScheduleDetail(@retrofit2.http.Path("id") scheduleId: Long): ScheduleDetailResponse
 
+    @GET("api/schedules/{id}/timeslots/mine")
+    suspend fun getMyGroupTimeSlots(
+        @retrofit2.http.Path("id") scheduleId: Long,
+    ): List<TimeSlotDto>
+
     @POST("api/schedules/{id}/timeslots")
     suspend fun submitTimeSlots(
         @retrofit2.http.Path("id") scheduleId: Long, 
@@ -27,6 +32,9 @@ interface MoaApi {
 
     @GET("api/schedules/{id}/analysis")
     suspend fun getScheduleAnalysis(@retrofit2.http.Path("id") scheduleId: Long): ScheduleAnalysisResponse
+
+    @GET("api/schedules/reminders/weekly")
+    suspend fun getWeeklyReminders(): List<WeeklyReminderDto>
 
     @retrofit2.http.PUT("api/schedules/{id}/confirm")
     suspend fun confirmSchedule(
@@ -86,6 +94,12 @@ interface MoaApi {
     @POST("api/auth/signup")
     suspend fun signup(@Body request: SignupRequest): AuthResponse
 
+    @GET("api/auth/check-login-id")
+    suspend fun checkLoginIdAvailability(@retrofit2.http.Query("loginId") loginId: String): AvailabilityResponse
+
+    @GET("api/auth/check-email")
+    suspend fun checkEmailAvailability(@retrofit2.http.Query("email") email: String): AvailabilityResponse
+
     @POST("api/auth/google")
     suspend fun loginWithGoogle(@Body request: GoogleLoginRequest): AuthResponse
 
@@ -102,7 +116,7 @@ interface MoaApi {
     @retrofit2.http.Multipart
     @POST("api/users/me/profile-image")
     suspend fun uploadProfileImage(
-        @retrofit2.http.Part("file") image: okhttp3.MultipartBody.Part
+        @retrofit2.http.Part image: okhttp3.MultipartBody.Part
     ): UserResponse
 
     @GET("api/users/me/groups")
@@ -114,6 +128,9 @@ interface MoaApi {
 
     @GET("api/groups/{id}")
     suspend fun getGroupDetail(@retrofit2.http.Path("id") groupId: Long): GroupResponse
+
+    @GET("api/groups/invite-preview")
+    suspend fun getGroupInvitePreview(@retrofit2.http.Query("code") inviteCode: String): Map<String, String>
 
     @POST("api/groups/join")
     suspend fun joinGroup(@Body request: JoinGroupRequest): Map<String, Any>
@@ -134,7 +151,7 @@ interface MoaApi {
     @POST("api/groups/{id}/cover-image")
     suspend fun uploadGroupCoverImage(
         @retrofit2.http.Path("id") groupId: Long,
-        @retrofit2.http.Part("file") image: okhttp3.MultipartBody.Part
+        @retrofit2.http.Part image: okhttp3.MultipartBody.Part
     ): GroupResponse
 
     @retrofit2.http.DELETE("api/groups/{id}/leave")
@@ -161,22 +178,6 @@ interface MoaApi {
         @retrofit2.http.Path("id") eventId: Long,
         @Body request: UpdateEventRequest
     ): CalendarEventDto
-
-    // --- Google Calendar API ---
-    @POST("api/calendar/google/connect")
-    suspend fun connectGoogleCalendar(@Body request: GoogleConnectRequest): Map<String, Any>
-
-    @retrofit2.http.DELETE("api/calendar/google/disconnect")
-    suspend fun disconnectGoogleCalendar(): retrofit2.Response<Void>
-
-    @GET("api/calendar/google/status")
-    suspend fun getGoogleCalendarStatus(): Map<String, Any>
-
-    @GET("api/calendar/google/events")
-    suspend fun getGoogleCalendarEvents(@retrofit2.http.Query("month") month: String): Map<String, Any>
-
-    @POST("api/calendar/google/sync")
-    suspend fun syncGoogleCalendar(@Body request: GoogleSyncRequest): Map<String, Any>
 
     // --- 고정 시간표 API ---
     @GET("api/users/me/fixed-slots")

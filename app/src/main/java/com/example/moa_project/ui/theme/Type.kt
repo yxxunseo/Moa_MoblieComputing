@@ -8,6 +8,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.example.moa_project.R
 
+/** 로그인 화면 전용 — 핑크퐁 아기상어 서체 */
+val LoginPinkfongFontFamily = FontFamily(
+    Font(R.font.pinkfong_light, FontWeight.Light),
+    Font(R.font.pinkfong_regular, FontWeight.Normal),
+    Font(R.font.pinkfong_regular, FontWeight.Medium),
+    Font(R.font.pinkfong_bold, FontWeight.SemiBold),
+    Font(R.font.pinkfong_bold, FontWeight.Bold),
+)
+
 /** 전역 폰트(기존 이름 유지로 참조 호환) */
 val SBAggroFontFamily = FontFamily(
     Font(R.font.pretendard_regular, FontWeight.Normal),

@@ -9,12 +9,12 @@ import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 
 object BusyTimeHelper {
-    suspend fun loadBlockedSlots(
+    suspend fun loadBusySlotLabels(
         context: Context,
         startDate: LocalDate,
-        endDate: LocalDate
-    ): Set<TimeSlot> {
-        val blocked = mutableSetOf<TimeSlot>()
+        endDate: LocalDate,
+    ): Map<TimeSlot, String> {
+        val labels = mutableMapOf<TimeSlot, String>()
         val months = mutableSetOf<YearMonth>()
         var current = startDate
         while (!current.isAfter(endDate)) {
@@ -22,39 +22,29 @@ object BusyTimeHelper {
             current = current.plusDays(1)
         }
 
-        val includeGoogle = context.getSharedPreferences("moa_settings", Context.MODE_PRIVATE)
-            .getBoolean("google_calendar", false)
-
         months.forEach { month ->
             val monthStr = month.format(DateTimeFormatter.ofPattern("yyyy-MM"))
             runCatching {
                 val response = RetrofitClient.instance.getMonthlyEvents(monthStr)
-                parseEventsToBlocked(response, startDate, endDate, blocked)
-            }
-            if (includeGoogle) {
-                runCatching {
-                    val googleResponse = RetrofitClient.instance.getGoogleCalendarEvents(monthStr)
-                    parseEventsToBlocked(googleResponse, startDate, endDate, blocked)
-                }
+                parseEventsToLabels(response, startDate, endDate, labels)
             }
         }
 
-        // 고정 시간표는 주간 보기·조율 참고용으로만 쓰고, 가능 시간 선택은 막지 않음
-
-        return blocked
+        return labels
     }
 
-    private fun parseEventsToBlocked(
+    private fun parseEventsToLabels(
         response: Map<String, Any>,
         startDate: LocalDate,
         endDate: LocalDate,
-        blocked: MutableSet<TimeSlot>
+        labels: MutableMap<TimeSlot, String>,
     ) {
         val events = (response["events"] as? List<*>) ?: return
         events.forEach { raw ->
             val item = raw as? Map<*, *> ?: return@forEach
             val startText = item["start"] as? String ?: return@forEach
             val endText = item["end"] as? String ?: return@forEach
+            val title = (item["title"] as? String)?.trim()?.takeIf { it.isNotEmpty() } ?: "기존 일정"
             val start = HomeEventLoader.parseDateTime(startText) ?: return@forEach
             val end = HomeEventLoader.parseDateTime(endText) ?: return@forEach
 
@@ -64,7 +54,12 @@ object BusyTimeHelper {
             while (slotStart.isBefore(end)) {
                 val date = slotStart.toLocalDate()
                 if (!date.isBefore(startDate) && !date.isAfter(endDate)) {
-                    blocked.add(TimeSlot(date, slotStart.hour))
+                    val slot = TimeSlot(date, slotStart.hour)
+                    labels[slot] = when (val existing = labels[slot]) {
+                        null -> title
+                        title -> existing
+                        else -> "$existing·$title"
+                    }
                 }
                 slotStart = slotStart.plusHours(1)
             }

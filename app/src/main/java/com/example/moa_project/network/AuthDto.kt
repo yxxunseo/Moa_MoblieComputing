@@ -25,3 +25,5 @@ data class AuthResponse(
     val isNewUser: Boolean = false,
     val user: UserResponse
 )
+
+data class AvailabilityResponse(val available: Boolean)

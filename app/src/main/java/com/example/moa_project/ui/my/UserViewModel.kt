@@ -11,9 +11,12 @@ import com.example.moa_project.network.UserResponse
 import com.example.moa_project.network.TokenManager
 import com.example.moa_project.util.ImageCompressor
 import com.example.moa_project.util.MoaErrorLog
+import com.example.moa_project.util.ProfileImageCache
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -28,19 +31,31 @@ class UserViewModel : ViewModel() {
     private val _uiState = MutableStateFlow<UserState>(UserState.Loading)
     val uiState: StateFlow<UserState> = _uiState
 
+    private val _isUploadingImage = MutableStateFlow(false)
+    val isUploadingImage: StateFlow<Boolean> = _isUploadingImage
+
+    private val _uploadError = MutableStateFlow<String?>(null)
+    val uploadError: StateFlow<String?> = _uploadError
+
     init {
         fetchMyProfile()
     }
 
     fun fetchMyProfile() {
         viewModelScope.launch {
-            _uiState.value = UserState.Loading
+            val keepPrevious = _uiState.value is UserState.Success
+            if (!keepPrevious) {
+                _uiState.value = UserState.Loading
+            }
             try {
                 val response = RetrofitClient.instance.getMyProfile()
+                TokenManager.saveUserInfo(response.id, response.nickname, response.profileImageUrl)
                 _uiState.value = UserState.Success(response)
             } catch (e: Exception) {
                 MoaErrorLog.log("UserViewModel", "fetchMyProfile", e)
-                _uiState.value = UserState.Error(MoaErrorLog.userMessage(e, "프로필을 불러오지 못했습니다."))
+                if (_uiState.value !is UserState.Success) {
+                    _uiState.value = UserState.Error(MoaErrorLog.userMessage(e, "프로필을 불러오지 못했습니다."))
+                }
             }
         }
     }
@@ -52,7 +67,7 @@ class UserViewModel : ViewModel() {
                 val response = RetrofitClient.instance.updateMyProfile(
                     UpdateProfileRequest(nickname = nickname, profileImageUrl = profileImageUrl)
                 )
-                TokenManager.saveUserInfo(response.id, response.nickname)
+                TokenManager.saveUserInfo(response.id, response.nickname, response.profileImageUrl)
                 _uiState.value = UserState.Success(response)
                 onSuccess()
             } catch (e: Exception) {
@@ -64,30 +79,53 @@ class UserViewModel : ViewModel() {
 
     fun uploadProfileImage(context: Context, uri: Uri, nickname: String, onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
-            _uiState.value = UserState.Loading
-            // 갤러리 원본은 너무 커서 그대로 올리면 실패 → 리사이즈/압축 후 업로드
-            val tempFile = ImageCompressor.compressToTempFile(context, uri, "profile_")
+            _isUploadingImage.value = true
+            _uploadError.value = null
+            var tempFile: java.io.File? = null
             try {
+                val appContext = context.applicationContext
+                tempFile = withContext(Dispatchers.IO) {
+                    ImageCompressor.compressToTempFile(appContext, uri, "profile_")
+                }
                 val body = tempFile.asRequestBody("image/jpeg".toMediaTypeOrNull())
                 val part = MultipartBody.Part.createFormData("file", tempFile.name, body)
                 val response = RetrofitClient.instance.uploadProfileImage(part)
-                TokenManager.saveUserInfo(response.id, response.nickname)
+                // 서버 URL 로드 실패해도 마이페이지에서 사진이 유지되도록 로컬 캐시 저장
+                withContext(Dispatchers.IO) {
+                    ProfileImageCache.saveFromFile(appContext, tempFile)
+                }
+                TokenManager.saveUserInfo(response.id, response.nickname, response.profileImageUrl)
                 _uiState.value = UserState.Success(response)
+                Log.i("UserViewModel", "profile uploaded | url=${response.profileImageUrl}")
                 onSuccess()
             } catch (e: Exception) {
                 MoaErrorLog.log("UserViewModel", "uploadProfileImage", e)
-                _uiState.value = UserState.Error(uploadErrorMessage(e))
+                _uploadError.value = uploadErrorMessage(e)
             } finally {
-                // 업로드 성공·실패와 무관하게 임시 파일 정리 (기존엔 실패 시 누수)
-                tempFile.delete()
+                tempFile?.delete()
+                _isUploadingImage.value = false
             }
         }
     }
 
+    fun clearUploadError() {
+        _uploadError.value = null
+    }
+
     private fun uploadErrorMessage(e: Throwable): String = when (e) {
+        is IllegalArgumentException -> e.message ?: "이미지를 처리할 수 없습니다."
         is retrofit2.HttpException -> "프로필 사진 업로드 실패 (서버 ${e.code()}). 잠시 후 다시 시도해주세요."
+        is java.net.ConnectException -> "서버에 연결할 수 없습니다. 백엔드(bootRun)가 켜져 있는지 확인해주세요."
         is java.net.SocketTimeoutException -> "업로드 시간이 초과됐어요. 네트워크를 확인해주세요."
-        is java.io.IOException -> "서버에 연결하지 못했어요. 네트워크를 확인해주세요."
+        is java.io.IOException -> {
+            if (e.message?.contains("Failed to connect", ignoreCase = true) == true ||
+                e.message?.contains("Connection refused", ignoreCase = true) == true
+            ) {
+                "서버에 연결할 수 없습니다. 백엔드(bootRun)를 실행해주세요."
+            } else {
+                "서버에 연결하지 못했어요. 네트워크를 확인해주세요."
+            }
+        }
         else -> "프로필 사진 업로드에 실패했습니다."
     }
 }

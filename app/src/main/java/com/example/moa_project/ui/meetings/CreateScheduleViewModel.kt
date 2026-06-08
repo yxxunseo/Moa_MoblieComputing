@@ -30,7 +30,13 @@ class CreateScheduleViewModel(private val groupId: Long) : ViewModel() {
     private val _state = MutableStateFlow<CreateScheduleState>(CreateScheduleState.Idle)
     val state: StateFlow<CreateScheduleState> = _state
 
-    fun createSchedule(title: String, description: String, startDate: LocalDate, endDate: LocalDate) {
+    fun createSchedule(
+        title: String,
+        description: String,
+        startDate: LocalDate,
+        endDate: LocalDate,
+        isWeeklyRecurring: Boolean = false,
+    ) {
         if (title.isBlank()) {
             _state.value = CreateScheduleState.Error("일정 제목을 입력해주세요.")
             return
@@ -48,7 +54,8 @@ class CreateScheduleViewModel(private val groupId: Long) : ViewModel() {
                         title = title,
                         description = description.ifBlank { null },
                         startDate = startDate.toString(),
-                        endDate = endDate.toString()
+                        endDate = endDate.toString(),
+                        isWeeklyRecurring = isWeeklyRecurring,
                     )
                 )
                 _state.value = CreateScheduleState.Success(response)

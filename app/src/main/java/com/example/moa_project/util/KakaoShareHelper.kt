@@ -1,6 +1,8 @@
 package com.example.moa_project.util
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.util.Log
 import android.widget.Toast
@@ -22,6 +24,11 @@ import com.kakao.sdk.template.model.Link
 object KakaoShareHelper {
     private const val TAG = "KakaoShareHelper"
 
+    private fun shareBaseFrom(webLink: String): String =
+        webLink.substringBefore("/join.html")
+            .substringBefore("/guest.html")
+            .trimEnd('/')
+
     fun shareGuestSchedule(
         context: Context,
         scheduleTitle: String,
@@ -40,7 +47,9 @@ object KakaoShareHelper {
             return
         }
 
-        val shareBase = BuildConfig.WEB_SHARE_URL.trim().trimEnd('/')
+        val shareBase = shareBaseFrom(webLink).ifBlank {
+            BuildConfig.WEB_SHARE_URL.trim().trimEnd('/')
+        }
         val imageUrl = "$shareBase/kakao-guest-share.png"
         val description = buildString {
             append(scheduleTitle)
@@ -88,7 +97,148 @@ object KakaoShareHelper {
                     shareViaWeb(context, feed)
                     return@shareDefault
                 }
-                sharingResult?.intent?.let { context.startActivity(it) }
+                launchShareIntent(context, feed, sharingResult?.intent)
+            }
+        } else {
+            shareViaWeb(context, feed)
+        }
+    }
+
+    fun shareGroupInvite(
+        context: Context,
+        groupName: String,
+        groupDescription: String?,
+        inviteCode: String,
+        inviterName: String? = null,
+    ) {
+        val webLink = GroupInviteLinkHelper.resolveJoinWebLink(inviteCode, inviterName)
+        if (webLink == null) {
+            Toast.makeText(
+                context,
+                "공개 URL(WEB_SHARE_URL) 설정 후 카카오톡 공유가 가능해요.",
+                Toast.LENGTH_LONG,
+            ).show()
+            return
+        }
+
+        val shareBase = shareBaseFrom(webLink)
+        val imageUrl = "$shareBase/kakao-guest-share.png"
+        val description = buildString {
+            if (!inviterName.isNullOrBlank()) {
+                append(inviterName)
+                append("님이 ")
+            }
+            append(groupName)
+            append("\n초대 코드: ")
+            append(inviteCode)
+            if (!groupDescription.isNullOrBlank()) {
+                append("\n")
+                append(groupDescription)
+            }
+            append("\nMOA 앱에서 코드로 입장해 주세요")
+        }
+
+        val link = Link(
+            webUrl = webLink,
+            mobileWebUrl = webLink,
+        )
+
+        KakaoDebugHelper.logShareContext(context, webLink, imageUrl)
+
+        val feed = FeedTemplate(
+            content = Content(
+                title = "모임에 초대되었어요!",
+                description = description,
+                imageUrl = imageUrl,
+                link = link,
+            ),
+            buttons = listOf(
+                Button(
+                    title = "모임 참여하기",
+                    link = link,
+                ),
+            ),
+        )
+
+        if (ShareClient.instance.isKakaoTalkSharingAvailable(context)) {
+            ShareClient.instance.shareDefault(context, feed) { sharingResult, error ->
+                if (error != null) {
+                    Log.e(TAG, "모임 카카오 Feed 공유 실패: ${error.message}", error)
+                    fallbackGroupTextShare(
+                        context = context,
+                        groupName = groupName,
+                        groupDescription = groupDescription,
+                        inviteCode = inviteCode,
+                        inviterName = inviterName,
+                        reason = error.message,
+                    )
+                    return@shareDefault
+                }
+                if (sharingResult?.intent != null) {
+                    launchShareIntent(context, feed, sharingResult.intent)
+                } else {
+                    fallbackGroupTextShare(
+                        context = context,
+                        groupName = groupName,
+                        groupDescription = groupDescription,
+                        inviteCode = inviteCode,
+                        inviterName = inviterName,
+                        reason = null,
+                    )
+                }
+            }
+        } else {
+            fallbackGroupTextShare(
+                context = context,
+                groupName = groupName,
+                groupDescription = groupDescription,
+                inviteCode = inviteCode,
+                inviterName = inviterName,
+                reason = "카카오톡 앱 공유 불가",
+            )
+        }
+    }
+
+    private fun fallbackGroupTextShare(
+        context: Context,
+        groupName: String,
+        groupDescription: String?,
+        inviteCode: String,
+        inviterName: String?,
+        reason: String?,
+    ) {
+        GroupInviteShareHelper.copyInviteLink(context, inviteCode, inviterName)
+        GroupInviteShareHelper.openShareChooser(
+            context = context,
+            groupName = groupName,
+            groupDescription = groupDescription,
+            inviteCode = inviteCode,
+            inviterName = inviterName,
+        )
+        val detail = reason?.takeIf { it.isNotBlank() }?.let { "\n($it)" }.orEmpty()
+        Toast.makeText(
+            context,
+            "카카오 카드 공유에 실패해 링크 공유로 열었어요.$detail",
+            Toast.LENGTH_LONG,
+        ).show()
+    }
+
+    private fun findActivity(context: Context): Activity? {
+        var current: Context? = context
+        while (current is ContextWrapper) {
+            if (current is Activity) return current
+            current = current.baseContext
+        }
+        return null
+    }
+
+    private fun launchShareIntent(context: Context, feed: FeedTemplate, intent: Intent?) {
+        if (intent != null) {
+            val activity = findActivity(context)
+            if (activity != null) {
+                activity.startActivity(intent)
+            } else {
+                context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
         } else {
             shareViaWeb(context, feed)

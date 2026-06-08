@@ -11,9 +11,11 @@ import com.example.moa_project.network.RetrofitClient
 import com.example.moa_project.network.ScheduleDetailResponse
 import com.example.moa_project.util.ImageCompressor
 import com.example.moa_project.util.MoaErrorLog
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -58,13 +60,14 @@ class GroupDetailViewModel(private val groupId: Long) : ViewModel() {
      */
     fun uploadCoverImage(context: Context, uri: Uri, onSuccess: () -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
+            var tempFile: java.io.File? = null
             try {
-                // 갤러리 원본은 너무 커서 그대로 올리면 실패 → 리사이즈/압축 후 업로드
-                val tempFile = ImageCompressor.compressToTempFile(context, uri, "group_cover_")
+                tempFile = withContext(Dispatchers.IO) {
+                    ImageCompressor.compressToTempFile(context.applicationContext, uri, "group_cover_")
+                }
                 val body = tempFile.asRequestBody("image/jpeg".toMediaTypeOrNull())
                 val part = MultipartBody.Part.createFormData("file", tempFile.name, body)
                 val group = RetrofitClient.instance.uploadGroupCoverImage(groupId, part)
-                tempFile.delete()
                 val current = _state.value
                 if (current is GroupDetailState.Success) {
                     _state.value = current.copy(group = group)
@@ -74,7 +77,13 @@ class GroupDetailViewModel(private val groupId: Long) : ViewModel() {
                 onSuccess()
             } catch (e: Exception) {
                 MoaErrorLog.log("GroupDetailViewModel", "uploadCoverImage", e)
-                onError(MoaErrorLog.userMessage(e, "모임 사진 업로드에 실패했습니다."))
+                val message = when (e) {
+                    is IllegalArgumentException -> e.message ?: "이미지를 처리할 수 없습니다."
+                    else -> MoaErrorLog.userMessage(e, "모임 사진 업로드에 실패했습니다.")
+                }
+                onError(message)
+            } finally {
+                tempFile?.delete()
             }
         }
     }

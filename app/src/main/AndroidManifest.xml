@@ -6,6 +6,16 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Android 11+: 카카오톡 설치 여부 확인 + 카카오 로그인 Custom Tab -->
+    <queries>
+        <package android:name="com.kakao.talk" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" android:host="kauth.kakao.com" />
+        </intent>
+    </queries>
+
     <application
         android:name=".MoaApplication"
         android:usesCleartextTraffic="true"
@@ -42,6 +52,14 @@
                 <data
                     android:scheme="moa"
                     android:host="schedule-result" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="moa"
+                    android:host="join" />
             </intent-filter>
         </activity>
 

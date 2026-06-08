@@ -8,18 +8,20 @@ import android.widget.Toast
 
 object GuestLinkShareHelper {
 
-    fun share(
+    fun copyWebLink(context: Context, webLink: String) {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText("Moa schedule link", webLink))
+        Toast.makeText(context, "링크를 복사했어요.", Toast.LENGTH_SHORT).show()
+    }
+
+    fun openShareChooser(
         context: Context,
         scheduleTitle: String,
         scheduleDescription: String?,
         startDate: String,
         endDate: String,
-        uniqueLink: String,
         webLink: String,
     ) {
-        copyLink(context, webLink)
-        Toast.makeText(context, "링크를 복사했어요.", Toast.LENGTH_SHORT).show()
-
         val shareText = buildString {
             append(scheduleTitle)
             append("\n")
@@ -42,8 +44,16 @@ object GuestLinkShareHelper {
         context.startActivity(Intent.createChooser(intent, "공유하기"))
     }
 
-    private fun copyLink(context: Context, text: String) {
-        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("Moa schedule link", text))
+    fun share(
+        context: Context,
+        scheduleTitle: String,
+        scheduleDescription: String?,
+        startDate: String,
+        endDate: String,
+        uniqueLink: String,
+        webLink: String,
+    ) {
+        copyWebLink(context, webLink)
+        openShareChooser(context, scheduleTitle, scheduleDescription, startDate, endDate, webLink)
     }
 }

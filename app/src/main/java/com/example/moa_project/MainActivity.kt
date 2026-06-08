@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +35,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.moa_project.ui.login.LoginScreen
 import com.example.moa_project.ui.login.SignUpScreen
 import com.example.moa_project.ui.my.EditProfileScreen
+import com.example.moa_project.ui.my.UserViewModel
 import com.example.moa_project.ui.schedule.GroupScheduleResultScreen
 import com.example.moa_project.ui.schedule.ScheduleCoordinationScreen
 import com.example.moa_project.ui.schedule.ScheduleResultScreen
@@ -56,7 +58,10 @@ import androidx.navigation.navDeepLink
 import android.app.Activity
 import androidx.compose.ui.platform.LocalContext
 import com.example.moa_project.util.BusyTimeHelper
+import com.example.moa_project.util.MoaDeepLinkStore
+import com.example.moa_project.util.ProfileImageCache
 import com.example.moa_project.network.TokenManager
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 class MainActivity : ComponentActivity() {
 
@@ -67,7 +72,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         requestNotificationPermissionIfNeeded()
-        val initialGuestRoute = intent?.data?.takeIf { it.scheme == "moa" }?.let { uri ->
+        val moaUri = intent?.data?.takeIf { it.scheme == "moa" }
+        val initialGuestRoute = moaUri?.let { uri ->
             val link = uri.lastPathSegment ?: return@let null
             when (uri.host) {
                 "schedule" -> "guest_entry/$link"
@@ -75,9 +81,15 @@ class MainActivity : ComponentActivity() {
                 else -> null
             }
         }
+        moaUri?.takeIf { it.host == "join" }?.getQueryParameter("code")?.trim()?.takeIf { it.isNotBlank() }?.let {
+            MoaDeepLinkStore.pendingJoinCode = it
+        }
         setContent {
             Moa_ProjectTheme {
-                MainScreen(initialGuestRoute = initialGuestRoute)
+                MainScreen(
+                    initialGuestRoute = initialGuestRoute,
+                    initialJoinCode = MoaDeepLinkStore.pendingJoinCode,
+                )
             }
         }
     }
@@ -85,6 +97,9 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        intent.data?.takeIf { it.scheme == "moa" && it.host == "join" }
+            ?.getQueryParameter("code")?.trim()?.takeIf { it.isNotBlank() }
+            ?.let { MoaDeepLinkStore.pendingJoinCode = it }
     }
 
     private fun requestNotificationPermissionIfNeeded() {
@@ -101,6 +116,7 @@ class MainActivity : ComponentActivity() {
 /** 토큰·캐시·설정을 모두 지우고 Activity를 완전히 새로 시작 — 모든 ViewModel 초기화 */
 private fun restartApp(activity: Activity) {
     com.example.moa_project.util.GroupFavoriteManager.clearAll(activity)
+    ProfileImageCache.clear(activity)
     // 구글 캘린더 연동 상태·알림 설정 등 사용자별 로컬 설정 초기화
     activity.getSharedPreferences("moa_settings", android.content.Context.MODE_PRIVATE)
         .edit().clear().apply()
@@ -113,8 +129,12 @@ private fun restartApp(activity: Activity) {
 }
 
 @Composable
-fun MainScreen(initialGuestRoute: String? = null) {
-    val activity = LocalContext.current as Activity
+fun MainScreen(
+    initialGuestRoute: String? = null,
+    initialJoinCode: String? = null,
+) {
+    val activity = LocalContext.current as ComponentActivity
+    val userViewModel: UserViewModel = viewModel(activity)
     val navController = rememberNavController()
     // 현재 네비게이션 상태를 가져옴
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -147,17 +167,30 @@ fun MainScreen(initialGuestRoute: String? = null) {
         composable("splash") {
             MoaSplashScreen(
                 onSplashFinished = {
-                    if (initialGuestRoute != null) {
-                        // 단기 링크: 로그인 없이 투표·결과(확정 후) 화면으로
-                        navController.navigate(initialGuestRoute) {
-                            popUpTo("splash") { inclusive = true }
-                            launchSingleTop = true
+                    when {
+                        initialGuestRoute != null -> {
+                            navController.navigate(initialGuestRoute) {
+                                popUpTo("splash") { inclusive = true }
+                                launchSingleTop = true
+                            }
                         }
-                    } else {
-                        val destination = if (TokenManager.isLoggedIn()) "home" else "login"
-                        navController.navigate(destination) {
-                            popUpTo("splash") { inclusive = true }
-                            launchSingleTop = true
+                        initialJoinCode != null -> {
+                            val destination = if (TokenManager.isLoggedIn()) {
+                                "meetings_join/${initialJoinCode.uppercase()}"
+                            } else {
+                                "login"
+                            }
+                            navController.navigate(destination) {
+                                popUpTo("splash") { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                        else -> {
+                            val destination = if (TokenManager.isLoggedIn()) "home" else "login"
+                            navController.navigate(destination) {
+                                popUpTo("splash") { inclusive = true }
+                                launchSingleTop = true
+                            }
                         }
                     }
                 }
@@ -168,7 +201,13 @@ fun MainScreen(initialGuestRoute: String? = null) {
         composable("login") {
             LoginScreen(
                 onLoginClick = {
-                    navController.navigate("home") {
+                    val pendingJoin = MoaDeepLinkStore.consumeJoinCode()
+                    val destination = if (!pendingJoin.isNullOrBlank()) {
+                        "meetings_join/${pendingJoin.uppercase()}"
+                    } else {
+                        "home"
+                    }
+                    navController.navigate(destination) {
                         popUpTo("login") { inclusive = true }
                         launchSingleTop = true
                     }
@@ -197,21 +236,36 @@ fun MainScreen(initialGuestRoute: String? = null) {
                 currentRoute = currentRoute,
                 onNavigate = navigateBottomBar,
                 onNotificationsClick = { navController.navigate("notifications") },
-                onCoordinationScheduleClick = { scheduleId ->
-                    navController.navigate("schedule_coordination_group/$scheduleId")
+                onCoordinationScheduleClick = { scheduleId, openResult ->
+                    val route = if (openResult) {
+                        "schedule_result_group/$scheduleId"
+                    } else {
+                        "schedule_coordination_group/$scheduleId"
+                    }
+                    navController.navigate(route)
                 },
+                userViewModel = userViewModel,
             )
         }
 
         composable("notifications") {
             com.example.moa_project.ui.notifications.NotificationScreen(
                 onBackClick = { navController.popBackStack() },
+                onNavigate = { route ->
+                    navController.navigate(route) {
+                        launchSingleTop = true
+                    }
+                },
             )
         }
 
         // 캘린더 화면 (구현됨)
         composable("calendar") {
-            CalendarScreen(currentRoute = currentRoute, onNavigate = navigateBottomBar)
+            CalendarScreen(
+                currentRoute = currentRoute,
+                onNavigate = navigateBottomBar,
+                userViewModel = userViewModel,
+            )
         }
         
         // 모임 화면
@@ -227,7 +281,35 @@ fun MainScreen(initialGuestRoute: String? = null) {
                 },
                 onNeedsReLogin = {
                     restartApp(activity)
-                }
+                },
+                userViewModel = userViewModel,
+            )
+        }
+
+        composable(
+            route = "meetings_join/{code}",
+            deepLinks = listOf(
+                navDeepLink { uriPattern = "moa://join?code={code}" },
+            ),
+        ) { backStackEntry ->
+            val code = backStackEntry.arguments?.getString("code").orEmpty()
+            MeetingsScreen(
+                currentRoute = "meetings",
+                initialJoinCode = code,
+                onNavigate = navigateBottomBar,
+                onMeetingClick = { groupId ->
+                    navController.navigate("group_detail/$groupId")
+                },
+                onGuestScheduleResultClick = { link ->
+                    navController.navigate("schedule_result/$link")
+                },
+                onNeedsReLogin = {
+                    restartApp(activity)
+                },
+                onJoinHandled = {
+                    MoaDeepLinkStore.pendingJoinCode = null
+                },
+                userViewModel = userViewModel,
             )
         }
 
@@ -244,7 +326,8 @@ fun MainScreen(initialGuestRoute: String? = null) {
                 },
                 onNeedsReLogin = {
                     restartApp(activity)
-                }
+                },
+                userViewModel = userViewModel,
             )
         }
 
@@ -284,14 +367,16 @@ fun MainScreen(initialGuestRoute: String? = null) {
                 },
                 onLogoutClick = {
                     restartApp(activity)
-                }
+                },
+                userViewModel = userViewModel,
             )
         }
 
         composable("edit_profile") {
             EditProfileScreen(
                 onBackClick = { navController.popBackStack() },
-                onSaveSuccess = { navController.popBackStack() }
+                onSaveSuccess = { navController.popBackStack() },
+                userViewModel = userViewModel,
             )
         }
 
@@ -351,6 +436,7 @@ fun MainScreen(initialGuestRoute: String? = null) {
                 onBackClick = { navController.popBackStack() },
                 onSubmitSuccess = {
                     navController.navigate("schedule_result_group/$scheduleId") {
+                        popUpTo("schedule_coordination_group/$scheduleId") { inclusive = true }
                         launchSingleTop = true
                     }
                 }
@@ -368,6 +454,11 @@ fun MainScreen(initialGuestRoute: String? = null) {
             ScheduleResultScreen(
                 uniqueLink = link,
                 onBackClick = { if (!navController.popBackStack()) activity.finish() },
+                onEditMyVoteClick = {
+                    navController.navigate("schedule_coordination/$link") {
+                        launchSingleTop = true
+                    }
+                },
                 onConfirmClick = {
                     if (TokenManager.isLoggedIn()) {
                         navController.navigate("calendar") {
@@ -397,6 +488,12 @@ fun MainScreen(initialGuestRoute: String? = null) {
             GroupScheduleResultScreen(
                 scheduleId = scheduleId,
                 onBackClick = { navController.popBackStack() },
+                onSaveClick = { navController.popBackStack() },
+                onEditMyVoteClick = {
+                    navController.navigate("schedule_coordination_group/$scheduleId") {
+                        launchSingleTop = true
+                    }
+                },
                 onConfirmComplete = {
                     navController.navigate("calendar") {
                         popUpTo("home") { inclusive = false }
@@ -420,10 +517,14 @@ private fun GroupScheduleCoordinationRoute(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
-    var blockedSlots by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Set<TimeSlot>>(emptySet()) }
+    val myTimeSlots by viewModel.myTimeSlots.collectAsState()
+    var busySlotLabels by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf<Map<TimeSlot, String>>(emptyMap())
+    }
 
     androidx.compose.runtime.LaunchedEffect(scheduleId) {
         viewModel.fetchDetail()
+        viewModel.fetchMyTimeSlots()
     }
 
     val schedule = (uiState as? ScheduleState.DetailSuccess)?.schedule
@@ -433,9 +534,9 @@ private fun GroupScheduleCoordinationRoute(
         ?: startDate.plusDays(5)
 
     androidx.compose.runtime.LaunchedEffect(startDate, endDate) {
-        blockedSlots = runCatching {
-            BusyTimeHelper.loadBlockedSlots(context, startDate, endDate)
-        }.getOrDefault(emptySet())
+        busySlotLabels = runCatching {
+            BusyTimeHelper.loadBusySlotLabels(context, startDate, endDate)
+        }.getOrDefault(emptyMap())
     }
 
     ScheduleCoordinationScreen(
@@ -443,7 +544,8 @@ private fun GroupScheduleCoordinationRoute(
         startDate = startDate,
         endDate = endDate,
         isGuest = false,
-        blockedSlots = blockedSlots,
+        busySlotLabels = busySlotLabels,
+        initialSelectedSlots = myTimeSlots,
         coordinationKey = "group_$scheduleId",
         onBackClick = onBackClick,
         onSubmitClick = { _, slots ->
@@ -561,20 +663,38 @@ private fun GuestScheduleCoordinationRoute(
                     onSubmitSuccess()
                 }
             } else {
-            val startDate = schedule.startDate.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: LocalDate.now()
-            val endDate = schedule.endDate.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: startDate.plusDays(5)
-
-            ScheduleCoordinationScreen(
-                scheduleTitle = schedule.title,
-                startDate = startDate,
-                endDate = endDate,
-                isGuest = true,
-                coordinationKey = link,
-                onBackClick = onBackClick,
-                onSubmitClick = { guestName, slots ->
-                    viewModel.submitTimeSlots(link, guestName, slots)
+                val context = LocalContext.current
+                val savedGuestName = androidx.compose.runtime.remember(link) {
+                    com.example.moa_project.util.GuestVoteStore.getGuestName(context, link).orEmpty()
                 }
-            )
+                val participants by viewModel.participants.collectAsState()
+                val initialSlots = androidx.compose.runtime.remember(link, savedGuestName, participants) {
+                    com.example.moa_project.util.GuestVoteStore.findParticipantSlots(
+                        participants,
+                        savedGuestName,
+                    )
+                }
+
+                androidx.compose.runtime.LaunchedEffect(link) {
+                    viewModel.loadParticipants(link)
+                }
+
+                val startDate = schedule.startDate.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: LocalDate.now()
+                val endDate = schedule.endDate.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: startDate.plusDays(5)
+
+                ScheduleCoordinationScreen(
+                    scheduleTitle = schedule.title,
+                    startDate = startDate,
+                    endDate = endDate,
+                    isGuest = true,
+                    initialSelectedSlots = initialSlots,
+                    initialGuestName = savedGuestName,
+                    coordinationKey = link,
+                    onBackClick = onBackClick,
+                    onSubmitClick = { guestName, slots ->
+                        viewModel.submitTimeSlots(link, guestName, slots, context)
+                    }
+                )
             }
         }
         is com.example.moa_project.ui.schedule.GuestScheduleState.SubmitSuccess -> {

@@ -11,7 +11,7 @@ object ImageUrlHelper {
     fun resolve(url: String?): String? {
         if (url.isNullOrBlank()) return null
         val trimmed = url.trim()
-        val serverBase = BuildConfig.SERVER_URL.trimEnd('/')
+        val serverBase = ServerUrlResolver.resolvedUrl().trimEnd('/')
 
         if (trimmed.startsWith("/")) {
             return serverBase + trimmed

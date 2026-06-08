@@ -826,7 +826,7 @@
     function renderHours() {
       const container = document.getElementById("hours");
       container.innerHTML = "";
-      for (let h = 8; h <= 22; h++) {
+      for (let h = 0; h <= 23; h++) {
         const key = `${currentDate}T${String(h).padStart(2, "0")}:00`;
         const btn = document.createElement("button");
         btn.type = "button";
@@ -959,7 +959,7 @@
           <div class="section-title"><span>시간대별 가능 인원</span></div>`;
         dates.forEach(date => {
           html += `<div class="day-heatmap"><div class="day-heatmap-label">${formatDayLabel(date)}</div><div class="hour-grid">`;
-          for (let h = 8; h <= 22; h++) {
+          for (let h = 0; h <= 23; h++) {
             const timeKey = String(h).padStart(2, "0") + ":00";
             const count = (heatmap[date] && heatmap[date][timeKey]) || 0;
             const cls = heatClass(count);
