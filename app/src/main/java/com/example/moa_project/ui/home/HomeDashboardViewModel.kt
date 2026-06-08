@@ -8,6 +8,10 @@ import com.example.moa_project.network.RetrofitClient
 import com.example.moa_project.network.ScheduleDetailResponse
 import com.example.moa_project.util.MoaErrorLog
 import com.example.moa_project.util.ServerConnectionHelper
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -48,12 +52,16 @@ class HomeDashboardViewModel : ViewModel() {
     private val _state = MutableStateFlow<HomeDashboardState>(HomeDashboardState.Loading)
     val state: StateFlow<HomeDashboardState> = _state
 
+    private var refreshJob: Job? = null
+
     init {
         refresh()
     }
 
     fun refresh() {
-        viewModelScope.launch {
+        // 이전 새로고침이 진행 중이면 취소해 응답 경쟁(stale 데이터가 최종 상태로 남는 문제)을 방지
+        refreshJob?.cancel()
+        refreshJob = viewModelScope.launch {
             _state.value = HomeDashboardState.Loading
             val diagnosis = ServerConnectionHelper.diagnose()
             if (!diagnosis.healthOk) {
@@ -85,16 +93,20 @@ class HomeDashboardViewModel : ViewModel() {
     }
 
     private suspend fun loadPendingCoordinationItems(groups: List<GroupResponse>): List<HomeActivityItem> {
-        val items = mutableListOf<HomeActivityItem>()
-        groups.forEach { group ->
-            runCatching {
-                RetrofitClient.instance.getGroupSchedules(group.id)
-            }.getOrDefault(emptyList()).forEach { schedule ->
-                val label = statusToLabel(schedule.status)
-                if (label == "응답 대기" || label == "조율 중") {
-                    items.add(schedule.toActivityItem(group))
+        // 그룹별 일정 조회를 순차가 아닌 병렬로 수행 (그룹 수에 비례하던 지연을 단축)
+        val items = coroutineScope {
+            groups.map { group ->
+                async {
+                    runCatching {
+                        RetrofitClient.instance.getGroupSchedules(group.id)
+                    }.getOrDefault(emptyList()).mapNotNull { schedule ->
+                        val label = statusToLabel(schedule.status)
+                        if (label == "응답 대기" || label == "조율 중") {
+                            schedule.toActivityItem(group)
+                        } else null
+                    }
                 }
-            }
+            }.awaitAll().flatten()
         }
         return items.sortedByDescending { statusPriority(it.statusLabel) }
     }
