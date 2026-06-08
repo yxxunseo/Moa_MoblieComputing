@@ -32,6 +32,8 @@ data class GuestScheduleResponse(
 
 data class GuestTimeSlotDto(val start: String, val end: String)
 
+private val SLOT_TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm")
+
 @Service
 class GuestScheduleService(
     private val guestScheduleRepository: GuestScheduleRepository,
@@ -62,7 +64,9 @@ class GuestScheduleService(
     @Transactional
     fun createGuestSchedule(userId: Long, title: String, description: String?, startDate: LocalDate, endDate: LocalDate): GuestScheduleResponse {
         val user = userRepository.findById(userId).orElseThrow { IllegalArgumentException("사용자를 찾을 수 없습니다.") }
-        
+        require(title.isNotBlank()) { "일정 제목을 입력해주세요." }
+        require(!endDate.isBefore(startDate)) { "종료일은 시작일보다 빠를 수 없습니다." }
+
         // 고유 링크 생성 (UUID 활용)
         val uniqueLink = UUID.randomUUID().toString().substring(0, 8)
         
@@ -145,28 +149,37 @@ class GuestScheduleService(
         visitorId: String? = null,
         clientIp: String? = null,
     ): Map<String, Any> {
-        val schedule = guestScheduleRepository.findByUniqueLink(uniqueLink) 
+        val schedule = guestScheduleRepository.findByUniqueLink(uniqueLink)
             ?: throw IllegalArgumentException("유효하지 않은 링크입니다.")
-            
+
+        val trimmedName = guestName.trim()
+        require(trimmedName.isNotBlank()) { "이름을 입력해주세요." }
+
+        // 파싱·검증을 먼저 수행해 실패 시 기존 데이터를 보존 (기존엔 삭제 후 파싱하다 예외 시 데이터 유실)
+        val parsedSlots = slots.map { slot ->
+            val start = LocalDateTime.parse(slot.start, SLOT_TIME_FORMATTER)
+            val end = LocalDateTime.parse(slot.end, SLOT_TIME_FORMATTER)
+            require(end.isAfter(start)) { "종료 시간은 시작 시간보다 늦어야 합니다." }
+            start to end
+        }
+
         // 동일한 이름으로 등록한 기존 시간이 있다면 덮어쓰기 (초기화 후 재등록)
-        guestTimeSlotRepository.deleteAllByGuestScheduleAndGuestName(schedule, guestName)
-        
-        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm")
-        
-        slots.forEach { slot ->
+        guestTimeSlotRepository.deleteAllByGuestScheduleAndGuestName(schedule, trimmedName)
+
+        parsedSlots.forEach { (start, end) ->
             guestTimeSlotRepository.save(
                 GuestTimeSlot(
                     guestSchedule = schedule,
-                    guestName = guestName,
-                    slotStart = LocalDateTime.parse(slot.start, formatter),
-                    slotEnd = LocalDateTime.parse(slot.end, formatter)
+                    guestName = trimmedName,
+                    slotStart = start,
+                    slotEnd = end
                 )
             )
         }
 
-        saveVisitorSession(uniqueLink, visitorId, guestName, clientIp)
-        
-        return mapOf("message" to "${guestName}님의 가능 시간이 성공적으로 등록되었습니다.")
+        saveVisitorSession(uniqueLink, visitorId, trimmedName, clientIp)
+
+        return mapOf("message" to "${trimmedName}님의 가능 시간이 성공적으로 등록되었습니다.")
     }
     
     // 4. 익명 일정 겹치는 시간 히트맵 분석 (비회원 가능)
@@ -278,17 +291,21 @@ class GuestScheduleService(
             throw IllegalArgumentException("일정 확정 권한이 없습니다.")
         }
 
-        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm")
-        schedule.confirmedStart = LocalDateTime.parse(start, formatter)
-        schedule.confirmedEnd = LocalDateTime.parse(end, formatter)
+        val confirmedStart = LocalDateTime.parse(start, SLOT_TIME_FORMATTER)
+        val confirmedEnd = LocalDateTime.parse(end, SLOT_TIME_FORMATTER)
+        require(confirmedEnd.isAfter(confirmedStart)) { "종료 시간은 시작 시간보다 늦어야 합니다." }
+
+        schedule.confirmedStart = confirmedStart
+        schedule.confirmedEnd = confirmedEnd
         schedule.status = "CONFIRMED"
+        guestScheduleRepository.save(schedule)
 
         calendarEventRepository.save(
             CalendarEvent(
                 user = schedule.createdBy,
                 title = schedule.title,
-                eventStart = schedule.confirmedStart!!,
-                eventEnd = schedule.confirmedEnd!!,
+                eventStart = confirmedStart,
+                eventEnd = confirmedEnd,
                 color = "#2179FE",
                 source = "MANUAL"
             )
@@ -323,6 +340,7 @@ class GuestScheduleService(
         }
 
         schedule.status = "DONE"
+        guestScheduleRepository.save(schedule)
         return mapOf(
             "message" to "일정이 완료 처리되었습니다.",
             "status" to "DONE"
