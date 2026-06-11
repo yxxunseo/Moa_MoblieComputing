@@ -20,10 +20,20 @@ object ServerUrlResolver {
         if (!url.endsWith("/")) url += "/"
 
         if (isProbablyEmulator()) {
-            val port = runCatching { URI(url).port }.getOrDefault(-1).let { if (it > 0) it else 8080 }
+            val port = extractPort(url)
             val resolved = "http://10.0.2.2:$port/"
             if (BuildConfig.DEBUG && resolved != url) {
                 Log.i(TAG, "Emulator: $url -> $resolved")
+            }
+            return resolved
+        }
+
+        // 실기기에서 10.0.2.2(에뮬 전용)를 쓰면 EHOSTUNREACH 발생 → ADB reverse용 127.0.0.1로 보정
+        if (url.contains("10.0.2.2")) {
+            val port = extractPort(url)
+            val resolved = "http://127.0.0.1:$port/"
+            if (BuildConfig.DEBUG) {
+                Log.w(TAG, "Physical device: $url -> $resolved (run: adb reverse tcp:$port tcp:$port)")
             }
             return resolved
         }
@@ -34,6 +44,21 @@ object ServerUrlResolver {
 
         return url
     }
+
+    /** 현재 기기·URL 조합에 맞는 연결 안내 문구 */
+    fun connectionHint(): String = when {
+        isProbablyEmulator() ->
+            "Mac에서 ./scripts/dev-server.sh 실행 후 에뮬레이터에서 앱을 다시 실행해 주세요."
+        configuredUrl().contains("10.0.2.2") || resolvedUrl().contains("127.0.0.1") ->
+            "터미널에서 adb reverse tcp:8080 tcp:8080 실행 후, 백엔드(./scripts/dev-server.sh)가 켜져 있는지 확인해 주세요."
+        resolvedUrl().contains("ngrok") ->
+            "ngrok 터널이 살아 있는지 확인해 주세요."
+        else ->
+            "Mac과 폰이 같은 Wi-Fi인지, local.properties의 SERVER_URL IP가 Mac IP와 같은지 확인해 주세요."
+    }
+
+    private fun extractPort(url: String): Int =
+        runCatching { URI(url).port }.getOrDefault(-1).let { if (it > 0) it else 8080 }
 
     fun isProbablyEmulator(): Boolean =
         Build.FINGERPRINT.startsWith("generic", ignoreCase = true) ||

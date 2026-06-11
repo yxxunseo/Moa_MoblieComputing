@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
+import java.io.IOException
 
 enum class SignUpPurposeOption(val label: String) {
     MEET_FRIENDS("친구들과 약속 잡기"),
@@ -155,6 +157,18 @@ class SignUpViewModel : ViewModel() {
 
     fun consumeErrorMessage() = _uiState.update { it.copy(errorMessage = null) }
 
+    /** 서버 연결 실패(Failed) 시 입력값 기준으로 중복 확인을 다시 시도한다. */
+    fun retryAvailabilityChecksIfNeeded() {
+        val state = _uiState.value
+        if (state.step != 0) return
+        if (state.loginIdAvailability == FieldAvailability.Failed && state.loginId.trim().isNotBlank()) {
+            scheduleLoginIdCheck(state.loginId, immediate = true)
+        }
+        if (state.emailAvailability == FieldAvailability.Failed && isValidEmail(state.email.trim())) {
+            scheduleEmailCheck(state.email, immediate = true)
+        }
+    }
+
     fun goBack(onExit: () -> Unit) {
         val state = _uiState.value
         if (state.step == 0) onExit() else _uiState.update { it.copy(step = it.step - 1, errorMessage = null) }
@@ -181,32 +195,54 @@ class SignUpViewModel : ViewModel() {
             }
             1 -> validateNickname(state)?.let { setError(it) } ?: advance()
             2 -> validatePurpose(state)?.let { setError(it) } ?: advance()
-            3 -> validateBusyTime(state)?.let { setError(it) } ?: advance()
-            4 -> submit(onComplete)
+            3 -> submit(onComplete)
         }
     }
 
     private suspend fun fetchLoginIdAvailability(loginId: String): FieldAvailability {
         if (loginId.isBlank()) return FieldAvailability.Idle
-        return runCatching { RetrofitClient.instance.checkLoginIdAvailability(loginId) }
-            .map { if (it.available) FieldAvailability.Available else FieldAvailability.Duplicate }
-            .getOrElse {
-                MoaErrorLog.log("SignUpViewModel", "fetchLoginIdAvailability", it)
-                FieldAvailability.Failed
-            }
+        return fetchAvailabilityWithRetry("fetchLoginIdAvailability", loginId) {
+            RetrofitClient.instance.checkLoginIdAvailability(loginId)
+        }
     }
 
     private suspend fun fetchEmailAvailability(email: String): FieldAvailability {
         if (email.isBlank()) return FieldAvailability.Idle
-        return runCatching { RetrofitClient.instance.checkEmailAvailability(email) }
-            .map { if (it.available) FieldAvailability.Available else FieldAvailability.Duplicate }
-            .getOrElse {
-                MoaErrorLog.log("SignUpViewModel", "fetchEmailAvailability", it)
-                FieldAvailability.Failed
-            }
+        return fetchAvailabilityWithRetry("fetchEmailAvailability", email) {
+            RetrofitClient.instance.checkEmailAvailability(email)
+        }
     }
 
-    private fun scheduleLoginIdCheck(raw: String) {
+    private suspend fun fetchAvailabilityWithRetry(
+        action: String,
+        value: String,
+        apiCall: suspend () -> com.example.moa_project.network.AvailabilityResponse,
+    ): FieldAvailability {
+        var lastError: Throwable? = null
+        for (attempt in 0 until CHECK_MAX_RETRIES) {
+            if (attempt > 0) delay(CHECK_RETRY_DELAY_MS * attempt)
+            val result = runCatching { apiCall() }
+            if (result.isSuccess) {
+                val response = result.getOrThrow()
+                return if (response.available) FieldAvailability.Available else FieldAvailability.Duplicate
+            }
+            lastError = result.exceptionOrNull()
+            if (!shouldRetryAvailabilityCheck(lastError)) break
+        }
+        MoaErrorLog.log(action, "availabilityCheck", lastError ?: Exception("unknown"), mapOf("value" to value))
+        return FieldAvailability.Failed
+    }
+
+    private fun shouldRetryAvailabilityCheck(error: Throwable?): Boolean {
+        val root = error ?: return false
+        return when (root) {
+            is IOException -> true
+            is HttpException -> root.code() in RETRYABLE_HTTP_CODES
+            else -> root.cause?.let { shouldRetryAvailabilityCheck(it) } == true
+        }
+    }
+
+    private fun scheduleLoginIdCheck(raw: String, immediate: Boolean = false) {
         loginIdCheckJob?.cancel()
         val trimmed = raw.trim()
         if (trimmed.isBlank()) {
@@ -215,15 +251,16 @@ class SignUpViewModel : ViewModel() {
         }
         val seq = ++loginIdCheckSeq
         loginIdCheckJob = viewModelScope.launch {
-            delay(CHECK_DEBOUNCE_MS)
+            if (!immediate) delay(CHECK_DEBOUNCE_MS)
             if (seq != loginIdCheckSeq || trimmed != _uiState.value.loginId.trim()) return@launch
+            _uiState.update { it.copy(loginIdAvailability = FieldAvailability.Checking) }
             val availability = fetchLoginIdAvailability(trimmed)
             if (seq != loginIdCheckSeq || trimmed != _uiState.value.loginId.trim()) return@launch
             _uiState.update { it.copy(loginIdAvailability = availability) }
         }
     }
 
-    private fun scheduleEmailCheck(raw: String) {
+    private fun scheduleEmailCheck(raw: String, immediate: Boolean = false) {
         emailCheckJob?.cancel()
         val trimmed = raw.trim()
         if (trimmed.isBlank()) {
@@ -236,8 +273,9 @@ class SignUpViewModel : ViewModel() {
         }
         val seq = ++emailCheckSeq
         emailCheckJob = viewModelScope.launch {
-            delay(CHECK_DEBOUNCE_MS)
+            if (!immediate) delay(CHECK_DEBOUNCE_MS)
             if (seq != emailCheckSeq || trimmed != _uiState.value.email.trim()) return@launch
+            _uiState.update { it.copy(emailAvailability = FieldAvailability.Checking) }
             val availability = fetchEmailAvailability(trimmed)
             if (seq != emailCheckSeq || trimmed != _uiState.value.email.trim()) return@launch
             _uiState.update { it.copy(emailAvailability = availability) }
@@ -255,19 +293,20 @@ class SignUpViewModel : ViewModel() {
         state.loginIdAvailability == FieldAvailability.Checking ||
             state.emailAvailability == FieldAvailability.Checking ->
             "중복 확인 중입니다. 잠시만 기다려 주세요."
-        state.loginIdAvailability == FieldAvailability.Failed -> "아이디 중복 확인에 실패했습니다."
         state.loginIdAvailability == FieldAvailability.Duplicate -> "중복된 아이디입니다."
-        state.loginIdAvailability != FieldAvailability.Available -> "아이디 중복 확인이 필요합니다."
-        state.emailAvailability == FieldAvailability.Failed -> "이메일 중복 확인에 실패했습니다."
+        // Failed: 서버 연결 실패 시 진행 허용 — 회원가입 API에서 409로 최종 검증됨
+        state.loginIdAvailability != FieldAvailability.Available &&
+            state.loginIdAvailability != FieldAvailability.Failed -> "아이디 중복 확인이 필요합니다."
         state.emailAvailability == FieldAvailability.Duplicate -> "중복된 이메일입니다."
-        state.emailAvailability != FieldAvailability.Available -> "이메일 중복 확인이 필요합니다."
+        state.emailAvailability != FieldAvailability.Available &&
+            state.emailAvailability != FieldAvailability.Failed -> "이메일 중복 확인이 필요합니다."
         !state.isPasswordValid -> "비밀번호 조건을 모두 충족해 주세요."
         state.password != state.confirmPassword -> "비밀번호가 일치하지 않습니다."
         else -> null
     }
 
     private fun validateNickname(state: SignUpUiState): String? =
-        if (state.nickname.trim().isBlank()) "닉네임을 입력해 주세요." else null
+        if (state.nickname.trim().isBlank()) "이름을 입력해 주세요." else null
 
     private fun validatePurpose(state: SignUpUiState): String? = when {
         state.selectedPurpose == null -> "사용 목적을 선택해 주세요."
@@ -345,5 +384,8 @@ class SignUpViewModel : ViewModel() {
 
     companion object {
         private const val CHECK_DEBOUNCE_MS = 400L
+        private const val CHECK_MAX_RETRIES = 3
+        private const val CHECK_RETRY_DELAY_MS = 500L
+        private val RETRYABLE_HTTP_CODES = setOf(408, 429, 502, 503, 504)
     }
 }

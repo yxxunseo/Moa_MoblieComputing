@@ -30,6 +30,7 @@ class SecurityConfig(
                 "/join.html",
                 "/join",
                 "/kakao-guest-share.png",
+                "/moa-kakao-share.png",
                 "/join-mascot.png",
                 "/error",
                 "/favicon.ico"
@@ -54,6 +55,7 @@ class SecurityConfig(
                         "/join.html",
                         "/join",
                         "/kakao-guest-share.png",
+                "/moa-kakao-share.png",
                 "/join-mascot.png",
                         "/api/groups/invite-preview",
                         "/api/guest-schedules/*",

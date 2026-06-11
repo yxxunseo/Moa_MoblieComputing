@@ -23,6 +23,7 @@ import com.kakao.sdk.template.model.Link
  */
 object KakaoShareHelper {
     private const val TAG = "KakaoShareHelper"
+    private const val SHARE_IMAGE_PATH = "/moa-kakao-share.png"
 
     private fun shareBaseFrom(webLink: String): String =
         webLink.substringBefore("/join.html")
@@ -47,10 +48,7 @@ object KakaoShareHelper {
             return
         }
 
-        val shareBase = shareBaseFrom(webLink).ifBlank {
-            BuildConfig.WEB_SHARE_URL.trim().trimEnd('/')
-        }
-        val imageUrl = "$shareBase/kakao-guest-share.png"
+        val imageUrl = mascotShareImageUrl(webLink)
         val description = buildString {
             append(scheduleTitle)
             append("\n")
@@ -104,6 +102,68 @@ object KakaoShareHelper {
         }
     }
 
+    fun shareGuestConfirmedSchedule(
+        context: Context,
+        scheduleTitle: String,
+        confirmedStart: String?,
+        confirmedEnd: String?,
+        webLink: String,
+    ) {
+        if (!GuestLinkHelper.isExternalReachable(webLink)) {
+            Toast.makeText(
+                context,
+                "공개 URL(WEB_SHARE_URL) 설정 후 카카오톡 공유가 가능해요.",
+                Toast.LENGTH_LONG,
+            ).show()
+            return
+        }
+
+        val imageUrl = mascotShareImageUrl(webLink)
+        val description = GuestLinkShareHelper.buildConfirmedShareText(
+            scheduleTitle = scheduleTitle,
+            confirmedStart = confirmedStart,
+            confirmedEnd = confirmedEnd,
+        )
+
+        val link = Link(
+            webUrl = webLink,
+            mobileWebUrl = webLink,
+        )
+
+        val feed = FeedTemplate(
+            content = Content(
+                title = "일정이 확정되었어요!",
+                description = description,
+                imageUrl = imageUrl,
+                link = link,
+            ),
+            buttons = listOf(
+                Button(
+                    title = "확정 일정 확인하기",
+                    link = link,
+                ),
+            ),
+        )
+
+        if (ShareClient.instance.isKakaoTalkSharingAvailable(context)) {
+            ShareClient.instance.shareDefault(context, feed) { sharingResult, error ->
+                if (error != null) {
+                    Log.e(TAG, "확정 일정 카카오 Feed 공유 실패: ${error.message}", error)
+                    Toast.makeText(
+                        context,
+                        "Feed 공유 실패. 카카오 콘솔에 WEB_SHARE_URL 도메인 등록을 확인해 주세요.",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                    shareViaWeb(context, feed)
+                    return@shareDefault
+                }
+                launchShareIntent(context, feed, sharingResult?.intent)
+            }
+        } else {
+            shareViaWeb(context, feed)
+        }
+    }
+
     fun shareGroupInvite(
         context: Context,
         groupName: String,
@@ -121,8 +181,7 @@ object KakaoShareHelper {
             return
         }
 
-        val shareBase = shareBaseFrom(webLink)
-        val imageUrl = "$shareBase/kakao-guest-share.png"
+        val imageUrl = mascotShareImageUrl(webLink)
         val description = buildString {
             if (!inviterName.isNullOrBlank()) {
                 append(inviterName)
@@ -221,6 +280,13 @@ object KakaoShareHelper {
             "카카오 카드 공유에 실패해 링크 공유로 열었어요.$detail",
             Toast.LENGTH_LONG,
         ).show()
+    }
+
+    private fun mascotShareImageUrl(webLink: String): String {
+        val base = BuildConfig.WEB_SHARE_URL.trim().trimEnd('/').ifBlank {
+            shareBaseFrom(webLink)
+        }
+        return "$base$SHARE_IMAGE_PATH"
     }
 
     private fun findActivity(context: Context): Activity? {

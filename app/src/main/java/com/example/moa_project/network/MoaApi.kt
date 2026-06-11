@@ -19,6 +19,9 @@ interface MoaApi {
     @GET("api/schedules/{id}")
     suspend fun getScheduleDetail(@retrofit2.http.Path("id") scheduleId: Long): ScheduleDetailResponse
 
+    @retrofit2.http.DELETE("api/schedules/{id}")
+    suspend fun deleteSchedule(@retrofit2.http.Path("id") scheduleId: Long): Map<String, String>
+
     @GET("api/schedules/{id}/timeslots/mine")
     suspend fun getMyGroupTimeSlots(
         @retrofit2.http.Path("id") scheduleId: Long,
@@ -35,6 +38,9 @@ interface MoaApi {
 
     @GET("api/schedules/reminders/weekly")
     suspend fun getWeeklyReminders(): List<WeeklyReminderDto>
+
+    @GET("api/schedules/reminders/pending")
+    suspend fun getPendingScheduleReminders(): List<PendingScheduleReminderDto>
 
     @retrofit2.http.PUT("api/schedules/{id}/confirm")
     suspend fun confirmSchedule(

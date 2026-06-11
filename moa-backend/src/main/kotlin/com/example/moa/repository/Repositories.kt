@@ -78,6 +78,10 @@ interface CalendarEventRepository : JpaRepository<CalendarEvent, Long> {
     @Modifying
     @Query("DELETE FROM CalendarEvent e WHERE e.group = :group")
     fun deleteAllByGroup(group: MeetingGroup)
+
+    @Modifying
+    @Query("DELETE FROM CalendarEvent e WHERE e.schedule = :schedule")
+    fun deleteAllBySchedule(schedule: Schedule)
 }
 
 @Repository
@@ -110,6 +114,10 @@ interface ScheduleReactionRepository : JpaRepository<ScheduleReaction, Long> {
     @Modifying
     @Query("DELETE FROM ScheduleReaction r WHERE r.schedule.group = :group")
     fun deleteAllByGroup(group: MeetingGroup)
+
+    @Modifying
+    @Query("DELETE FROM ScheduleReaction r WHERE r.schedule = :schedule")
+    fun deleteAllBySchedule(schedule: Schedule)
 }
 
 @Repository

@@ -78,6 +78,7 @@ fun CreateOrJoinMeetingSheet(
     onSuccess: () -> Unit,
     initialTab: Int = 0,
     initialInviteCode: String? = null,
+    onDraftInputChange: (Boolean) -> Unit = {},
     viewModel: GroupActionViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -95,6 +96,12 @@ fun CreateOrJoinMeetingSheet(
     // 입장 폼 상태
     var inviteCode by remember(initialInviteCode) {
         mutableStateOf(initialInviteCode?.uppercase().orEmpty())
+    }
+
+    LaunchedEffect(groupName, groupDescription, inviteCode) {
+        onDraftInputChange(
+            groupName.isNotBlank() || groupDescription.isNotBlank() || inviteCode.isNotBlank(),
+        )
     }
 
     // 성공/에러 처리

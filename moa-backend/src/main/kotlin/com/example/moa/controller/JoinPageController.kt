@@ -49,7 +49,7 @@ class JoinPageController(
   <meta property="og:type" content="website" />
   <meta property="og:title" content="${inviterName}님의 모임 초대" />
   <meta property="og:description" content="$ogDescription" />
-  <meta property="og:image" content="/kakao-guest-share.png" id="og-image" />
+  <meta property="og:image" content="/moa-kakao-share.png" id="og-image" />
   <meta property="og:url" content="" id="og-url" />
   <style>
     :root {
@@ -176,7 +176,7 @@ class JoinPageController(
       var origin = window.location.origin;
       var ogImage = document.getElementById("og-image");
       var ogUrl = document.getElementById("og-url");
-      if (ogImage) ogImage.setAttribute("content", origin + "/kakao-guest-share.png");
+      if (ogImage) ogImage.setAttribute("content", origin + "/moa-kakao-share.png");
       if (ogUrl) ogUrl.setAttribute("content", window.location.href);
     })();
   </script>

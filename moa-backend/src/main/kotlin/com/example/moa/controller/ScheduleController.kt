@@ -63,6 +63,14 @@ class ScheduleController(
         return ResponseEntity.ok(scheduleService.getWeeklyReminders(userId))
     }
 
+    @GetMapping("/schedules/reminders/pending")
+    fun getPendingScheduleReminders(
+        @AuthenticationPrincipal userDetails: UserDetails,
+    ): ResponseEntity<List<PendingScheduleReminderResponse>> {
+        val userId = userDetails.username.toLong()
+        return ResponseEntity.ok(scheduleService.getPendingScheduleReminders(userId))
+    }
+
     // 2. 그룹 내 일정 목록
     @GetMapping("/groups/{groupId}/schedules")
     fun getGroupSchedules(
@@ -71,6 +79,16 @@ class ScheduleController(
     ): ResponseEntity<List<ScheduleResponse>> {
         val userId = userDetails.username.toLong()
         return ResponseEntity.ok(scheduleService.getGroupSchedules(userId, groupId))
+    }
+
+    // 2.4. 완료된 일정 삭제
+    @DeleteMapping("/schedules/{id}")
+    fun deleteSchedule(
+        @AuthenticationPrincipal userDetails: UserDetails,
+        @PathVariable id: Long,
+    ): ResponseEntity<Map<String, String>> {
+        val userId = userDetails.username.toLong()
+        return ResponseEntity.ok(scheduleService.deleteCompletedSchedule(userId, id))
     }
 
     // 2.5. 일정 상세 조회 (단건)

@@ -292,6 +292,9 @@ private fun IntegrationSettingsCard() {
     var scheduleConfirmedPush by remember {
         mutableStateOf(sharedPreferences.getBoolean("schedule_confirmed_push", true))
     }
+    var newSchedulePush by remember {
+        mutableStateOf(sharedPreferences.getBoolean("new_schedule_push", true))
+    }
     var calendarAddedPush by remember {
         mutableStateOf(sharedPreferences.getBoolean("calendar_added_push", true))
     }
@@ -313,8 +316,19 @@ private fun IntegrationSettingsCard() {
         )
         SettingsDivider()
         SettingsToggleRow(
+            title = "새 일정 조율 알림",
+            description = "모임에 새 일정이 생기면 알려드려요",
+            icon = Icons.Default.Notifications,
+            checked = newSchedulePush,
+            onCheckedChange = { isChecked ->
+                newSchedulePush = isChecked
+                sharedPreferences.edit().putBoolean("new_schedule_push", isChecked).apply()
+            }
+        )
+        SettingsDivider()
+        SettingsToggleRow(
             title = "캘린더 추가 알림",
-            description = "새 일정이 추가되면 알려드려요",
+            description = "확정된 일정이 캘린더에 추가되면 알려드려요",
             icon = Icons.Default.Notifications,
             checked = calendarAddedPush,
             onCheckedChange = { isChecked ->

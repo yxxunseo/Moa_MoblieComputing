@@ -62,6 +62,35 @@ object MoaNotificationHelper {
         )
     }
 
+    fun notifyNewSchedule(
+        context: Context,
+        groupName: String,
+        scheduleTitle: String,
+        scheduleId: Long,
+        createdAt: LocalDateTime = LocalDateTime.now(),
+    ) {
+        val notificationKey = "pending-$scheduleId"
+        MoaInAppNotificationStore.recordReceivedAt(context, notificationKey, createdAt)
+        val title = "새 일정이 추가됐어요"
+        val body = "$groupName · $scheduleTitle · 일정 조율을 위해 가능한 시간을 등록해주세요"
+        MoaInAppNotificationStore.add(
+            context,
+            MoaNotificationType.WAITING,
+            title,
+            body,
+            receivedAt = createdAt,
+            id = notificationKey,
+            targetRoute = "schedule_coordination_group/$scheduleId",
+        )
+        if (!isEnabled(context, "new_schedule_push")) return
+        show(
+            context = context,
+            notificationId = notificationKey.hashCode(),
+            title = title,
+            body = body,
+        )
+    }
+
     fun notifyWeeklyReminder(
         context: Context,
         title: String,

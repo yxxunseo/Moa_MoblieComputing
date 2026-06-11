@@ -29,7 +29,7 @@ object TokenManager {
         prefs.edit()
             .putString(KEY_TOKEN, accessToken)
             .putString(KEY_REFRESH_TOKEN, refreshToken)
-            .apply()
+            .commit()
     }
 
     fun getRefreshToken(): String? = prefs.getString(KEY_REFRESH_TOKEN, null)
@@ -40,7 +40,7 @@ object TokenManager {
         prefs.edit()
             .putLong(KEY_USER_ID, userId)
             .putString(KEY_NICKNAME, nickname)
-            .apply()
+            .commit()
         saveProfileImageUrl(profileImageUrl)
     }
 

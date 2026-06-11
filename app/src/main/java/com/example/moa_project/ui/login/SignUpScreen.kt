@@ -22,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -37,8 +38,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -59,10 +66,7 @@ import com.example.moa_project.ui.theme.MoaTextPrimary
 import com.example.moa_project.ui.theme.MoaTextSecondary
 import com.example.moa_project.ui.theme.MoaTextTertiary
 import com.example.moa_project.ui.theme.SBAggroFontFamily
-import com.example.moa_project.ui.theme.moaCardSurface
-
-private val dayLabels = listOf("월", "화", "수", "목", "금", "토", "일")
-private const val TOTAL_STEPS = 4
+private const val TOTAL_STEPS = 3
 
 /** 회원가입 온보딩 전용 — 차분한 블루 톤 */
 private val SignUpCalmBlue = Color(0xFF6B86E8)
@@ -90,6 +94,16 @@ fun SignUpScreen(
         }
     }
 
+    LaunchedEffect(state.step, state.loginIdAvailability, state.emailAvailability) {
+        if (
+            state.step == 0 &&
+            (state.loginIdAvailability == FieldAvailability.Failed || state.emailAvailability == FieldAvailability.Failed)
+        ) {
+            delay(1500)
+            viewModel.retryAvailabilityChecksIfNeeded()
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -97,7 +111,7 @@ fun SignUpScreen(
             .statusBarsPadding()
             .navigationBarsPadding(),
     ) {
-        if (state.step < 4) {
+        if (state.step < TOTAL_STEPS) {
             SignUpTopBar(
                 step = state.step,
                 onBack = { viewModel.goBack(onBackClick) },
@@ -121,9 +135,9 @@ fun SignUpScreen(
                     onPasswordChange = viewModel::updatePassword,
                     onConfirmPasswordChange = viewModel::updateConfirmPassword,
                 )
-                1 -> NicknameStep(
-                    nickname = state.nickname,
-                    onNicknameChange = viewModel::updateNickname,
+                1 -> NameStep(
+                    name = state.nickname,
+                    onNameChange = viewModel::updateNickname,
                 )
                 2 -> PurposeStep(
                     selected = state.selectedPurpose,
@@ -131,27 +145,13 @@ fun SignUpScreen(
                     onSelect = viewModel::selectPurpose,
                     onCustomChange = viewModel::updateCustomPurpose,
                 )
-                3 -> BusyTimeStep(
-                    selected = state.selectedBusyTime,
-                    customDays = state.customDays,
-                    startHour = state.customStartHour,
-                    endHour = state.customEndHour,
-                    onSelect = viewModel::selectBusyTime,
-                    onToggleDay = viewModel::toggleCustomDay,
-                    onStartHourChange = viewModel::updateCustomStartHour,
-                    onEndHourChange = viewModel::updateCustomEndHour,
-                )
-                else -> CompleteStep(
-                    nickname = state.nickname.trim(),
-                    purpose = state.purposeDisplay,
-                    busyTime = state.busyTimeDisplay,
-                )
+                else -> CompleteStep()
             }
         }
 
         SignUpBottomButton(
             label = when (state.step) {
-                4 -> "시작하기"
+                TOTAL_STEPS -> "시작하기"
                 else -> "다음"
             },
             enabled = !state.isSubmitting,
@@ -222,6 +222,11 @@ private fun AccountStep(
     onPasswordChange: (String) -> Unit,
     onConfirmPasswordChange: (String) -> Unit,
 ) {
+    val emailFocus = remember { FocusRequester() }
+    val passwordFocus = remember { FocusRequester() }
+    val confirmFocus = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -245,7 +250,15 @@ private fun AccountStep(
             color = MoaTextSecondary,
         )
         Spacer(modifier = Modifier.height(12.dp))
-        SignUpField("아이디", loginId, onLoginIdChange, "아이디", compact = true)
+        SignUpField(
+            label = "아이디",
+            value = loginId,
+            onValueChange = onLoginIdChange,
+            placeholder = "아이디",
+            compact = true,
+            imeAction = ImeAction.Next,
+            onImeAction = { emailFocus.requestFocus() },
+        )
         if (loginIdAvailability != FieldAvailability.Idle) {
             AvailabilityRequirement(
                 status = loginIdAvailability,
@@ -257,7 +270,16 @@ private fun AccountStep(
             )
         }
         Spacer(modifier = Modifier.height(8.dp))
-        SignUpField("이메일", email, onEmailChange, "이메일 주소", compact = true)
+        SignUpField(
+            label = "이메일",
+            value = email,
+            onValueChange = onEmailChange,
+            placeholder = "이메일 주소",
+            compact = true,
+            focusRequester = emailFocus,
+            imeAction = ImeAction.Next,
+            onImeAction = { passwordFocus.requestFocus() },
+        )
         if (emailAvailability != FieldAvailability.Idle) {
             AvailabilityRequirement(
                 status = emailAvailability,
@@ -269,13 +291,33 @@ private fun AccountStep(
             )
         }
         Spacer(modifier = Modifier.height(8.dp))
-        SignUpField("비밀번호", password, onPasswordChange, "비밀번호", isPassword = true, compact = true)
+        SignUpField(
+            label = "비밀번호",
+            value = password,
+            onValueChange = onPasswordChange,
+            placeholder = "비밀번호",
+            isPassword = true,
+            compact = true,
+            focusRequester = passwordFocus,
+            imeAction = ImeAction.Next,
+            onImeAction = { confirmFocus.requestFocus() },
+        )
         Spacer(modifier = Modifier.height(4.dp))
         PasswordRequirement("영문 소문자 포함", hasLower)
         PasswordRequirement("영문 대문자 포함", hasUpper)
         PasswordRequirement("특수문자 포함 (!@#$ 등)", hasSpecial)
         Spacer(modifier = Modifier.height(8.dp))
-        SignUpField("비밀번호 확인", confirmPassword, onConfirmPasswordChange, "비밀번호 다시 입력", isPassword = true, compact = true)
+        SignUpField(
+            label = "비밀번호 확인",
+            value = confirmPassword,
+            onValueChange = onConfirmPasswordChange,
+            placeholder = "비밀번호 다시 입력",
+            isPassword = true,
+            compact = true,
+            focusRequester = confirmFocus,
+            imeAction = ImeAction.Done,
+            onImeAction = { focusManager.clearFocus() },
+        )
     }
 }
 
@@ -287,7 +329,7 @@ private fun availabilityMessage(
     FieldAvailability.Available -> availableText
     FieldAvailability.Duplicate -> duplicateText
     FieldAvailability.Checking -> "확인 중..."
-    FieldAvailability.Failed -> "중복 확인에 실패했습니다. 다시 시도해 주세요."
+    FieldAvailability.Failed -> "서버 연결 확인 중… 잠시만 기다려 주세요."
     FieldAvailability.Idle -> ""
 }
 
@@ -327,37 +369,12 @@ private fun AvailabilityRequirement(status: FieldAvailability, text: String) {
 }
 
 @Composable
-private fun NicknameStep(nickname: String, onNicknameChange: (String) -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = SignUpHorizontalPadding),
-    ) {
-        Spacer(modifier = Modifier.height(28.dp))
-        Text(
-            text = "반가워요!\n제가 불러드릴 닉네임을\n알려주세요.",
-            fontFamily = SBAggroFontFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = 22.sp,
-            lineHeight = 32.sp,
-            color = MoaTextPrimary,
-        )
-        Spacer(modifier = Modifier.height(40.dp))
-        SignUpTextInput(
-            value = nickname,
-            onValueChange = onNicknameChange,
-            placeholder = "ex. 모아",
-        )
-        Spacer(modifier = Modifier.height(10.dp))
-        Text(
-            text = "특수문자를 제외한 한글, 영어만 입력해 주세요. (${nickname.length}/20)",
-            fontFamily = SBAggroFontFamily,
-            fontWeight = FontWeight.Medium,
-            fontSize = 12.sp,
-            color = MoaTextTertiary,
-        )
-        Spacer(modifier = Modifier.weight(1f))
-    }
+private fun NameStep(name: String, onNameChange: (String) -> Unit) {
+    NicknameSetupContent(
+        name = name,
+        onNameChange = onNameChange,
+        horizontalPadding = SignUpHorizontalPadding,
+    )
 }
 
 @Composable
@@ -410,95 +427,22 @@ private fun PurposeStep(
 }
 
 @Composable
-private fun BusyTimeStep(
-    selected: SignUpBusyTimeOption?,
-    customDays: Set<Int>,
-    startHour: Int,
-    endHour: Int,
-    onSelect: (SignUpBusyTimeOption) -> Unit,
-    onToggleDay: (Int) -> Unit,
-    onStartHourChange: (Int) -> Unit,
-    onEndHourChange: (Int) -> Unit,
-) {
+private fun CompleteStep() {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = SignUpHorizontalPadding),
-    ) {
-        Spacer(modifier = Modifier.height(28.dp))
-        Text(
-            text = "좋아요!\n평소 바쁜 시간을\n알려주세요.",
-            fontFamily = SBAggroFontFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = 22.sp,
-            lineHeight = 32.sp,
-            color = MoaTextPrimary,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "일정 조율할 때 자동으로 반영돼요.",
-            fontFamily = SBAggroFontFamily,
-            fontWeight = FontWeight.Medium,
-            fontSize = 13.sp,
-            color = MoaTextSecondary,
-        )
-        Spacer(modifier = Modifier.height(20.dp))
-        SignUpBusyTimeOption.entries.forEach { option ->
-            SelectableOptionRow(label = option.label, selected = selected == option, onClick = { onSelect(option) })
-            if (option == SignUpBusyTimeOption.CUSTOM && selected == SignUpBusyTimeOption.CUSTOM) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Text("요일", fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = SignUpCalmBlue)
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    dayLabels.forEachIndexed { index, label ->
-                        val day = index + 1
-                        val isSelected = customDays.contains(day)
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(36.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (isSelected) SignUpCalmBlue else SignUpCalmBlueSoft)
-                                .clickable { onToggleDay(day) },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(label, fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold, fontSize = 13.sp,
-                                color = if (isSelected) Color.White else MoaTextSecondary)
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    HourPickerField("시작", startHour, onStartHourChange, Modifier.weight(1f))
-                    HourPickerField("종료", endHour, onEndHourChange, Modifier.weight(1f))
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-            } else {
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun CompleteStep(nickname: String, purpose: String, busyTime: String) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        Spacer(modifier = Modifier.height(16.dp))
         Box(
             modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(SignUpCalmBlue).padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
             Text("가입 완료", fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
         }
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(24.dp))
         Text(
-            text = "준비완료!\n함께하는 시간,\nMOA와 시작해요.",
+            text = "함께하는 시간,\nMOA와 시작해요.",
             fontFamily = SBAggroFontFamily,
             fontWeight = FontWeight.Bold,
             fontSize = 24.sp,
@@ -506,26 +450,9 @@ private fun CompleteStep(nickname: String, purpose: String, busyTime: String) {
             color = MoaTextPrimary,
             textAlign = TextAlign.Center,
         )
-        Spacer(modifier = Modifier.height(24.dp))
-        MoaMascot(size = 120.dp, variant = MoaMascotVariant.Sparkle)
-        Spacer(modifier = Modifier.height(24.dp))
-        Column(
-            modifier = Modifier.fillMaxWidth().moaCardSurface(cornerRadius = 16.dp).padding(20.dp),
-        ) {
-            SummaryRow("닉네임", nickname)
-            Spacer(modifier = Modifier.height(12.dp))
-            SummaryRow("사용 목적", purpose)
-            Spacer(modifier = Modifier.height(12.dp))
-            SummaryRow("바쁜 시간", busyTime)
-        }
+        Spacer(modifier = Modifier.height(32.dp))
+        MoaMascot(size = 140.dp, variant = MoaMascotVariant.Heart)
     }
-}
-
-@Composable
-private fun SummaryRow(label: String, value: String) {
-    Text(label, fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = MoaTextTertiary)
-    Spacer(modifier = Modifier.height(4.dp))
-    Text(value, fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MoaTextPrimary)
 }
 
 @Composable
@@ -562,6 +489,8 @@ private fun SignUpTextInput(
     onValueChange: (String) -> Unit,
     placeholder: String,
     trailingCounter: String? = null,
+    imeAction: ImeAction = ImeAction.Default,
+    onImeAction: () -> Unit = {},
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Box(
@@ -583,31 +512,16 @@ private fun SignUpTextInput(
                 textStyle = TextStyle(fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Medium, fontSize = 15.sp, color = MoaTextPrimary),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = imeAction),
+                keyboardActions = KeyboardActions(
+                    onNext = { onImeAction() },
+                    onDone = { onImeAction() },
+                ),
             )
         }
         trailingCounter?.let {
             Text(it, modifier = Modifier.fillMaxWidth().padding(top = 6.dp), fontFamily = SBAggroFontFamily,
                 fontWeight = FontWeight.Medium, fontSize = 12.sp, color = MoaTextTertiary, textAlign = TextAlign.End)
-        }
-    }
-}
-
-@Composable
-private fun HourPickerField(label: String, hour: Int, onHourChange: (Int) -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier) {
-        Text(label, fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = SignUpCalmBlue)
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White)
-                .border(1.dp, SignUpInputBorder, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text("−", Modifier.clip(CircleShape).clickable { onHourChange(hour - 1) }.padding(horizontal = 8.dp, vertical = 4.dp),
-                fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = SignUpCalmBlue)
-            Text("${hour}시", fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MoaTextPrimary)
-            Text("+", Modifier.clip(CircleShape).clickable { onHourChange(hour + 1) }.padding(horizontal = 8.dp, vertical = 4.dp),
-                fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = SignUpCalmBlue)
         }
     }
 }
@@ -648,6 +562,9 @@ private fun SignUpField(
     placeholder: String,
     isPassword: Boolean = false,
     compact: Boolean = false,
+    focusRequester: FocusRequester? = null,
+    imeAction: ImeAction = ImeAction.Next,
+    onImeAction: () -> Unit = {},
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
@@ -675,10 +592,19 @@ private fun SignUpField(
                 value = value,
                 onValueChange = onValueChange,
                 textStyle = TextStyle(fontFamily = SBAggroFontFamily, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = MoaTextPrimary),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
                 singleLine = true,
                 visualTransformation = if (isPassword) PasswordVisualTransformation(mask = '*') else VisualTransformation.None,
-                keyboardOptions = if (isPassword) KeyboardOptions(keyboardType = KeyboardType.Password) else KeyboardOptions.Default,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = if (isPassword) KeyboardType.Password else KeyboardType.Text,
+                    imeAction = imeAction,
+                ),
+                keyboardActions = KeyboardActions(
+                    onNext = { onImeAction() },
+                    onDone = { onImeAction() },
+                ),
             )
         }
     }

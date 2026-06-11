@@ -32,7 +32,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -79,6 +78,10 @@ import com.example.moa_project.ui.components.MoaTitleText
 import com.example.moa_project.ui.components.ProfileAvatar
 import com.example.moa_project.network.GroupMemberPreviewDto
 import com.example.moa_project.util.GroupFavoriteManager
+import com.example.moa_project.util.FormSheetProperties
+import com.example.moa_project.util.KeyboardHideBackHandler
+import com.example.moa_project.util.rememberFormSheetDismissRequest
+import com.example.moa_project.util.rememberFormSheetState
 import com.example.moa_project.ui.my.UserState
 import com.example.moa_project.ui.my.UserViewModel
 import com.example.moa_project.ui.theme.MoaBlue
@@ -165,8 +168,10 @@ fun MeetingsScreen(
     val profileImageUrl = (userState as? UserState.Success)?.user?.profileImageUrl
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val guestSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var meetingSheetHasDraft by remember { mutableStateOf(false) }
+    var guestSheetHasDraft by remember { mutableStateOf(false) }
+    val sheetState = rememberFormSheetState(skipPartiallyExpanded = true) { meetingSheetHasDraft }
+    val guestSheetState = rememberFormSheetState(skipPartiallyExpanded = true) { guestSheetHasDraft }
     val scope = rememberCoroutineScope()
     var showSheet by remember { mutableStateOf(false) }
     var joinSheetCode by remember { mutableStateOf<String?>(null) }
@@ -202,16 +207,34 @@ fun MeetingsScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
     // 바텀 시트
+    val dismissMeetingSheet = rememberFormSheetDismissRequest(
+        hasDraftInput = { meetingSheetHasDraft },
+    ) {
+        joinSheetCode = null
+        meetingSheetHasDraft = false
+        scope.launch { sheetState.hide() }.invokeOnCompletion { showSheet = false }
+    }
+    val dismissGuestSheet = rememberFormSheetDismissRequest(
+        hasDraftInput = { guestSheetHasDraft },
+    ) {
+        guestSheetHasDraft = false
+        scope.launch { guestSheetState.hide() }.invokeOnCompletion {
+            showGuestSheet = false
+            guestListViewModel.fetchMySchedules()
+        }
+    }
     if (showSheet) {
         ModalBottomSheet(
-            onDismissRequest = { showSheet = false },
+            onDismissRequest = dismissMeetingSheet,
             sheetState = sheetState,
+            properties = FormSheetProperties,
             containerColor = Color.White,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
         ) {
             CreateOrJoinMeetingSheet(
                 initialTab = if (joinSheetCode != null) 1 else 0,
                 initialInviteCode = joinSheetCode,
+                onDraftInputChange = { meetingSheetHasDraft = it },
                 onDismiss = {
                     joinSheetCode = null
                     scope.launch { sheetState.hide() }.invokeOnCompletion { showSheet = false }
@@ -225,21 +248,21 @@ fun MeetingsScreen(
                 }
             )
         }
+        KeyboardHideBackHandler()
     }
 
     if (showGuestSheet) {
         ModalBottomSheet(
-            onDismissRequest = {
-                showGuestSheet = false
-                guestListViewModel.fetchMySchedules()
-            },
+            onDismissRequest = dismissGuestSheet,
             sheetState = guestSheetState,
+            properties = FormSheetProperties,
             containerColor = Color.White,
             shape = RoundedCornerShape(topStart = MoaRadius.sheet, topEnd = MoaRadius.sheet),
             dragHandle = null,
         ) {
             CreateGuestScheduleSheet(
                 viewModel = viewModel(key = "guest_create_$guestCreateKey"),
+                onDraftInputChange = { guestSheetHasDraft = it },
                 onDismiss = {
                     scope.launch { guestSheetState.hide() }.invokeOnCompletion {
                         showGuestSheet = false
@@ -255,6 +278,7 @@ fun MeetingsScreen(
                 }
             )
         }
+        KeyboardHideBackHandler()
     }
 
     Scaffold(

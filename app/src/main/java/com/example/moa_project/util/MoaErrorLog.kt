@@ -51,26 +51,24 @@ object MoaErrorLog {
     fun userMessage(throwable: Throwable, fallback: String = "요청 처리에 실패했습니다."): String {
         val root = generateSequence(throwable) { it.cause }.last()
         val url = RetrofitClient.BASE_URL
+        val rootMessage = root.message.orEmpty()
+        if (isNetworkFailureMessage(rootMessage)) {
+            return networkFailureMessage(url)
+        }
         return when (root) {
             is UnknownHostException,
             is ConnectException,
             is SocketTimeoutException,
-            is IOException -> {
-                val hint = when {
-                    url.contains("127.0.0.1") || url.contains("localhost") ->
-                        " USB/무선 디버깅 후 adb reverse tcp:8080 tcp:8080 실행"
-                    url.contains("ngrok") ->
-                        " ngrok 차단될 수 있어요. ADB 방식을 써보세요"
-                    else -> " Mac과 같은 Wi-Fi인지 확인해주세요"
-                }
-                "서버에 연결할 수 없습니다 ($url).$hint"
-            }
-            is HttpException -> when (root.code()) {
-                401 -> "인증이 필요합니다. 다시 로그인해주세요."
-                403 -> "접근 권한이 없습니다."
+            is IOException -> networkFailureMessage(url)
+            is HttpException -> {
+                val serverMsg = extractServerMessage(root)
+                when (root.code()) {
+                401 -> serverMsg ?: "인증이 필요합니다. 다시 로그인해주세요."
+                403 -> serverMsg ?: "접근 권한이 없습니다."
                 404 -> "요청한 리소스를 찾을 수 없습니다."
-                in 500..599 -> "서버 오류 (${root.code()})"
-                else -> "서버 오류 (${root.code()})"
+                in 500..599 -> serverMsg ?: "서버 오류 (${root.code()})"
+                else -> serverMsg ?: "서버 오류 (${root.code()})"
+                }
             }
             is JsonSyntaxException, is JsonParseException ->
                 "서버 응답 형식 오류. SERVER_URL($url) 확인"
@@ -78,6 +76,29 @@ object MoaErrorLog {
                 "저장된 알림 데이터를 읽지 못했습니다. 다시 시도해주세요."
             else -> root.message?.takeIf { it.isNotBlank() } ?: fallback
         }
+    }
+
+    private fun extractServerMessage(http: HttpException): String? =
+        runCatching {
+            http.response()?.errorBody()?.string()?.let { body ->
+                org.json.JSONObject(body).optString("message").takeIf { it.isNotBlank() }
+            }
+        }.getOrNull()
+
+    private fun isNetworkFailureMessage(message: String): Boolean {
+        val lower = message.lowercase()
+        return lower.contains("ehostunreach") ||
+            lower.contains("enetunreach") ||
+            lower.contains("no route to host") ||
+            lower.contains("failed to connect") ||
+            lower.contains("isconnected failed") ||
+            lower.contains("connection refused") ||
+            lower.contains("network is unreachable")
+    }
+
+    private fun networkFailureMessage(url: String): String {
+        val hint = ServerUrlResolver.connectionHint()
+        return "서버에 연결할 수 없습니다 ($url).\n$hint"
     }
 
     private fun formatCauseChain(t: Throwable): String =

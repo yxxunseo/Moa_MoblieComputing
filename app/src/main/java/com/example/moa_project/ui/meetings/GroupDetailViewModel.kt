@@ -88,6 +88,19 @@ class GroupDetailViewModel(private val groupId: Long) : ViewModel() {
         }
     }
 
+    fun deleteSchedule(scheduleId: Long, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                RetrofitClient.instance.deleteSchedule(scheduleId)
+                loadGroupDetail()
+                onSuccess()
+            } catch (e: Exception) {
+                MoaErrorLog.log("GroupDetailViewModel", "deleteSchedule", e)
+                onError(MoaErrorLog.userMessage(e, "일정 삭제에 실패했습니다."))
+            }
+        }
+    }
+
     fun leaveGroup(onSuccess: (groupDeleted: Boolean) -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
             try {

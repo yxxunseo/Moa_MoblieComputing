@@ -20,6 +20,7 @@ data class ScheduleDetailResponse(
     val respondedCount: Int = 0,
     val totalMembers: Int = 0,
     val isWeeklyRecurring: Boolean = false,
+    val canConfirm: Boolean = false,
 )
 
 data class TimeSlotDto(
@@ -64,6 +65,13 @@ data class WeeklyReminderDto(
     val daysUntilDeadline: Int,
     val hasSubmitted: Boolean,
     val deadlineLabel: String = "일요일",
+)
+
+data class PendingScheduleReminderDto(
+    val scheduleId: Long,
+    val groupName: String,
+    val title: String,
+    val createdAt: String,
 )
 
 data class ConfirmScheduleRequest(

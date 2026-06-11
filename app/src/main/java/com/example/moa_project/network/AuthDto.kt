@@ -2,7 +2,11 @@ package com.example.moa_project.network
 
 data class GoogleLoginRequest(val idToken: String)
 
-data class KakaoLoginRequest(val accessToken: String)
+data class KakaoLoginRequest(
+    val accessToken: String,
+    val nickname: String? = null,
+    val profileImageUrl: String? = null,
+)
 
 data class EmailLoginRequest(val loginId: String, val password: String)
 

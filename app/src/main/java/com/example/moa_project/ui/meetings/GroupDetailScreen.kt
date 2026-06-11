@@ -35,6 +35,8 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.SubcomposeAsyncImage
 import com.example.moa_project.util.ImageUrlHelper
+import com.example.moa_project.util.KeyboardHideBackHandler
+import com.example.moa_project.util.rememberFormSheetDismissRequest
 import androidx.compose.ui.platform.LocalContext
 import android.content.Context
 import android.content.ClipboardManager
@@ -365,13 +367,12 @@ fun GroupDetailScreen(
                     item {
                         GroupInfoCard(
                             group = s.group,
-                            isAdmin = isCurrentUserAdmin,
                             onUploadCover = { uri ->
                                 viewModel.uploadCoverImage(
                                     context = context,
                                     uri = uri,
                                     onSuccess = {
-                                        Toast.makeText(context, "모임 사진이 등록되었습니다.", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "모임 사진이 변경되었습니다.", Toast.LENGTH_SHORT).show()
                                     },
                                     onError = { msg ->
                                         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
@@ -494,7 +495,7 @@ fun GroupDetailScreen(
                                 } else {
                                     onCoordinateClick(schedule.id)
                                 }
-                            }
+                            },
                         )
                     }
                 }
@@ -504,13 +505,17 @@ fun GroupDetailScreen(
 
     if (showCreateScheduleDialog) {
         val dialogMaxHeight = LocalConfiguration.current.screenHeightDp.dp * 0.88f
+        var scheduleDraft by remember { mutableStateOf(false) }
+        val dismissCreateScheduleDialogOnBack = rememberFormSheetDismissRequest(
+            hasDraftInput = { scheduleDraft },
+        ) {
+            if (!isCreateScheduleLoading) dismissCreateScheduleDialog()
+        }
         Dialog(
-            onDismissRequest = {
-                if (!isCreateScheduleLoading) dismissCreateScheduleDialog()
-            },
+            onDismissRequest = dismissCreateScheduleDialogOnBack,
             properties = DialogProperties(
                 usePlatformDefaultWidth = false,
-                dismissOnBackPress = !isCreateScheduleLoading,
+                dismissOnBackPress = false,
                 dismissOnClickOutside = !isCreateScheduleLoading,
             ),
         ) {
@@ -525,6 +530,7 @@ fun GroupDetailScreen(
             ) {
                 CreateScheduleSheet(
                     state = createState,
+                    onDraftInputChange = { scheduleDraft = it },
                     onDismiss = { if (!isCreateScheduleLoading) dismissCreateScheduleDialog() },
                     onCreate = { title, description, startDate, endDate, isWeeklyRecurring ->
                         createScheduleViewModel.createSchedule(title, description, startDate, endDate, isWeeklyRecurring)
@@ -532,6 +538,7 @@ fun GroupDetailScreen(
                 )
             }
         }
+        KeyboardHideBackHandler()
     }
     }
 }
@@ -549,7 +556,6 @@ private fun GroupCoverPlaceholder(modifier: Modifier = Modifier) {
 @Composable
 private fun GroupInfoCard(
     group: GroupResponse,
-    isAdmin: Boolean = false,
     onUploadCover: (Uri) -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -571,10 +577,7 @@ private fun GroupInfoCard(
                         .fillMaxSize()
                         .clip(RoundedCornerShape(16.dp))
                         .background(MoaBlueSoft)
-                        .then(
-                            if (isAdmin) Modifier.clickable { launchImagePicker(coverPicker) }
-                            else Modifier,
-                        ),
+                        .clickable { launchImagePicker(coverPicker) },
                     contentAlignment = Alignment.Center,
                 ) {
                     if (!group.coverImageUrl.isNullOrBlank()) {
@@ -590,23 +593,21 @@ private fun GroupInfoCard(
                         GroupCoverPlaceholder(Modifier.fillMaxSize())
                     }
                 }
-                if (isAdmin) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .size(22.dp)
-                            .clip(CircleShape)
-                            .background(MoaBlue)
-                            .clickable { launchImagePicker(coverPicker) },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            Icons.Default.CameraAlt,
-                            contentDescription = "사진 등록",
-                            tint = Color.White,
-                            modifier = Modifier.size(12.dp),
-                        )
-                    }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .background(MoaBlue)
+                        .clickable { launchImagePicker(coverPicker) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Default.CameraAlt,
+                        contentDescription = "사진 변경",
+                        tint = Color.White,
+                        modifier = Modifier.size(12.dp),
+                    )
                 }
             }
 
@@ -781,7 +782,7 @@ private fun GroupMembersCard(members: List<GroupMemberResponse>) {
 @Composable
 private fun ScheduleCard(
     schedule: ScheduleDetailResponse,
-    onClick: () -> Unit
+    onClick: () -> Unit,
 ) {
     val statusColor = when (schedule.status) {
         "CONFIRMED" -> MoaStatusConfirmed
@@ -862,7 +863,7 @@ private fun ScheduleCard(
             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = "상세 보기",
             tint = MoaTextSecondary,
-            modifier = Modifier.size(22.dp)
+            modifier = Modifier.size(22.dp),
         )
     }
 }
@@ -871,6 +872,7 @@ private fun ScheduleCard(
 private fun CreateScheduleSheet(
     state: CreateScheduleState,
     onDismiss: () -> Unit,
+    onDraftInputChange: (Boolean) -> Unit = {},
     onCreate: (String, String, LocalDate, LocalDate, Boolean) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
@@ -881,6 +883,10 @@ private fun CreateScheduleSheet(
     var localError by remember { mutableStateOf<String?>(null) }
     val isLoading = state is CreateScheduleState.Loading
     val serverError = (state as? CreateScheduleState.Error)?.message
+
+    LaunchedEffect(title, description) {
+        onDraftInputChange(title.isNotBlank() || description.isNotBlank())
+    }
 
     Column(
         modifier = Modifier

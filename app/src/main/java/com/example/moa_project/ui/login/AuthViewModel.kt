@@ -9,6 +9,7 @@ import com.example.moa_project.network.GoogleLoginRequest
 import com.example.moa_project.network.KakaoLoginRequest
 import com.example.moa_project.BuildConfig
 import com.example.moa_project.network.TokenManager
+import com.example.moa_project.util.AuthDebugHelper
 import com.example.moa_project.util.MoaErrorLog
 import com.kakao.sdk.auth.model.OAuthToken
 import com.kakao.sdk.common.model.ClientError
@@ -23,8 +24,12 @@ class AuthViewModel : ViewModel() {
     private val _loginState = MutableStateFlow<LoginState>(LoginState.Idle)
     val loginState: StateFlow<LoginState> = _loginState
 
-    fun loginWithKakao(context: Context, onSuccess: () -> Unit = {}) {
+    fun loginWithKakao(context: Context) {
         _loginState.value = LoginState.Loading
+        if (BuildConfig.DEBUG) {
+            AuthDebugHelper.logStartupDiagnostics(context)
+            Log.i("AuthViewModel", "loginWithKakao 시작")
+        }
 
         val callback: (OAuthToken?, Throwable?) -> Unit = { token, error ->
             if (error != null) {
@@ -34,11 +39,11 @@ class AuthViewModel : ViewModel() {
                         "카카오 로그인 창이 닫혔어요. 에뮬레이터면 Chrome·인터넷을 확인하거나 실기기(카카오톡)로 시도해 주세요.",
                     )
                 } else {
-                    _loginState.value = LoginState.Error("카카오 로그인 실패: ${error.message}")
+                    _loginState.value = LoginState.Error(formatKakaoError(error))
                 }
             } else if (token != null) {
-                Log.i("AuthViewModel", "카카오계정 로그인 SDK 성공")
-                sendKakaoTokenToServer(token.accessToken, onSuccess)
+                Log.i("AuthViewModel", "카카오계정 로그인 SDK 성공 | tokenLen=${token.accessToken.length}")
+                sendKakaoTokenToServer(context, token.accessToken)
             }
         }
 
@@ -60,8 +65,8 @@ class AuthViewModel : ViewModel() {
                     }
                     UserApiClient.instance.loginWithKakaoAccount(context, callback = callback)
                 } else if (token != null) {
-                    Log.i("AuthViewModel", "카카오톡 로그인 SDK 성공")
-                    sendKakaoTokenToServer(token.accessToken, onSuccess)
+                    Log.i("AuthViewModel", "카카오톡 로그인 SDK 성공 | tokenLen=${token.accessToken.length}")
+                    sendKakaoTokenToServer(context, token.accessToken)
                 }
             }
         } else {
@@ -69,23 +74,75 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    private fun sendKakaoTokenToServer(accessToken: String, onSuccess: () -> Unit) {
+    private fun sendKakaoTokenToServer(context: Context, accessToken: String) {
+        UserApiClient.instance.me { user, error ->
+            if (error != null) {
+                MoaErrorLog.log("AuthViewModel", "kakaoMe", error)
+            }
+            val nickname = user?.kakaoAccount?.profile?.nickname
+            val profileImageUrl = user?.kakaoAccount?.profile?.profileImageUrl
+            if (BuildConfig.DEBUG) {
+                Log.i("AuthViewModel", "카카오 프로필 | nickname=$nickname")
+            }
+            submitKakaoLogin(context, accessToken, nickname, profileImageUrl)
+        }
+    }
+
+    private fun submitKakaoLogin(
+        context: Context,
+        accessToken: String,
+        nickname: String?,
+        profileImageUrl: String?,
+    ) {
         viewModelScope.launch {
             try {
-                val response = RetrofitClient.instance.loginWithKakao(KakaoLoginRequest(accessToken))
+                Log.i("AuthViewModel", "서버 카카오 인증 요청 | url=${RetrofitClient.BASE_URL}api/auth/kakao")
+                val response = RetrofitClient.instance.loginWithKakao(
+                    KakaoLoginRequest(
+                        accessToken = accessToken,
+                        nickname = nickname,
+                        profileImageUrl = profileImageUrl,
+                    ),
+                )
                 TokenManager.saveTokens(response.token, response.refreshToken)
                 TokenManager.saveUserInfo(response.user.id, response.user.nickname, response.user.profileImageUrl)
-                _loginState.value = LoginState.Success("kakao", response.token)
-                onSuccess()
+                val needsNickname = isPlaceholderNickname(response.user.nickname)
+                _loginState.value = LoginState.Success(
+                    provider = "kakao",
+                    token = response.token,
+                    isNewUser = response.isNewUser,
+                    needsNicknameSetup = needsNickname,
+                )
+                Log.i(
+                    "AuthViewModel",
+                    "카카오 로그인 완료 | userId=${response.user.id} | isNew=${response.isNewUser} | needsName=$needsNickname",
+                )
             } catch (e: Exception) {
                 MoaErrorLog.log("AuthViewModel", "loginWithKakao(server)", e)
-                _loginState.value = LoginState.Error(MoaErrorLog.userMessage(e, "서버 인증 실패"))
+                val msg = MoaErrorLog.userMessage(e, "서버 인증 실패")
+                val hint = if (msg.contains("카카오") || (e as? retrofit2.HttpException)?.code() == 401) {
+                    "\n\n${AuthDebugHelper.kakaoSetupHint(context)}"
+                } else {
+                    ""
+                }
+                _loginState.value = LoginState.Error(msg + hint)
             }
         }
     }
 
-    fun handleGoogleSignInResult(intent: android.content.Intent?, onSuccess: () -> Unit = {}) {
+    fun reportGoogleConfigError(context: Context) {
+        _loginState.value = LoginState.Error(
+            "구글 로그인 설정이 비어 있습니다.\nlocal.properties의 GOOGLE_CLIENT_ID를 확인해 주세요.",
+        )
+        if (BuildConfig.DEBUG) AuthDebugHelper.logStartupDiagnostics(context)
+    }
+
+    fun handleGoogleSignInResult(context: Context, intent: android.content.Intent?, onSuccess: () -> Unit = {}) {
         _loginState.value = LoginState.Loading
+        if (BuildConfig.DEBUG) {
+            AuthDebugHelper.logStartupDiagnostics(context)
+            Log.i("AuthViewModel", "handleGoogleSignInResult 시작 | clientId=${BuildConfig.GOOGLE_CLIENT_ID.take(20)}…")
+        }
         try {
             val task = com.google.android.gms.auth.api.signin.GoogleSignIn.getSignedInAccountFromIntent(intent)
             val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
@@ -110,7 +167,20 @@ class AuthViewModel : ViewModel() {
             }
         } catch (e: com.google.android.gms.common.api.ApiException) {
             MoaErrorLog.log("AuthViewModel", "handleGoogleSignInResult", e, mapOf("statusCode" to e.statusCode.toString()))
-            _loginState.value = LoginState.Error("구글 로그인 실패 (코드: ${e.statusCode})")
+            when (e.statusCode) {
+                12501 -> {
+                    // 사용자가 로그인 창을 직접 닫음 — 오류 메시지 표시 불필요
+                    _loginState.value = LoginState.Idle
+                }
+                10 -> {
+                    _loginState.value = LoginState.Error(
+                        "구글 로그인 설정 오류(DEVELOPER_ERROR).\n\n${AuthDebugHelper.googleSetupHint(context)}",
+                    )
+                }
+                else -> {
+                    _loginState.value = LoginState.Error("구글 로그인 실패 (코드: ${e.statusCode})")
+                }
+            }
         } catch (e: Exception) {
             MoaErrorLog.log("AuthViewModel", "handleGoogleSignInResult", e)
             _loginState.value = LoginState.Error("구글 로그인 실패: ${e.message}")
@@ -165,15 +235,30 @@ class AuthViewModel : ViewModel() {
         }
     }
 
+    fun consumeLoginState() {
+        _loginState.value = LoginState.Idle
+    }
+
     fun logout() {
         TokenManager.clear()
         _loginState.value = LoginState.Idle
+    }
+
+    private fun formatKakaoError(error: Throwable): String {
+        val friendly = MoaErrorLog.userMessage(error, fallback = "")
+        if (friendly.isNotBlank() && !friendly.startsWith("요청")) return friendly
+        return "카카오 로그인 실패: ${error.message ?: "알 수 없는 오류"}"
     }
 }
 
 sealed class LoginState {
     object Idle : LoginState()
     object Loading : LoginState()
-    data class Success(val provider: String, val token: String) : LoginState()
+    data class Success(
+        val provider: String,
+        val token: String,
+        val isNewUser: Boolean = false,
+        val needsNicknameSetup: Boolean = false,
+    ) : LoginState()
     data class Error(val message: String) : LoginState()
 }

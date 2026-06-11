@@ -157,11 +157,14 @@ class GroupService(
 
     @Transactional
     fun updateGroupCover(userId: Long, groupId: Long, imageUrl: String): GroupResponse {
-        if (!isAdmin(userId, groupId)) {
-            throw IllegalArgumentException("모임 사진은 관리자만 등록할 수 있습니다.")
+        val user = userRepository.findById(userId).orElseThrow {
+            IllegalArgumentException("사용자를 찾을 수 없습니다.")
         }
         val group = groupRepository.findById(groupId).orElseThrow {
             IllegalArgumentException("그룹을 찾을 수 없습니다.")
+        }
+        if (!groupMemberRepository.existsByGroupAndUser(group, user)) {
+            throw IllegalArgumentException("해당 그룹의 멤버가 아닙니다.")
         }
         group.coverImageUrl = imageUrl
         val count = groupMemberRepository.countByGroup(group)

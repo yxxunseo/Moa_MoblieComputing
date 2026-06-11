@@ -29,6 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,11 +46,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.moa_project.util.GuestLinkHelper
+import com.example.moa_project.util.GuestLinkShareHelper
+import com.example.moa_project.util.KakaoShareHelper
 import com.example.moa_project.ui.components.Moa3DIcon
 import com.example.moa_project.ui.components.Moa3DIconType
 import com.example.moa_project.ui.components.MoaDateRangePicker
 import com.example.moa_project.ui.components.MoaOutlinedTextField
 import com.example.moa_project.ui.components.MoaPrimaryButton
+import com.example.moa_project.ui.components.MoaShareBottomSheet
 import com.example.moa_project.ui.theme.MoaAccentBlueBg
 import com.example.moa_project.ui.theme.MoaAccentGreen
 import com.example.moa_project.ui.theme.MoaBlue
@@ -66,6 +70,7 @@ import java.time.LocalDate
 fun CreateGuestScheduleSheet(
     onDismiss: () -> Unit,
     onViewResult: (String) -> Unit = {},
+    onDraftInputChange: (Boolean) -> Unit = {},
     viewModel: GuestScheduleActionViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -81,6 +86,10 @@ fun CreateGuestScheduleSheet(
     val startLocalDate = remember(startDate) { LocalDate.parse(startDate) }
     val endLocalDate = remember(endDate) { LocalDate.parse(endDate) }
     var localError by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(title, description) {
+        onDraftInputChange(title.isNotBlank() || description.isNotBlank())
+    }
 
     fun resetForm() {
         title = ""
@@ -99,6 +108,39 @@ fun CreateGuestScheduleSheet(
     }
     val shareLink = webLink ?: appLink.orEmpty()
     val linkReachable = GuestLinkHelper.isExternalReachable(shareLink)
+    var showShareSheet by remember { mutableStateOf(false) }
+
+    if (success != null && webLink != null) {
+        MoaShareBottomSheet(
+            visible = showShareSheet,
+            onDismiss = { showShareSheet = false },
+            kakaoEnabled = linkReachable,
+            onKakaoClick = {
+                KakaoShareHelper.shareGuestSchedule(
+                    context = context,
+                    scheduleTitle = success.schedule.title,
+                    scheduleDescription = success.schedule.description?.takeIf { it.isNotBlank() },
+                    startDate = success.schedule.startDate,
+                    endDate = success.schedule.endDate,
+                    uniqueLink = success.schedule.uniqueLink,
+                    webLink = webLink,
+                )
+            },
+            onCopyLinkClick = {
+                GuestLinkShareHelper.copyWebLink(context, webLink)
+            },
+            onMoreClick = {
+                GuestLinkShareHelper.openShareChooser(
+                    context = context,
+                    scheduleTitle = success.schedule.title,
+                    scheduleDescription = success.schedule.description?.takeIf { it.isNotBlank() },
+                    startDate = success.schedule.startDate,
+                    endDate = success.schedule.endDate,
+                    webLink = webLink,
+                )
+            },
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -284,20 +326,8 @@ fun CreateGuestScheduleSheet(
 
             Spacer(modifier = Modifier.height(18.dp))
             Button(
-                onClick = {
-                    webLink?.let { link ->
-                        com.example.moa_project.util.GuestLinkShareHelper.share(
-                            context = context,
-                            scheduleTitle = success.schedule.title,
-                            scheduleDescription = success.schedule.description,
-                            startDate = success.schedule.startDate,
-                            endDate = success.schedule.endDate,
-                            uniqueLink = success.schedule.uniqueLink,
-                            webLink = link,
-                        )
-                    }
-                },
-                enabled = linkReachable,
+                onClick = { showShareSheet = true },
+                enabled = webLink != null,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),

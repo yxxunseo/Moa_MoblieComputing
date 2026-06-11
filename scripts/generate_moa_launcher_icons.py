@@ -9,7 +9,9 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 RES = ROOT / "app" / "src" / "main" / "res"
+STATIC = ROOT / "moa-backend" / "src" / "main" / "resources" / "static"
 ASSETS = ROOT / "scripts" / "assets"
+KAKAO_SHARE_SIZE = 800
 
 BASIC = ASSETS / "ic_mascot_basic.png"
 SPARKLE = ASSETS / "ic_mascot_sparkle.png"
@@ -145,6 +147,13 @@ def export_in_app_character(
     save_png(fg, path)
 
 
+def export_kakao_share_image(fg_raw: Image.Image, path: Path) -> None:
+    """카카오톡 Feed 미리보기용 — 스파클 마스코트 + MOA 배경."""
+    fg_master = fit_character_on_canvas(fg_raw, 1024, CHARACTER_SCALE)
+    img = composite_on_background(fg_master, KAKAO_SHARE_SIZE, LAUNCHER_BG)
+    save_png(img, path)
+
+
 def load_foreground(source: Path) -> Image.Image:
     master = square_crop(Image.open(source).convert("RGBA"))
     return remove_solid_background(master)
@@ -198,6 +207,13 @@ def main() -> None:
     ASSETS.mkdir(parents=True, exist_ok=True)
     save_png(square_crop(Image.open(SPARKLE).convert("RGBA")), ASSETS / "ic_launcher_master.png")
     print(f"wrote {ASSETS / 'ic_launcher_master.png'}")
+
+    print("== kakao / web share mascot ==")
+    STATIC.mkdir(parents=True, exist_ok=True)
+    export_kakao_share_image(fg_sparkle, STATIC / "moa-kakao-share.png")
+    print(f"wrote {STATIC / 'moa-kakao-share.png'}")
+    export_in_app_character(fg_sparkle, STATIC / "join-mascot.png")
+    print(f"wrote {STATIC / 'join-mascot.png'}")
 
 
 if __name__ == "__main__":

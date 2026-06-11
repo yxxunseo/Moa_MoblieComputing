@@ -68,6 +68,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 @Composable
 fun LoginScreen(
     onLoginClick: () -> Unit = {},
+    onKakaoAuthSuccess: (LoginState.Success) -> Unit = {},
     onNavigateToSignUp: () -> Unit = {},
     authViewModel: AuthViewModel = viewModel(),
 ) {
@@ -78,7 +79,10 @@ fun LoginScreen(
         when (val state = loginState) {
             is LoginState.Success -> {
                 android.widget.Toast.makeText(context, "${state.provider} 로그인 성공!", android.widget.Toast.LENGTH_SHORT).show()
-                onLoginClick()
+                if (state.provider == "kakao") {
+                    onKakaoAuthSuccess(state)
+                    authViewModel.consumeLoginState()
+                }
             }
             is LoginState.Error -> {
                 android.widget.Toast.makeText(context, state.message, android.widget.Toast.LENGTH_LONG).show()
@@ -90,19 +94,27 @@ fun LoginScreen(
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
     ) { result ->
-        authViewModel.handleGoogleSignInResult(result.data, onSuccess = onLoginClick)
+        authViewModel.handleGoogleSignInResult(context, result.data, onSuccess = onLoginClick)
     }
 
-    val onGoogleLoginClick = {
-        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestIdToken(BuildConfig.GOOGLE_CLIENT_ID)
-            .requestEmail()
-            .build()
-        val googleSignInClient = GoogleSignIn.getClient(context, gso)
-        googleSignInLauncher.launch(googleSignInClient.signInIntent)
+    val onGoogleLoginClick: () -> Unit = {
+        val webClientId = BuildConfig.GOOGLE_CLIENT_ID
+        if (webClientId.isBlank()) {
+            authViewModel.reportGoogleConfigError(context)
+        } else {
+            val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestIdToken(webClientId)
+                .requestEmail()
+                .build()
+            val googleSignInClient = GoogleSignIn.getClient(context, gso)
+            // 이전 세션을 먼저 로그아웃하여 계정 선택 화면이 항상 표시되도록 함
+            googleSignInClient.signOut().addOnCompleteListener {
+                googleSignInLauncher.launch(googleSignInClient.signInIntent)
+            }
+        }
     }
 
-    val onKakaoLoginClick = { authViewModel.loginWithKakao(context, onSuccess = onLoginClick) }
+    val onKakaoLoginClick = { authViewModel.loginWithKakao(context) }
     var id by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 

@@ -15,15 +15,20 @@ import java.util.concurrent.TimeUnit
  */
 class AuthInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): okhttp3.Response {
+        val request = chain.request()
+        // 회원가입·로그인·중복 확인 등 공개 auth API에는 JWT를 붙이지 않음
+        if (request.url.encodedPath.startsWith("/api/auth/")) {
+            return chain.proceed(request)
+        }
         val token = TokenManager.getToken()
-        val request = if (token != null) {
-            chain.request().newBuilder()
+        val authedRequest = if (token != null) {
+            request.newBuilder()
                 .addHeader("Authorization", "Bearer $token")
                 .build()
         } else {
-            chain.request()
+            request
         }
-        return chain.proceed(request)
+        return chain.proceed(authedRequest)
     }
 }
 

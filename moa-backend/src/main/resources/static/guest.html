@@ -7,7 +7,7 @@
   <meta property="og:type" content="website" />
   <meta property="og:title" content="모아 · 일정 참여" />
   <meta property="og:description" content="가능한 시간을 선택해 일정에 참여해 주세요." />
-  <meta property="og:image" content="/kakao-guest-share.png" id="og-image" />
+  <meta property="og:image" content="/moa-kakao-share.png" id="og-image" />
   <meta property="og:url" content="" id="og-url" />
   <style>
     :root {
@@ -647,7 +647,7 @@
         const ogUrl = document.getElementById("og-url");
         const ogImage = document.getElementById("og-image");
         if (ogUrl) ogUrl.setAttribute("content", location.href.split("#")[0]);
-        if (ogImage) ogImage.setAttribute("content", `${apiBase}/kakao-guest-share.png`);
+        if (ogImage) ogImage.setAttribute("content", `${apiBase}/moa-kakao-share.png`);
         const ogDesc = document.querySelector('meta[property="og:description"]');
         if (ogDesc) ogDesc.setAttribute("content", `${schedule.title} · ${schedule.startDate} ~ ${schedule.endDate}`);
         const descEl = document.getElementById("desc");
@@ -733,9 +733,7 @@
           <p><strong>일정이 확정되었습니다!</strong></p>
           <p>참여해 주셔서 감사해요.<br/>좋은 시간 되세요 😊</p>
         </div>
-        <div id="statusPanel" style="margin-top:16px"></div>
       `;
-      loadStatusPanel();
     }
 
     /* 제출 완료 후·새로고침 후: 성공 메시지 + 조율 현황(히트맵) */
@@ -744,16 +742,19 @@
       document.getElementById("content").innerHTML = `
         <div class="success-msg">
           <strong>${escapeHtml(name)}</strong>님의 가능 시간이 등록되었습니다!<br/>
-          아래에서 참여 현황과 히트맵을 확인할 수 있어요. 호스트가 확정하면 이 페이지에 확정 시간이 표시됩니다.
+          아래에서 내 일정을 수정하거나 참여 현황을 확인할 수 있어요.
         </div>
+        <div class="card" style="margin-bottom:12px">
+          <label for="name">이름</label>
+          <input id="name" type="text" value="${escapeHtml(name)}" readonly style="background:#F5F7FC" />
+        </div>
+        <button type="button" class="primary" id="editSlotsBtn" style="margin-bottom:12px">내 일정 다시 수정하기</button>
         <div id="statusPanel"></div>
-        <button type="button" class="secondary-btn" id="editSlotsBtn">다시 시간 수정하기</button>
       `;
       loadStatusPanel();
       document.getElementById("editSlotsBtn").onclick = () => {
         restoreSelectionsFromParticipant(participantEntry || findParticipant(lastAnalysis, name));
         renderForm();
-        loadStatusPanel();
       };
     }
 
@@ -763,16 +764,17 @@
       const session = loadGuestSession();
       const alreadySubmitted = session?.guestName && findParticipant(lastAnalysis, session.guestName);
       document.getElementById("content").innerHTML = `
-        <div class="pending-notice">아직 일정이 확정되지 않았어요. 가능한 시간을 선택해 제출해주세요!</div>
+        <div class="pending-notice">아직 일정이 확정되지 않았어요. 이름을 입력하고 가능한 시간을 선택해 제출해주세요!</div>
         ${alreadySubmitted ? `<div class="success-msg" style="margin-bottom:12px">
-          <strong>${escapeHtml(session.guestName)}</strong>님은 이미 응답하셨어요. 수정하거나 아래 현황을 확인하세요.
+          <strong>${escapeHtml(session.guestName)}</strong>님은 이미 응답하셨어요. 아래에서 수정할 수 있어요.
         </div>` : ""}
-        <div id="statusPanel" style="margin-bottom:12px"></div>
         <div class="card">
+          <div class="section-title" style="margin-bottom:10px"><span>내 정보</span></div>
           <label for="name">이름</label>
           <input id="name" type="text" placeholder="예: 홍길동" maxlength="20" value="${escapeHtml(guestName)}" />
         </div>
         <div class="card">
+          <div class="section-title" style="margin-bottom:10px"><span>내 일정 등록</span></div>
           <div class="date-nav">
             <button type="button" id="prev" ${idx <= 0 ? "disabled" : ""}>◀</button>
             <span class="date-title" id="dateLabel">${currentDate}</span>
@@ -782,6 +784,7 @@
         </div>
         <button class="primary" id="submit">가능 시간 제출</button>
         <p class="error" id="err" hidden></p>
+        <div id="statusPanel" style="margin-top:14px"></div>
       `;
 
       document.getElementById("name").addEventListener("input", (e) => {

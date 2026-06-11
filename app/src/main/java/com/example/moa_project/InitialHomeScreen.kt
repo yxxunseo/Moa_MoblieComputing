@@ -81,6 +81,11 @@ import com.example.moa_project.ui.theme.MoaTextSecondary
 import com.example.moa_project.ui.theme.SBAggroFontFamily
 import com.example.moa_project.ui.theme.moaCardSurface
 import com.example.moa_project.util.MoaInAppNotificationStore
+import com.example.moa_project.util.NewScheduleReminderChecker
+import com.example.moa_project.util.FormSheetProperties
+import com.example.moa_project.util.KeyboardHideBackHandler
+import com.example.moa_project.util.rememberFormSheetDismissRequest
+import com.example.moa_project.util.rememberFormSheetState
 import kotlinx.coroutines.launch
 import java.time.format.DateTimeFormatter
 
@@ -107,6 +112,7 @@ fun InitialHomeScreen(
         if (currentRoute == "home") {
             userViewModel.fetchMyProfile()
             dashboardViewModel.refresh()
+            NewScheduleReminderChecker.checkAndNotify(context)
             unreadCount = runCatching { MoaInAppNotificationStore.unreadCount(context) }.getOrDefault(0)
         }
     }
@@ -115,7 +121,8 @@ fun InitialHomeScreen(
     val hasGroups = success?.groups?.isNotEmpty() == true
     val isDashboardLoading = dashboardState is HomeDashboardState.Loading
 
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var createSheetHasDraft by remember { mutableStateOf(false) }
+    val sheetState = rememberFormSheetState(skipPartiallyExpanded = true) { createSheetHasDraft }
     val coordinationSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     var showSheet by remember { mutableStateOf(false) }
@@ -133,14 +140,22 @@ fun InitialHomeScreen(
     }
 
     if (showSheet) {
+        val dismissCreateSheet = rememberFormSheetDismissRequest(
+            hasDraftInput = { createSheetHasDraft },
+        ) {
+            createSheetHasDraft = false
+            scope.launch { sheetState.hide() }.invokeOnCompletion { showSheet = false }
+        }
         ModalBottomSheet(
-            onDismissRequest = { showSheet = false },
+            onDismissRequest = dismissCreateSheet,
             sheetState = sheetState,
+            properties = FormSheetProperties,
             containerColor = Color.White,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         ) {
             CreateOrJoinMeetingSheet(
                 initialTab = sheetInitialTab,
+                onDraftInputChange = { createSheetHasDraft = it },
                 onDismiss = {
                     scope.launch { sheetState.hide() }.invokeOnCompletion { showSheet = false }
                 },
@@ -154,6 +169,7 @@ fun InitialHomeScreen(
                 },
             )
         }
+        KeyboardHideBackHandler()
     }
 
     if (showCoordinationSheet) {

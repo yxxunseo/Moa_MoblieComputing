@@ -26,7 +26,11 @@ data class LoginRequest(
 )
 
 data class GoogleLoginRequest(val idToken: String)
-data class KakaoLoginRequest(val accessToken: String)
+data class KakaoLoginRequest(
+    val accessToken: String,
+    val nickname: String? = null,
+    val profileImageUrl: String? = null,
+)
 
 data class RefreshRequest(val refreshToken: String)
 
@@ -90,7 +94,7 @@ class AuthController(
 
     // 아이디·이메일 중복 확인 (회원가입)
     @GetMapping("/check-login-id")
-    fun checkLoginId(@RequestParam loginId: String): ResponseEntity<AvailabilityResponse> {
+    fun checkLoginId(@RequestParam("loginId") loginId: String): ResponseEntity<AvailabilityResponse> {
         val trimmed = loginId.trim()
         if (trimmed.isBlank()) {
             return ResponseEntity.badRequest().body(AvailabilityResponse(available = false))
@@ -99,7 +103,7 @@ class AuthController(
     }
 
     @GetMapping("/check-email")
-    fun checkEmail(@RequestParam email: String): ResponseEntity<AvailabilityResponse> {
+    fun checkEmail(@RequestParam("email") email: String): ResponseEntity<AvailabilityResponse> {
         val trimmed = email.trim()
         if (trimmed.isBlank()) {
             return ResponseEntity.badRequest().body(AvailabilityResponse(available = false))
@@ -140,7 +144,13 @@ class AuthController(
     @PostMapping("/kakao")
     fun kakaoLogin(@RequestBody request: KakaoLoginRequest): ResponseEntity<Any> {
         return try {
-            ResponseEntity.ok(oAuthService.loginWithKakao(request.accessToken))
+            ResponseEntity.ok(
+                oAuthService.loginWithKakao(
+                    accessToken = request.accessToken,
+                    clientNickname = request.nickname,
+                    clientProfileImageUrl = request.profileImageUrl,
+                ),
+            )
         } catch (e: IllegalArgumentException) {
             ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(mapOf("message" to (e.message ?: "카카오 인증 실패")))

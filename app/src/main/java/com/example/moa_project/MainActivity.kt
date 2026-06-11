@@ -34,6 +34,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.moa_project.ui.login.LoginScreen
 import com.example.moa_project.ui.login.SignUpScreen
+import com.example.moa_project.ui.login.SocialNameSetupScreen
+import com.example.moa_project.ui.onboarding.OnboardingScreen
 import com.example.moa_project.ui.my.EditProfileScreen
 import com.example.moa_project.ui.my.UserViewModel
 import com.example.moa_project.ui.schedule.GroupScheduleResultScreen
@@ -59,6 +61,7 @@ import android.app.Activity
 import androidx.compose.ui.platform.LocalContext
 import com.example.moa_project.util.BusyTimeHelper
 import com.example.moa_project.util.MoaDeepLinkStore
+import com.example.moa_project.util.OnboardingManager
 import com.example.moa_project.util.ProfileImageCache
 import com.example.moa_project.network.TokenManager
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -113,6 +116,33 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private fun resolvePostAuthDestination(context: android.content.Context, fallback: String): String {
+    return if (OnboardingManager.shouldShow(context)) "onboarding" else fallback
+}
+
+private fun navigateAfterLogin(
+    context: android.content.Context,
+    navController: androidx.navigation.NavController,
+) {
+    val pendingJoin = MoaDeepLinkStore.consumeJoinCode()
+    val destination = if (!pendingJoin.isNullOrBlank()) {
+        "meetings_join/${pendingJoin.uppercase()}"
+    } else {
+        resolvePostAuthDestination(context, "home")
+    }
+    navController.navigateAfterAuth(destination, "login")
+}
+
+private fun androidx.navigation.NavController.navigateAfterAuth(
+    destination: String,
+    popUpToRoute: String,
+) {
+    navigate(destination) {
+        popUpTo(popUpToRoute) { inclusive = true }
+        launchSingleTop = true
+    }
+}
+
 /** 토큰·캐시·설정을 모두 지우고 Activity를 완전히 새로 시작 — 모든 ViewModel 초기화 */
 private fun restartApp(activity: Activity) {
     com.example.moa_project.util.GroupFavoriteManager.clearAll(activity)
@@ -133,7 +163,8 @@ fun MainScreen(
     initialGuestRoute: String? = null,
     initialJoinCode: String? = null,
 ) {
-    val activity = LocalContext.current as ComponentActivity
+    val context = LocalContext.current
+    val activity = context as ComponentActivity
     val userViewModel: UserViewModel = viewModel(activity)
     val navController = rememberNavController()
     // 현재 네비게이션 상태를 가져옴
@@ -186,7 +217,11 @@ fun MainScreen(
                             }
                         }
                         else -> {
-                            val destination = if (TokenManager.isLoggedIn()) "home" else "login"
+                            val destination = when {
+                                !TokenManager.isLoggedIn() -> "login"
+                                OnboardingManager.shouldShow(context) -> "onboarding"
+                                else -> "home"
+                            }
                             navController.navigate(destination) {
                                 popUpTo("splash") { inclusive = true }
                                 launchSingleTop = true
@@ -201,15 +236,18 @@ fun MainScreen(
         composable("login") {
             LoginScreen(
                 onLoginClick = {
-                    val pendingJoin = MoaDeepLinkStore.consumeJoinCode()
-                    val destination = if (!pendingJoin.isNullOrBlank()) {
-                        "meetings_join/${pendingJoin.uppercase()}"
-                    } else {
-                        "home"
-                    }
-                    navController.navigate(destination) {
-                        popUpTo("login") { inclusive = true }
-                        launchSingleTop = true
+                    navigateAfterLogin(context, navController)
+                },
+                onKakaoAuthSuccess = { success ->
+                    when {
+                        success.needsNicknameSetup -> {
+                            navController.navigateAfterAuth("social_name_setup", "login")
+                        }
+                        success.isNewUser -> {
+                            OnboardingManager.markPendingForCurrentSession(context)
+                            navController.navigateAfterAuth("onboarding", "login")
+                        }
+                        else -> navigateAfterLogin(context, navController)
                     }
                 },
                 onNavigateToSignUp = {
@@ -218,15 +256,39 @@ fun MainScreen(
             )
         }
 
+        composable("social_name_setup") {
+            SocialNameSetupScreen(
+                onComplete = {
+                    val destination = if (OnboardingManager.shouldShow(context)) {
+                        OnboardingManager.markPendingForCurrentSession(context)
+                        "onboarding"
+                    } else {
+                        resolvePostAuthDestination(context, "home")
+                    }
+                    navController.navigateAfterAuth(destination, "social_name_setup")
+                },
+            )
+        }
+
         composable("signup") {
             SignUpScreen(
                 onBackClick = { navController.popBackStack() },
                 onSignUpSuccess = {
+                    OnboardingManager.markPendingForCurrentSession(context)
+                    navController.navigateAfterAuth("onboarding", "signup")
+                }
+            )
+        }
+
+        composable("onboarding") {
+            OnboardingScreen(
+                onComplete = {
+                    OnboardingManager.markCompleted(context)
                     navController.navigate("home") {
-                        popUpTo("login") { inclusive = true }
+                        popUpTo("onboarding") { inclusive = true }
                         launchSingleTop = true
                     }
-                }
+                },
             )
         }
 
@@ -499,7 +561,8 @@ fun MainScreen(
                         popUpTo("home") { inclusive = false }
                         launchSingleTop = true
                     }
-                }
+                },
+                onScheduleDeleted = { navController.popBackStack() },
             )
         }
     }

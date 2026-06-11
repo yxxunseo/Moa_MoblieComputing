@@ -22,6 +22,7 @@ data class ScheduleResponse(
     val respondedCount: Long,
     val totalMembers: Long,
     val isWeeklyRecurring: Boolean = false,
+    val canConfirm: Boolean = false,
 )
 
 data class WeeklyReminderResponse(
@@ -31,6 +32,13 @@ data class WeeklyReminderResponse(
     val daysUntilDeadline: Int,
     val hasSubmitted: Boolean,
     val deadlineLabel: String = "일요일",
+)
+
+data class PendingScheduleReminderResponse(
+    val scheduleId: Long,
+    val groupName: String,
+    val title: String,
+    val createdAt: String,
 )
 
 data class TimeSlotDto(val start: String, val end: String)
@@ -55,7 +63,7 @@ data class ScheduleAnalysisResponse(
     val allMembers: List<String> = emptyList(),
 )
 
-fun Schedule.toResponse(respondedCount: Long, totalMembers: Long): ScheduleResponse {
+fun Schedule.toResponse(respondedCount: Long, totalMembers: Long, userId: Long? = null): ScheduleResponse {
     val displayStatus = if (
         status == "CONFIRMED" &&
         confirmedEnd != null &&
@@ -65,6 +73,11 @@ fun Schedule.toResponse(respondedCount: Long, totalMembers: Long): ScheduleRespo
     } else {
         status
     }
+
+    val creatorId = createdBy?.id
+    val canConfirm = userId != null &&
+        status in listOf("WAITING", "ADJUSTING") &&
+        (creatorId == null || creatorId == userId)
 
     return ScheduleResponse(
         id = id,
@@ -78,6 +91,7 @@ fun Schedule.toResponse(respondedCount: Long, totalMembers: Long): ScheduleRespo
         respondedCount = respondedCount,
         totalMembers = totalMembers,
         isWeeklyRecurring = isWeeklyRecurring,
+        canConfirm = canConfirm,
     )
 }
 
@@ -88,7 +102,8 @@ class ScheduleService(
     private val userRepository: UserRepository,
     private val groupMemberRepository: GroupMemberRepository,
     private val timeSlotRepository: TimeSlotRepository,
-    private val calendarEventRepository: CalendarEventRepository
+    private val calendarEventRepository: CalendarEventRepository,
+    private val scheduleReactionRepository: ScheduleReactionRepository,
 ) {
     @Transactional
     fun createSchedule(
@@ -124,7 +139,7 @@ class ScheduleService(
         )
         
         val totalMembers = groupMemberRepository.countByGroup(group)
-        return schedule.toResponse(0, totalMembers)
+        return schedule.toResponse(0, totalMembers, userId)
     }
 
     @Transactional
@@ -148,9 +163,43 @@ class ScheduleService(
 
         return schedules.map { schedule ->
             val respondedCount = respondedCountById[schedule.id] ?: 0L
-            schedule.toResponse(respondedCount, totalMembers)
+            schedule.toResponse(respondedCount, totalMembers, userId)
         }
     }
+
+    @Transactional
+    fun deleteCompletedSchedule(userId: Long, scheduleId: Long): Map<String, String> {
+        val user = userRepository.findById(userId).orElseThrow { IllegalArgumentException("사용자를 찾을 수 없습니다.") }
+        val schedule = scheduleRepository.findById(scheduleId).orElseThrow { IllegalArgumentException("일정을 찾을 수 없습니다.") }
+        val group = schedule.group ?: throw IllegalArgumentException("일정의 그룹 정보가 없습니다.")
+
+        if (!groupMemberRepository.existsByGroupAndUser(group, user)) {
+            throw IllegalArgumentException("해당 그룹의 멤버가 아닙니다.")
+        }
+
+        if (!isCompletedSchedule(schedule)) {
+            throw IllegalArgumentException("완료된 일정만 삭제할 수 있습니다.")
+        }
+
+        val member = groupMemberRepository.findByGroupAndUser(group, user)
+        val isAdmin = member?.role == "ADMIN"
+        val isCreator = schedule.createdBy?.id == userId
+        if (!isAdmin && !isCreator) {
+            throw IllegalArgumentException("일정 삭제 권한이 없습니다. (관리자 또는 일정 생성자만 삭제할 수 있습니다)")
+        }
+
+        calendarEventRepository.deleteAllBySchedule(schedule)
+        timeSlotRepository.deleteAllBySchedule(schedule)
+        scheduleReactionRepository.deleteAllBySchedule(schedule)
+        scheduleRepository.delete(schedule)
+
+        return mapOf("message" to "완료된 일정이 삭제되었습니다.")
+    }
+
+    private fun isCompletedSchedule(schedule: Schedule): Boolean =
+        schedule.status == "CONFIRMED" &&
+            schedule.confirmedEnd != null &&
+            schedule.confirmedEnd!!.isBefore(LocalDateTime.now())
 
     @Transactional(readOnly = true)
     fun getScheduleDetail(userId: Long, scheduleId: Long): ScheduleResponse {
@@ -158,7 +207,7 @@ class ScheduleService(
         val group = schedule.group ?: throw IllegalArgumentException("일정의 그룹 정보가 없습니다.")
         val totalMembers = groupMemberRepository.countByGroup(group)
         val respondedCount = timeSlotRepository.countDistinctRespondedUsers(schedule)
-        return schedule.toResponse(respondedCount, totalMembers)
+        return schedule.toResponse(respondedCount, totalMembers, userId)
     }
 
     @Transactional(readOnly = true)
@@ -255,6 +304,29 @@ class ScheduleService(
             heatmapMembers = result.heatmapMembers,
             allMembers = allMemberNames,
         )
+    }
+
+    @Transactional(readOnly = true)
+    fun getPendingScheduleReminders(userId: Long): List<PendingScheduleReminderResponse> {
+        val user = userRepository.findById(userId).orElseThrow { IllegalArgumentException("사용자를 찾을 수 없습니다.") }
+        val memberships = groupMemberRepository.findAllByUser(user)
+
+        return memberships.flatMap { membership ->
+            val group = membership.group ?: return@flatMap emptyList()
+            scheduleRepository.findAllByGroup(group)
+                .filter { it.status in listOf("WAITING", "ADJUSTING") }
+                .mapNotNull { schedule ->
+                    if (schedule.createdBy?.id == user.id) return@mapNotNull null
+                    val hasSubmitted = timeSlotRepository.findAllByScheduleAndUser(schedule, user).isNotEmpty()
+                    if (hasSubmitted) return@mapNotNull null
+                    PendingScheduleReminderResponse(
+                        scheduleId = schedule.id,
+                        groupName = group.name,
+                        title = schedule.title,
+                        createdAt = schedule.createdAt.toString(),
+                    )
+                }
+        }
     }
 
     @Transactional

@@ -7,6 +7,7 @@ import com.example.moa_project.network.GroupResponse
 import com.example.moa_project.network.RetrofitClient
 import com.example.moa_project.network.ScheduleDetailResponse
 import com.example.moa_project.network.TokenManager
+import com.example.moa_project.network.PendingScheduleReminderDto
 import com.example.moa_project.network.WeeklyReminderDto
 import com.example.moa_project.ui.home.HomeEventLoader
 import com.example.moa_project.util.MoaInAppNotificationStore
@@ -78,9 +79,20 @@ class NotificationsViewModel : ViewModel() {
     }
 
     private suspend fun loadRemoteNotifications(context: Context): List<MoaNotification> = buildList {
+        addAll(pendingScheduleNotifications())
         addAll(weeklyReminderNotifications())
         addAll(groupNotifications(safeGroups()))
         addAll(guestNotifications(context))
+    }
+
+    private suspend fun pendingScheduleNotifications(): List<MoaNotification> {
+        return runCatching {
+            withTimeoutOrNull(REMOTE_TIMEOUT_MS) {
+                RetrofitClient.instance.getPendingScheduleReminders()
+            }.orEmpty()
+        }.getOrDefault(emptyList()).map { reminder ->
+            pendingScheduleToNotification(reminder)
+        }
     }
 
     private suspend fun weeklyReminderNotifications(): List<MoaNotification> {
@@ -118,7 +130,6 @@ class NotificationsViewModel : ViewModel() {
 
             schedules.forEach { schedule ->
                 scheduleToNotification(schedule, group.name)?.let { result += it }
-                pendingScheduleNotification(schedule, group.name)?.let { result += it }
             }
         }
         return result
@@ -167,20 +178,29 @@ class NotificationsViewModel : ViewModel() {
         )
     }
 
-    private fun pendingScheduleNotification(
-        schedule: ScheduleDetailResponse,
-        groupName: String,
-    ): MoaNotification? {
-        if (schedule.status != "WAITING" && schedule.status != "ADJUSTING") return null
-        val key = "pending-${schedule.id}"
+    private fun pendingScheduleToNotification(
+        reminder: PendingScheduleReminderDto,
+    ): MoaNotification {
+        val key = "pending-${reminder.scheduleId}"
+        val ctx = appContext
+        val receivedAt = ctx?.let { MoaInAppNotificationStore.getReceivedAt(it, key) }
+            ?: parseCreatedAt(reminder.createdAt)
+            ?: LocalDateTime.now()
         return MoaNotification(
             id = key,
-            type = if (schedule.status == "WAITING") MoaNotificationType.WAITING else MoaNotificationType.ADJUSTING,
-            title = schedule.title,
-            body = "$groupName · 가능한 시간을 등록해주세요 (${schedule.respondedCount}/${schedule.totalMembers}명 응답)",
-            timestamp = LocalDateTime.now(),
-            targetRoute = "schedule_coordination_group/${schedule.id}",
+            type = MoaNotificationType.WAITING,
+            title = "새 일정이 추가됐어요",
+            body = "${reminder.groupName} · ${reminder.title} · 일정 조율을 위해 가능한 시간을 등록해주세요",
+            timestamp = receivedAt,
+            targetRoute = "schedule_coordination_group/${reminder.scheduleId}",
         )
+    }
+
+    private fun parseCreatedAt(raw: String): LocalDateTime? {
+        return runCatching { LocalDateTime.parse(raw) }.getOrNull()
+            ?: runCatching {
+                LocalDateTime.parse(raw, DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"))
+            }.getOrNull()
     }
 
     private fun weeklyReminderBody(reminder: WeeklyReminderDto): String = when (reminder.daysUntilDeadline) {
