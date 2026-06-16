@@ -2,7 +2,7 @@
 
 > **"함께 시간을 '모아' 더 좋은 순간을 만든다"**
 
-한밭대학교 모바일컴퓨팅과응용 프로젝트 (2025-1)
+한밭대학교 모바일컴퓨팅과응용 프로젝트 (2026-1)
 
 📄 **[발표 자료 보기](01_Presentation/모컴_프로젝트.pdf)**
 
@@ -35,7 +35,6 @@
 | **Android** | Kotlin, Jetpack Compose |
 | **Backend** | Spring Boot (Kotlin) |
 | **인증** | Firebase Auth |
-| **DB** | (백엔드 설정 참고) |
 
 ---
 
